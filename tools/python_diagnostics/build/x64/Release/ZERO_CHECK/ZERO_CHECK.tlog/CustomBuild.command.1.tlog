@@ -1,0 +1,10 @@
+^C:\USERS\DPAHU\DESKTOP\GODSENSE\TOOLS\PYTHON_DIAGNOSTICS\BUILD\CMAKEFILES\D26EF6A3934493EA833ADD514483C1AC\GENERATE.STAMP.RULE
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/dpahu/Desktop/GodSense/tools/python_diagnostics -BC:/Users/dpahu/Desktop/GodSense/tools/python_diagnostics/build --check-stamp-list CMakeFiles/generate.stamp.list --vs-solution-file C:/Users/dpahu/Desktop/GodSense/tools/python_diagnostics/build/scoutr_python_launcher.sln
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
