@@ -12,6 +12,7 @@ import 'application/cv_corpus_comparator.dart';
 import 'application/native_vision_controller.dart';
 import 'application/native_league_controller.dart';
 import 'application/overlay_layout_controller.dart';
+import 'application/overlay_parity_logger.dart';
 import 'application/python_vision_diagnostics_controller.dart';
 import 'domain/companion_models.dart';
 
@@ -25,6 +26,7 @@ final overlayOpenProvider = StateProvider<bool>((ref) => false);
 
 final appProviderContainer = ProviderContainer();
 final overlayWindowManager = OverlayWindowManager(appProviderContainer);
+final overlayParityLogger = OverlayParityLogger();
 final forceNativeVision =
     Platform.environment['GODSENSE_NATIVE_VISION_ALWAYS'] == '1';
 
@@ -152,6 +154,35 @@ class GodSenseHome extends ConsumerWidget {
       if (alert != null && alert != previous?.alerts.firstOrNull) {
         ref.read(nativeVisionProvider.notifier).recordLegacy(alert);
       }
+      overlayParityLogger.record(
+        next,
+        ref.read(nativeVisionProvider),
+        ref.read(effectiveGameProvider),
+      );
+    });
+    ref.listen(nativeVisionProvider, (previous, next) {
+      final proposal = next.calibrationProposal;
+      if (proposal != null &&
+          proposal != previous?.calibrationProposal &&
+          ref.read(effectiveGameProvider) != null) {
+        unawaited(
+          ref
+              .read(companionControllerProvider.notifier)
+              .saveManualCalibration(proposal.bounds),
+        );
+      }
+      overlayParityLogger.record(
+        ref.read(companionControllerProvider),
+        next,
+        ref.read(effectiveGameProvider),
+      );
+    });
+    ref.listen(nativeLeagueProvider, (previous, next) {
+      overlayParityLogger.record(
+        ref.read(companionControllerProvider),
+        ref.read(nativeVisionProvider),
+        ref.read(effectiveGameProvider),
+      );
     });
     ref.listen(nativeLeagueProvider, (previous, next) {
       final game = next.liveGame == null
@@ -1857,7 +1888,6 @@ class _GodSenseOverlayState extends ConsumerState<GodSenseOverlay> {
 
   @override
   Widget build(BuildContext context) {
-    final source = ref.watch(trackerSourceProvider);
     final backend = ref.watch(companionControllerProvider);
     final nativeVision = ref.watch(nativeVisionProvider);
     final game = ref.watch(effectiveGameProvider);
@@ -1869,6 +1899,14 @@ class _GodSenseOverlayState extends ConsumerState<GodSenseOverlay> {
     final gank = backend.alerts
         .where((alert) => alert.kind == CompanionAlertKind.gank)
         .where((alert) => _now.difference(alert.receivedAt).inSeconds < 5)
+        .firstOrNull;
+    final nativeGank = nativeVision.events
+        .where((event) => event.kind == NativeTrackerEventKind.gank)
+        .where((event) => _now.difference(event.timestamp).inSeconds < 5)
+        .firstOrNull;
+    final nativeSighting = nativeVision.events
+        .where((event) => event.kind == NativeTrackerEventKind.junglerSighting)
+        .where((event) => _now.difference(event.timestamp).inSeconds < 180)
         .firstOrNull;
     final voice = backend.alerts
         .where((alert) => alert.kind == CompanionAlertKind.voice)
@@ -1900,20 +1938,6 @@ class _GodSenseOverlayState extends ConsumerState<GodSenseOverlay> {
         return 0;
       });
     final hiddenPanels = backend.settings?.overlayHiddenPanels ?? const [];
-    final nativeBounds = nativeVision.bounds;
-    final nativeRegions =
-        nativeVision.frame?.detections
-            .where((detection) => detection.championName != null)
-            .map(
-              (detection) => detection.regionFor(
-                (nativeBounds?['width'] as num?)?.round() ?? 1,
-                (nativeBounds?['height'] as num?)?.round() ?? 1,
-              ),
-            )
-            .toSet()
-            .join(' · ') ??
-        '';
-    final latestNativeEvent = nativeVision.events.firstOrNull;
     ref.listen(overlayLayoutProvider.select((state) => state.editing), (
       previous,
       editing,
@@ -1948,161 +1972,66 @@ class _GodSenseOverlayState extends ConsumerState<GodSenseOverlay> {
               left: 0,
               right: 0,
               child: Center(
-                child: Card(
-                  color: Theme.of(context).colorScheme.primaryContainer,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.open_with),
-                        const SizedBox(width: 8),
-                        const Text(
-                          'Modo edición: arrastra, redimensiona o colapsa paneles',
-                        ),
-                        const SizedBox(width: 12),
-                        TextButton(
-                          onPressed: () => ref
-                              .read(overlayLayoutProvider.notifier)
-                              .setEditing(false),
-                          child: const Text('Terminar'),
-                        ),
-                      ],
-                    ),
+                child: _OverlayGlassCard(
+                  borderColor: Theme.of(context).colorScheme.primary,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
                   ),
-                ),
-              ),
-            ),
-          _EditableOverlayPanel(
-            id: 'status',
-            title: 'Estado',
-            child: Card(
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text('GodSense overlay'),
-                    Text(
-                      source == TrackerSource.python
-                          ? 'Tracker: Python backend'
-                          : 'Tracker: DartCV native',
-                    ),
-                    Text(
-                      'Backend: ${backend.connection.name} · WS: ${backend.webSocketConnected ? 'live' : 'reconnecting'}',
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          _EditableOverlayPanel(
-            id: 'native_vision',
-            title: 'Tracker nativo',
-            child: Card(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  ListTile(
-                    leading: const Icon(Icons.memory),
-                    title: Text(
-                      'DartCV · ${nativeVision.frame?.detections.where((detection) => detection.championName != null).length ?? 0} identificados '
-                      '/ ${nativeVision.frame?.detections.length ?? 0} anillos',
-                    ),
-                    subtitle: Text(
-                      nativeVision.error ??
-                          '${nativeVision.fps.toStringAsFixed(1)} FPS · '
-                              'CV ${nativeVision.averageCvMilliseconds.toStringAsFixed(1)} ms avg / '
-                              '${nativeVision.p95CvMilliseconds.toStringAsFixed(1)} p95 · '
-                              'GDI ${nativeVision.averageCaptureMilliseconds.toStringAsFixed(1)} ms · '
-                              '${nativeVision.frame == null ? 'Esperando captura' : _formatTimestamp(nativeVision.frame!.processedAt)}'
-                              '${nativeRegions.isEmpty ? '' : '\n$nativeRegions'}',
-                    ),
-                  ),
-                  ...nativeVision.identified.values.map(
-                    (identified) => ListTile(
-                      dense: true,
-                      leading: const Icon(Icons.memory),
-                      title: Text(identified.name),
-                      subtitle: Text(
-                        '${identified.region} · ${(identified.confidence * 100).toStringAsFixed(1)}% · '
-                        '${_formatTimestamp(identified.lastSeen)}',
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.open_with, color: Color(0xFF38BDF8)),
+                      const SizedBox(width: 8),
+                      const Text(
+                        'Modo edición: arrastra, redimensiona o colapsa paneles',
+                        style: TextStyle(fontWeight: FontWeight.w600),
                       ),
-                    ),
+                      const SizedBox(width: 12),
+                      FilledButton.tonal(
+                        onPressed: () => ref
+                            .read(overlayLayoutProvider.notifier)
+                            .setEditing(false),
+                        child: const Text('Terminar'),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-            ),
-          ),
-          if (latestNativeEvent != null || layout.editing)
-            _EditableOverlayPanel(
-              id: 'native_alerts',
-              title: 'Alertas nativas',
-              child: Card(
-                child: ListTile(
-                  leading: Icon(
-                    latestNativeEvent?.kind == NativeTrackerEventKind.gank
-                        ? Icons.warning_amber
-                        : Icons.visibility,
-                  ),
-                  title: Text(
-                    latestNativeEvent == null
-                        ? 'Esperando alerta nativa…'
-                        : latestNativeEvent.kind == NativeTrackerEventKind.gank
-                        ? 'Gank: ${latestNativeEvent.champion}'
-                        : 'Jungla: ${latestNativeEvent.champion}',
-                  ),
-                  subtitle: latestNativeEvent == null
-                      ? null
-                      : Text(
-                          '${latestNativeEvent.location} · ${latestNativeEvent.region} · '
-                          '${_formatTimestamp(latestNativeEvent.timestamp)}',
-                        ),
                 ),
               ),
             ),
-          if (gank != null || layout.editing)
+          if (nativeGank != null || gank != null || layout.editing)
             _EditableOverlayPanel(
               id: 'gank',
               title: 'Alerta de gank',
-              child: Card(
+              child: _OverlayGlassCard(
+                borderColor:
+                    nativeGank != null || gank?.raw['threat_level'] == 'DANGER'
+                    ? const Color(0xFFEF4444)
+                    : const Color(0xFFF59E0B),
                 child: ListTile(
                   leading: Icon(
                     Icons.warning_amber,
-                    color: gank?.raw['threat_level'] == 'DANGER'
-                        ? Colors.red
-                        : Colors.orange,
+                    color:
+                        nativeGank != null ||
+                            gank?.raw['threat_level'] == 'DANGER'
+                        ? Colors.redAccent
+                        : Colors.orangeAccent,
+                    size: 32,
                   ),
-                  title: Text(gank?.title ?? 'Amenaza de gank'),
+                  title: Text(
+                    nativeGank != null
+                        ? 'DANGER: ${nativeGank.champion}'
+                        : gank?.title ?? 'Amenaza de gank',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
                   subtitle: Text(
-                    gank?.message ?? 'Esperando una amenaza de gank…',
-                  ),
-                ),
-              ),
-            ),
-          if ((sighting != null || layout.editing) &&
-              !hiddenPanels.contains('jungler'))
-            _EditableOverlayPanel(
-              id: 'sighting',
-              title: 'Avistamiento',
-              child: Card(
-                child: ListTile(
-                  leading: _NetworkPortrait(
-                    url: sighting == null
-                        ? null
-                        : _championIconForAlert(sighting, enemies),
-                    size: 48,
-                  ),
-                  title: Text(sighting?.title ?? 'Avistamiento del jungla'),
-                  subtitle: Text(
-                    sighting == null
-                        ? 'Esperando un avistamiento…'
-                        : '${sighting.message} · hace '
-                              '${_formatDuration(_now.difference(sighting.receivedAt).inSeconds)}',
+                    nativeGank != null
+                        ? '${nativeGank.location} · ${nativeGank.role} · DartCV'
+                        : gank?.message ?? 'Esperando una amenaza de gank…',
+                    style: const TextStyle(color: Color(0xFFCBD5E1)),
                   ),
                 ),
               ),
@@ -2111,71 +2040,84 @@ class _GodSenseOverlayState extends ConsumerState<GodSenseOverlay> {
             _EditableOverlayPanel(
               id: 'jungler',
               title: 'Jungla enemigo',
-              child: Card(
-                child: ListTile(
-                  leading: _NetworkPortrait(
-                    url: jungler?['icon_url']?.toString(),
-                    size: 56,
-                  ),
-                  title: Text(
-                    '${jungler?['champion_name'] ?? 'Jungla enemigo'} · JUNGLE',
-                  ),
-                  subtitle: Text(
-                    jungler == null
-                        ? 'Esperando identificación del jungla…'
-                        : _enemyLocationStatus(jungler),
-                  ),
-                  trailing: jungler?['is_mia'] == true
-                      ? Text(
-                          _formatDuration(
-                            (jungler?['mia_duration'] as num?)?.toDouble() ?? 0,
-                          ),
-                        )
-                      : null,
-                ),
-              ),
-            ),
-          if (!hiddenPanels.contains('gank'))
-            _EditableOverlayPanel(
-              id: 'threats',
-              title: 'Amenazas',
-              child: Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Amenazas · ${threats.where((enemy) => enemy['is_mia'] == true).length} MIA',
+              child: _OverlayGlassCard(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ListTile(
+                      leading: _NetworkPortrait(
+                        url: jungler?['icon_url']?.toString(),
+                        size: 56,
                       ),
-                      const Divider(),
-                      if (threats.isEmpty)
-                        const Text('Esperando enemigos de la partida…'),
-                      for (final enemy in threats.take(5))
-                        ListTile(
-                          dense: true,
-                          contentPadding: EdgeInsets.zero,
-                          leading: _NetworkPortrait(
-                            url: enemy['icon_url']?.toString(),
-                            size: 36,
-                          ),
-                          title: Text(
-                            '${enemy['champion_name'] ?? '?'} · ${enemy['role'] ?? ''}',
-                          ),
-                          subtitle: Text(_enemyLocationStatus(enemy)),
-                          trailing: enemy['is_mia'] == true
-                              ? Text(
-                                  _formatDuration(
-                                    (enemy['mia_duration'] as num?)
-                                            ?.toDouble() ??
-                                        0,
-                                  ),
-                                )
-                              : null,
+                      title: Text(
+                        '${jungler?['champion_name'] ?? 'Jungla enemigo'} · JUNGLE',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF38BDF8),
                         ),
-                    ],
-                  ),
+                      ),
+                      subtitle: Text(
+                        jungler == null
+                            ? 'Esperando identificación del jungla…'
+                            : _enemyLocationStatus(
+                                jungler,
+                                native: _nativeForEnemy(
+                                  nativeVision.lastKnown,
+                                  jungler,
+                                ),
+                                now: _now,
+                              ),
+                        style: const TextStyle(color: Color(0xFFCBD5E1)),
+                      ),
+                    ),
+                    if (nativeSighting != null || sighting != null)
+                      ListTile(
+                        dense: true,
+                        leading: const Icon(
+                          Icons.visibility,
+                          color: Color(0xFF38BDF8),
+                        ),
+                        title: Text(
+                          nativeSighting != null
+                              ? '${nativeSighting.champion} visto en ${nativeSighting.location}'
+                              : sighting!.title,
+                          style: const TextStyle(color: Colors.white),
+                        ),
+                        subtitle: Text(
+                          nativeSighting != null
+                              ? '${nativeSighting.region} · hace ${_formatDuration(_now.difference(nativeSighting.timestamp).inSeconds)} · DartCV'
+                              : '${sighting!.message} · hace ${_formatDuration(_now.difference(sighting.receivedAt).inSeconds)}',
+                          style: const TextStyle(color: Color(0xFF94A3B8)),
+                        ),
+                      ),
+                    const Divider(color: Color(0x3338BDF8), height: 1),
+                    for (final enemy in threats.take(5))
+                      ListTile(
+                        dense: true,
+                        leading: _NetworkPortrait(
+                          url: enemy['icon_url']?.toString(),
+                          size: 32,
+                        ),
+                        title: Text(
+                          '${enemy['champion_name'] ?? '?'} · ${enemy['role'] ?? ''}',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
+                        ),
+                        subtitle: Text(
+                          _enemyLocationStatus(
+                            enemy,
+                            native: _nativeForEnemy(
+                              nativeVision.lastKnown,
+                              enemy,
+                            ),
+                            now: _now,
+                          ),
+                          style: const TextStyle(color: Color(0xFF94A3B8)),
+                        ),
+                      ),
+                  ],
                 ),
               ),
             ),
@@ -2184,7 +2126,8 @@ class _GodSenseOverlayState extends ConsumerState<GodSenseOverlay> {
             _EditableOverlayPanel(
               id: 'voice_ask',
               title: 'Coach de voz',
-              child: Card(
+              child: _OverlayGlassCard(
+                borderColor: const Color(0xFF818CF8),
                 child: ListTile(
                   leading: Icon(
                     voice?.raw['state'] == 'recording'
@@ -2194,16 +2137,22 @@ class _GodSenseOverlayState extends ConsumerState<GodSenseOverlay> {
                         : voice?.raw['state'] == 'error'
                         ? Icons.error_outline
                         : Icons.record_voice_over,
+                    color: const Color(0xFF818CF8),
                   ),
                   title: Text(
                     voice?.raw['question']?.toString() ??
                         voice?.title ??
                         'Coach de voz',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
                   ),
                   subtitle: Text(
                     voice == null
                         ? 'Esperando una interacción de voz…'
                         : _voiceMessage(voice),
+                    style: const TextStyle(color: Color(0xFFCBD5E1)),
                   ),
                 ),
               ),
@@ -2274,13 +2223,22 @@ class _GodSenseOverlayState extends ConsumerState<GodSenseOverlay> {
               child: _OverlayInfoCard(
                 title: 'Composición',
                 width: 360,
-                child: Text(
-                  backend.coaching['team_comp'] is Map
-                      ? (backend.coaching['team_comp'] as Map)['identity']
-                                ?.toString() ??
-                            'Esperando identidad…'
-                      : 'Esperando composición del equipo…',
-                ),
+                child: backend.coaching['team_comp'] is Map
+                    ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            (backend.coaching['team_comp'] as Map)['identity']
+                                    ?.toString() ??
+                                'Composición detectada',
+                          ),
+                          ..._stringValues(
+                            (backend.coaching['team_comp']
+                                as Map)['guidelines'],
+                          ).map((value) => Text('• $value')),
+                        ],
+                      )
+                    : _NativeCompositionView(game: game),
               ),
             ),
           if (gank != null && backend.calibration?.bounds != null)
@@ -2293,34 +2251,37 @@ class _GodSenseOverlayState extends ConsumerState<GodSenseOverlay> {
             _EditableOverlayPanel(
               id: 'gold_chart',
               title: 'Diferencia de oro',
-              child: Card(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 14,
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      const Text('Diferencia de oro'),
-                      Text(
-                        goldDifference == null
-                            ? 'Esperando partida…'
-                            : _signedNumber(goldDifference),
-                        style: Theme.of(context).textTheme.headlineMedium
-                            ?.copyWith(
-                              color:
-                                  goldDifference == null || goldDifference == 0
-                                  ? null
-                                  : goldDifference > 0
-                                  ? Colors.greenAccent
-                                  : Colors.redAccent,
-                              fontWeight: FontWeight.bold,
-                            ),
+              child: _OverlayGlassCard(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 14,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    const Text(
+                      'Diferencia de oro',
+                      style: TextStyle(
+                        color: Color(0xFF94A3B8),
+                        fontWeight: FontWeight.w600,
                       ),
-                    ],
-                  ),
+                    ),
+                    Text(
+                      goldDifference == null
+                          ? 'Esperando partida…'
+                          : _signedNumber(goldDifference),
+                      style: Theme.of(context).textTheme.headlineMedium
+                          ?.copyWith(
+                            color: goldDifference == null || goldDifference == 0
+                                ? const Color(0xFFE2E8F0)
+                                : goldDifference > 0
+                                ? const Color(0xFF4ADE80)
+                                : const Color(0xFFF87171),
+                            fontWeight: FontWeight.bold,
+                          ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -2337,10 +2298,18 @@ class OverlayWindowManager extends WindowObserver {
   int? _viewId;
   Future<int>? _opening;
 
+  bool get isOpen => container.read(overlayOpenProvider);
+  int? get viewId => _viewId;
+
   Future<void> toggle(BuildContext ownerContext) async {
-    if (_viewId != null &&
-        MultiViewDesktop.allWindowViewIds.contains(_viewId)) {
-      await close();
+    final existing = _viewId;
+    if (existing != null &&
+        MultiViewDesktop.allWindowViewIds.contains(existing)) {
+      if (isOpen) {
+        await hide();
+      } else {
+        await show(ownerContext);
+      }
       return;
     }
     await open(ownerContext);
@@ -2350,7 +2319,7 @@ class OverlayWindowManager extends WindowObserver {
     final existing = _viewId;
     if (existing != null &&
         MultiViewDesktop.allWindowViewIds.contains(existing)) {
-      await MultiViewDesktop.fromId(existing).show();
+      await show(ownerContext);
       return existing;
     }
 
@@ -2380,6 +2349,7 @@ class OverlayWindowManager extends WindowObserver {
       await window.setResizable(false);
       await window.setMovable(false);
       await window.setIgnoreMouseEvents(true);
+      await window.hideCurrentAppTabFromTaskbar(true);
       container.read(overlayOpenProvider.notifier).state = true;
 
       await MultiViewDesktop.fromId(ownerId).focus();
@@ -2389,15 +2359,33 @@ class OverlayWindowManager extends WindowObserver {
     }
   }
 
-  Future<void> close() async {
+  Future<void> show([BuildContext? ownerContext]) async {
     final id = _viewId;
-    if (id == null || !MultiViewDesktop.allWindowViewIds.contains(id)) {
-      _viewId = null;
-      container.read(overlayOpenProvider.notifier).state = false;
+    if (id != null && MultiViewDesktop.allWindowViewIds.contains(id)) {
+      final window = MultiViewDesktop.fromId(id);
+      await window.show();
+      await window.setAsFrameless();
+      await window.setHasShadow(false);
+      await window.setIgnoreMouseEvents(true);
+      await window.hideCurrentAppTabFromTaskbar(true);
+      container.read(overlayOpenProvider.notifier).state = true;
       return;
     }
+    if (ownerContext != null) {
+      await open(ownerContext);
+    }
+  }
 
-    await MultiViewDesktop.fromId(id).closeWindow();
+  Future<void> hide() async {
+    final id = _viewId;
+    if (id != null && MultiViewDesktop.allWindowViewIds.contains(id)) {
+      await MultiViewDesktop.fromId(id).hide();
+    }
+    container.read(overlayOpenProvider.notifier).state = false;
+  }
+
+  Future<void> close() async {
+    await hide();
   }
 
   @override
@@ -2493,22 +2481,43 @@ String _highlightLabel(String? eventType) {
   };
 }
 
-String _championIconForAlert(
-  CompanionAlert alert,
-  List<Map<String, dynamic>> enemies,
+NativeIdentifiedChampion? _nativeForEnemy(
+  Map<String, NativeIdentifiedChampion> lastKnown,
+  Map<String, dynamic> enemy,
 ) {
-  final champion = alert.raw['champion']?.toString();
-  if (champion == null) return '';
-  return enemies
-          .where((enemy) => enemy['champion_name']?.toString() == champion)
-          .firstOrNull?['icon_url']
-          ?.toString() ??
-      '';
+  String normalize(String value) =>
+      value.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+  final name = enemy['champion_name']?.toString();
+  if (name == null || name.isEmpty) return null;
+  final direct = lastKnown[name];
+  if (direct != null) return direct;
+  final normalized = normalize(name);
+  for (final entry in lastKnown.entries) {
+    if (normalize(entry.key) == normalized) return entry.value;
+  }
+  return null;
 }
 
-String _enemyLocationStatus(Map<String, dynamic> enemy) {
+String _enemyLocationStatus(
+  Map<String, dynamic> enemy, {
+  NativeIdentifiedChampion? native,
+  DateTime? now,
+}) {
   if (enemy['is_dead'] == true) {
-    return 'Muerto · reaparece en ${_formatDuration((enemy['respawn_timer'] as num?)?.toDouble() ?? 0)}';
+    final timer = (enemy['respawn_timer'] as num?)?.toDouble() ?? 0;
+    return timer > 0
+        ? 'Muerto · reaparece en ${_formatDuration(timer)}'
+        : 'Muerto';
+  }
+  final currentTime = now ?? DateTime.now();
+  if (native != null) {
+    final elapsed = currentTime.difference(native.lastSeen);
+    if (elapsed.inMilliseconds <= 2000) {
+      return 'Visto en ${native.region} · DartCV '
+          '${(native.confidence * 100).toStringAsFixed(0)}%';
+    }
+    return 'Visto hace ${_formatDuration(elapsed.inSeconds)} en '
+        '${native.region} · DartCV';
   }
   final current = enemy['map_location']?.toString();
   if (current != null && current.isNotEmpty) return 'Visto en $current';
@@ -2520,7 +2529,7 @@ String _enemyLocationStatus(Map<String, dynamic> enemy) {
   if (duration > 0 && last != null && last.isNotEmpty) {
     return 'Visto hace ${_formatDuration(duration)} en $last';
   }
-  return 'Aún no visto';
+  return 'Aún no detectado';
 }
 
 String _voiceMessage(CompanionAlert alert) {
@@ -2574,6 +2583,37 @@ class _CalibrationDangerRing extends StatelessWidget {
   }
 }
 
+class _OverlayGlassCard extends StatelessWidget {
+  const _OverlayGlassCard({
+    required this.child,
+    this.padding,
+    this.borderColor,
+  });
+
+  final Widget child;
+  final EdgeInsetsGeometry? padding;
+  final Color? borderColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        // Fondo translúcido al 65% para que el juego y el mapa se vean claramente a través
+        color: const Color(0xA60B0E17),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color:
+              borderColor ??
+              const Color(0x4D38BDF8), // Borde cian sutil y nítido al 30%
+          width: 1,
+        ),
+      ),
+      padding: padding,
+      child: child,
+    );
+  }
+}
+
 class _OverlayInfoCard extends StatelessWidget {
   const _OverlayInfoCard({
     required this.title,
@@ -2589,20 +2629,69 @@ class _OverlayInfoCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return SizedBox(
       width: width,
-      child: Card(
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(title, style: Theme.of(context).textTheme.titleMedium),
-              const Divider(),
-              child,
-            ],
-          ),
+      child: _OverlayGlassCard(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                color: const Color(0xFF38BDF8),
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const Divider(color: Color(0x3338BDF8), height: 16),
+            child,
+          ],
         ),
       ),
+    );
+  }
+}
+
+class _NativeCompositionView extends StatelessWidget {
+  const _NativeCompositionView({required this.game});
+
+  final GameSnapshot? game;
+
+  @override
+  Widget build(BuildContext context) {
+    if (game == null) return const Text('Esperando partida…');
+    Widget roster(String title, List<Map<String, dynamic>> players) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: Theme.of(context).textTheme.labelLarge),
+          Wrap(
+            spacing: 6,
+            runSpacing: 4,
+            children: players
+                .map(
+                  (player) => Chip(
+                    avatar: _NetworkPortrait(
+                      url: player['icon_url']?.toString(),
+                      size: 24,
+                    ),
+                    label: Text(
+                      '${player['champion_name'] ?? '?'} · ${player['role'] ?? ''}',
+                    ),
+                  ),
+                )
+                .toList(),
+          ),
+        ],
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        roster('Tu equipo', game!.allies),
+        const SizedBox(height: 8),
+        roster('Equipo enemigo', game!.enemies),
+      ],
     );
   }
 }

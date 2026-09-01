@@ -47,6 +47,7 @@ class NativeVisionState {
     this.logs = const [],
     this.error,
     this.identified = const {},
+    this.lastKnown = const {},
     this.averageCvMilliseconds = 0,
     this.p95CvMilliseconds = 0,
     this.averageCaptureMilliseconds = 0,
@@ -63,6 +64,7 @@ class NativeVisionState {
   final List<TrackerLogEntry> logs;
   final String? error;
   final Map<String, NativeIdentifiedChampion> identified;
+  final Map<String, NativeIdentifiedChampion> lastKnown;
   final double averageCvMilliseconds;
   final double p95CvMilliseconds;
   final double averageCaptureMilliseconds;
@@ -80,6 +82,7 @@ class NativeVisionState {
     String? error,
     bool clearError = false,
     Map<String, NativeIdentifiedChampion>? identified,
+    Map<String, NativeIdentifiedChampion>? lastKnown,
     double? averageCvMilliseconds,
     double? p95CvMilliseconds,
     double? averageCaptureMilliseconds,
@@ -96,6 +99,7 @@ class NativeVisionState {
       logs: logs ?? this.logs,
       error: clearError ? null : error ?? this.error,
       identified: identified ?? this.identified,
+      lastKnown: lastKnown ?? this.lastKnown,
       averageCvMilliseconds:
           averageCvMilliseconds ?? this.averageCvMilliseconds,
       p95CvMilliseconds: p95CvMilliseconds ?? this.p95CvMilliseconds,
@@ -190,6 +194,8 @@ class NativeVisionController extends StateNotifier<NativeVisionState> {
   final List<int> _cvSamples = [];
   final List<int> _captureSamples = [];
   int _performanceLogFrame = 0;
+  bool _calibrating = false;
+  DateTime? _lastCalibrationAttempt;
   String _localRole = '';
   Map<String, String> _enemyRoles = const {};
   final Set<String> _activeGanks = {};
@@ -206,9 +212,14 @@ class NativeVisionController extends StateNotifier<NativeVisionState> {
     }
     if (bounds == null) {
       stop();
-      state = state.copyWith(
-        error: 'Calibración inválida o no confiable. Calibra el minimapa.',
-      );
+      state = state.copyWith(error: 'Calibrando minimapa automáticamente…');
+      final now = DateTime.now();
+      if (!_calibrating &&
+          (_lastCalibrationAttempt == null ||
+              now.difference(_lastCalibrationAttempt!).inSeconds >= 10)) {
+        _lastCalibrationAttempt = now;
+        unawaited(_autoDetectAndStart());
+      }
       return;
     }
     final width = (bounds['width'] as num?)?.round() ?? 0;
@@ -239,11 +250,6 @@ class NativeVisionController extends StateNotifier<NativeVisionState> {
     String? localRole,
     required int iconSize,
   }) async {
-    const alwaysTrack = {'JUNGLE', 'MIDDLE', 'UTILITY'};
-    final wanted = {
-      ...alwaysTrack,
-      if (localRole != null) localRole.toUpperCase(),
-    };
     _localRole = localRole?.toUpperCase() ?? '';
     _enemyRoles = {
       for (final enemy in enemies)
@@ -251,11 +257,7 @@ class NativeVisionController extends StateNotifier<NativeVisionState> {
           enemy['champion_name'].toString():
               enemy['role']?.toString().toUpperCase() ?? 'UNKNOWN',
     };
-    var tracked = enemies.where((enemy) {
-      final role = enemy['role']?.toString().toUpperCase() ?? '';
-      return wanted.contains(role);
-    }).toList();
-    if (tracked.isEmpty) tracked = enemies;
+    final tracked = enemies;
     final entries = tracked
         .map(
           (enemy) => (
@@ -263,11 +265,14 @@ class NativeVisionController extends StateNotifier<NativeVisionState> {
             url: enemy['icon_url']?.toString() ?? '',
           ),
         )
-        .where((entry) => entry.name.isNotEmpty && entry.url.isNotEmpty)
+        .where((entry) => entry.name.isNotEmpty)
         .toList();
     if (entries.isEmpty) return;
+
+    // Stabilize icon size to avoid re-triggering on 1-pixel fluctuations
+    final stableIconSize = (iconSize / 2).round() * 2;
     final signature = [
-      iconSize,
+      stableIconSize,
       ...entries.map((entry) => '${entry.name}:${entry.url}'),
     ].join('|');
     if (signature == _targetSignature || signature == _loadingTargetSignature) {
@@ -277,36 +282,54 @@ class NativeVisionController extends StateNotifier<NativeVisionState> {
     _targetsUpdating = true;
 
     final icons = <String, List<Uint8List>>{};
-    final client = HttpClient()..connectionTimeout = const Duration(seconds: 3);
+    final client = HttpClient()..connectionTimeout = const Duration(seconds: 4);
     try {
       for (final entry in entries) {
-        try {
-          final request = await client.getUrl(Uri.parse(entry.url));
-          final response = await request.close();
-          if (response.statusCode != HttpStatus.ok) continue;
-          final bytes = await consolidateHttpClientResponseBytes(response);
-          icons[entry.name] = [bytes];
-          if (entry.name.toLowerCase() == 'kayn') {
-            const base =
-                'https://raw.communitydragon.org/latest/game/assets/characters/kayn/hud';
-            for (final path in const [
-              'rhaast/kayn_slay_circle.png',
-              'assassin/kayn_ass_circle.png',
-            ]) {
-              try {
-                final variantRequest = await client.getUrl(
-                  Uri.parse('$base/$path'),
-                );
-                final variantResponse = await variantRequest.close();
-                if (variantResponse.statusCode == HttpStatus.ok) {
-                  icons[entry.name]!.add(
-                    await consolidateHttpClientResponseBytes(variantResponse),
-                  );
-                }
-              } catch (_) {}
+        final cleanName = entry.name.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '');
+        final candidateUrls = [
+          if (entry.url.isNotEmpty) entry.url,
+          'https://ddragon.leagueoflegends.com/cdn/16.17.1/img/champion/$cleanName.png',
+          'https://cdn.communitydragon.org/latest/champion/$cleanName/square',
+        ];
+
+        for (final url in candidateUrls) {
+          try {
+            final request = await client.getUrl(Uri.parse(url));
+            final response = await request.close();
+            if (response.statusCode == HttpStatus.ok) {
+              final bytes = await consolidateHttpClientResponseBytes(response);
+              if (bytes.isNotEmpty) {
+                icons[entry.name] = [bytes];
+                break;
+              }
             }
+          } catch (_) {}
+        }
+
+        if (entry.name.toLowerCase() == 'kayn' &&
+            icons.containsKey(entry.name)) {
+          const base =
+              'https://raw.communitydragon.org/latest/game/assets/characters/kayn/hud';
+          for (final path in const [
+            'rhaast/kayn_slay_circle.png',
+            'assassin/kayn_ass_circle.png',
+          ]) {
+            try {
+              final variantRequest = await client.getUrl(
+                Uri.parse('$base/$path'),
+              );
+              final variantResponse = await variantRequest.close();
+              if (variantResponse.statusCode == HttpStatus.ok) {
+                final bytes = await consolidateHttpClientResponseBytes(
+                  variantResponse,
+                );
+                if (bytes.isNotEmpty) {
+                  icons[entry.name]!.add(bytes);
+                }
+              }
+            } catch (_) {}
           }
-        } catch (_) {}
+        }
       }
     } finally {
       client.close(force: true);
@@ -315,14 +338,17 @@ class NativeVisionController extends StateNotifier<NativeVisionState> {
       await Future<void>.delayed(const Duration(milliseconds: 10));
     }
     try {
-      _tracker.setTargets(icons, iconSize: iconSize);
+      _tracker.setTargets(icons, iconSize: stableIconSize);
       _targetSignature = signature;
+      // Preserve lastKnown across target updates so champion tracking history is not lost!
+      state = state.copyWith(identified: const {});
       _appendLog(
         TrackerLogEntry(
           timestamp: DateTime.now(),
           source: TrackerLogSource.native,
           event: 'targets_refreshed',
-          message: 'Targets: ${icons.keys.join(', ')} · icon $iconSize px',
+          message:
+              'Targets: ${icons.keys.join(', ')} · icon $stableIconSize px',
         ),
       );
     } finally {
@@ -376,6 +402,51 @@ class NativeVisionController extends StateNotifier<NativeVisionState> {
       );
     } catch (error) {
       state = state.copyWith(processing: false, error: error.toString());
+    }
+  }
+
+  Future<void> _autoDetectAndStart() async {
+    _calibrating = true;
+    try {
+      final proposal = NativeMinimapCalibrator(_capture).detect();
+      final width = (proposal.bounds['width'] as num).toDouble();
+      final height = (proposal.bounds['height'] as num).toDouble();
+      final ratio = width / height;
+      if (ratio < 0.75 || ratio > 1.33 || proposal.confidence < 0.25) {
+        throw StateError(
+          'Calibración nativa no confiable: '
+          '${width.round()}x${height.round()}, '
+          '${(proposal.confidence * 100).toStringAsFixed(1)}%.',
+        );
+      }
+      state = state.copyWith(
+        calibrationProposal: proposal,
+        bounds: proposal.bounds,
+        clearError: true,
+      );
+      _iconSize = proposal.iconSize;
+      if (!state.running) {
+        state = state.copyWith(running: true);
+        _timer = Timer.periodic(
+          const Duration(milliseconds: 167),
+          (_) => unawaited(_captureAndProcess()),
+        );
+        await _captureAndProcess();
+      }
+      _appendLog(
+        TrackerLogEntry(
+          timestamp: proposal.detectedAt,
+          source: TrackerLogSource.native,
+          event: 'native_calibration_applied',
+          message:
+              '${proposal.bounds} · icon ${proposal.iconSize}px · '
+              'confidence=${proposal.confidence.toStringAsFixed(3)}',
+        ),
+      );
+    } catch (error) {
+      state = state.copyWith(error: error.toString());
+    } finally {
+      _calibrating = false;
     }
   }
 
@@ -456,6 +527,7 @@ class NativeVisionController extends StateNotifier<NativeVisionState> {
       }
       _recordSpatialChanges(frame);
       final identified = {...state.identified};
+      final lastKnown = {...state.lastKnown};
       identified.removeWhere(
         (_, value) =>
             frame.processedAt.difference(value.lastSeen).inMilliseconds > 2000,
@@ -473,6 +545,7 @@ class NativeVisionController extends StateNotifier<NativeVisionState> {
           confidence: detection.confidence,
           lastSeen: frame.processedAt,
         );
+        lastKnown[name] = identified[name]!;
       }
       final events = _deriveEvents(
         identified,
@@ -483,6 +556,7 @@ class NativeVisionController extends StateNotifier<NativeVisionState> {
       state = state.copyWith(
         frame: frame,
         identified: identified,
+        lastKnown: lastKnown,
         averageCvMilliseconds: averageCv,
         p95CvMilliseconds: p95Cv,
         averageCaptureMilliseconds: averageCapture,

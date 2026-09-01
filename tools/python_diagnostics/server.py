@@ -191,12 +191,12 @@ class Diagnostics:
                     color = (0, 255, 0) if detection.kind == "IDENTIFIED" else (0, 165, 255)
                     cv2.rectangle(annotated, (x1, y1), (x2, y2), color, 2)
                     detections.append({
-                        "box": list(detection.box),
+                        "box": [int(value) for value in detection.box],
                         "kind": detection.kind,
                         "name": detection.name,
-                        "confidence": detection.conf,
-                        "template_score": detection.tm_score,
-                        "histogram_score": detection.hist_score,
+                        "confidence": float(detection.conf),
+                        "template_score": float(detection.tm_score),
+                        "histogram_score": float(detection.hist_score),
                     })
                 images = {
                     "frame": cv2.imencode(".png", payload.frame)[1].tobytes(),
@@ -228,9 +228,9 @@ class Diagnostics:
                     "targets": [target.name for target in payload.targets_ref],
                     "state": {
                         name: {
-                            "confidence": value.conf,
-                            "location": list(value.loc) if value.loc else None,
-                            "last_seen": value.last_seen,
+                            "confidence": float(value.conf),
+                            "location": [int(item) for item in value.loc] if value.loc else None,
+                            "last_seen": float(value.last_seen),
                         }
                         for name, value in payload.state.items()
                     },

@@ -23,6 +23,7 @@ class CvCorpusComparisonState {
     this.averageDartMilliseconds = 0,
     this.scoreSamples = 0,
     this.sampleComparisons = const [],
+    this.identityMismatches = const [],
     this.error,
   });
 
@@ -40,6 +41,7 @@ class CvCorpusComparisonState {
   final double averageDartMilliseconds;
   final int scoreSamples;
   final List<String> sampleComparisons;
+  final List<String> identityMismatches;
   final String? error;
 
   double get precision =>
@@ -58,7 +60,11 @@ final cvCorpusComparatorProvider =
 class CvCorpusComparator extends StateNotifier<CvCorpusComparisonState> {
   CvCorpusComparator() : super(const CvCorpusComparisonState());
 
-  Future<void> run({int? limit, bool rawTargets = true}) async {
+  Future<void> run({
+    int? limit,
+    bool rawTargets = true,
+    String corpusDirectory = 'cv-corpus',
+  }) async {
     if (state.running) return;
     state = const CvCorpusComparisonState(running: true);
     final appData = Platform.environment['APPDATA'];
@@ -66,7 +72,7 @@ class CvCorpusComparator extends StateNotifier<CvCorpusComparisonState> {
       state = const CvCorpusComparisonState(error: 'APPDATA unavailable.');
       return;
     }
-    final directory = Directory('$appData\\GodSense\\cv-corpus');
+    final directory = Directory('$appData\\GodSense\\$corpusDirectory');
     if (!directory.existsSync()) {
       state = const CvCorpusComparisonState(
         error: 'No corpus. Run start-local-coach.ps1 -CvApi in a game.',
@@ -97,6 +103,7 @@ class CvCorpusComparator extends StateNotifier<CvCorpusComparisonState> {
     var dartMicroseconds = 0;
     var processedFrames = 0;
     final sampleComparisons = <String>[];
+    final identityMismatches = <String>[];
 
     try {
       for (final metadataFile in files) {
@@ -162,7 +169,16 @@ class CvCorpusComparator extends StateNotifier<CvCorpusComparisonState> {
               (box[3] as num).toInt() == dart.y + dart.height) {
             exactBoxMatches++;
           }
-          if (python['name'] == dart.championName) identityMatches++;
+          if (python['name'] == dart.championName) {
+            identityMatches++;
+          } else if (identityMismatches.length < 20) {
+            identityMismatches.add(
+              '${metadataFile.uri.pathSegments.last}: '
+              'python=${python['name'] ?? 'UNKNOWN'} '
+              'dart=${dart.championName ?? 'UNKNOWN'} '
+              'box=$box conf=${dart.confidence.toStringAsFixed(3)}',
+            );
+          }
           final expectedConfidence = (python['confidence'] as num?)?.toDouble();
           final expectedName = python['name']?.toString();
           if (expectedName != null &&
@@ -219,6 +235,7 @@ class CvCorpusComparator extends StateNotifier<CvCorpusComparisonState> {
             : dartMicroseconds / processedFrames / 1000,
         scoreSamples: scoreSamples,
         sampleComparisons: sampleComparisons,
+        identityMismatches: identityMismatches,
       );
     } catch (error) {
       state = CvCorpusComparisonState(error: error.toString());

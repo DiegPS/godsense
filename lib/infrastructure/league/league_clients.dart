@@ -77,7 +77,13 @@ class LcuClient {
         request.write(jsonEncode(body));
       }
       final response = await request.close();
-      final text = await utf8.decodeStream(response);
+      final text = utf8.decode(
+        await response.fold<List<int>>(
+          [],
+          (bytes, chunk) => bytes..addAll(chunk),
+        ),
+        allowMalformed: true,
+      );
       if (response.statusCode == 404) return null;
       if (response.statusCode < 200 || response.statusCode >= 300) {
         throw HttpException('LCU $method $path: ${response.statusCode} $text');
@@ -101,7 +107,14 @@ class LiveClientApi {
       );
       final response = await request.close();
       if (response.statusCode != 200) return null;
-      final decoded = jsonDecode(await utf8.decodeStream(response));
+      final text = utf8.decode(
+        await response.fold<List<int>>(
+          [],
+          (bytes, chunk) => bytes..addAll(chunk),
+        ),
+        allowMalformed: true,
+      );
+      final decoded = jsonDecode(text);
       return decoded is Map
           ? decoded.map((key, value) => MapEntry(key.toString(), value))
           : null;

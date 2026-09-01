@@ -5,19 +5,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 const overlayPanelIds = [
-  'status',
   'gank',
-  'sighting',
   'jungler',
-  'threats',
   'voice_ask',
   'matchup_info',
   'builds',
   'directives',
   'team_comp',
   'gold_chart',
-  'native_vision',
-  'native_alerts',
 ];
 
 class OverlayPanelLayout {
@@ -186,14 +181,7 @@ class OverlayLayoutController extends StateNotifier<OverlayLayoutState> {
   }
 
   Map<String, OverlayPanelLayout> _defaultLayouts() => {
-    'status': const OverlayPanelLayout(x: 1520, y: 24, width: 370, height: 110),
     'gank': const OverlayPanelLayout(x: 24, y: 24, width: 360, height: 104),
-    'sighting': const OverlayPanelLayout(
-      x: 24,
-      y: 136,
-      width: 360,
-      height: 104,
-    ),
     'voice_ask': const OverlayPanelLayout(
       x: 24,
       y: 250,
@@ -224,30 +212,12 @@ class OverlayLayoutController extends StateNotifier<OverlayLayoutState> {
       width: 370,
       height: 130,
     ),
-    'jungler': const OverlayPanelLayout(x: 24, y: 880, width: 360, height: 120),
-    'threats': const OverlayPanelLayout(
-      x: 400,
-      y: 740,
-      width: 390,
-      height: 270,
-    ),
+    'jungler': const OverlayPanelLayout(x: 24, y: 700, width: 390, height: 310),
     'gold_chart': const OverlayPanelLayout(
       x: 1520,
       y: 900,
       width: 370,
       height: 100,
-    ),
-    'native_vision': const OverlayPanelLayout(
-      x: 800,
-      y: 880,
-      width: 320,
-      height: 120,
-    ),
-    'native_alerts': const OverlayPanelLayout(
-      x: 800,
-      y: 730,
-      width: 320,
-      height: 140,
     ),
   };
 }

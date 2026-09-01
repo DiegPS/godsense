@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -67,6 +69,7 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
   bool _polling = false;
   final Map<int, String> _championNames = {};
   int? _localSummonerId;
+  Map<int, Map<String, dynamic>> _itemCatalog = const {};
 
   int? get localSummonerId => _localSummonerId;
 
@@ -105,6 +108,9 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
         if (session is Map) lobby = await _normalizeLobby(session);
       }
       final liveData = await _live.allGameData();
+      if (liveData != null && _itemCatalog.isEmpty) {
+        await _loadItemCatalog();
+      }
       state = state.copyWith(
         lcuConnected: true,
         gameflowPhase: phase,
@@ -322,6 +328,29 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
     final localTeam = local?['team']?.toString();
     Map<String, dynamic> player(Map<String, dynamic> value) {
       final scores = _stringMap(value['scores']);
+      final items = _mapList(value['items']).map((item) {
+        final id = (item['itemID'] as num?)?.toInt() ?? 0;
+        final catalog = _itemCatalog[id];
+        return {
+          ...item,
+          'icon_url': catalog == null
+              ? ''
+              : 'https://ddragon.leagueoflegends.com/cdn/${catalog['_version']}/img/item/$id.png',
+        };
+      }).toList();
+      final cs = (scores['creepScore'] as num?)?.toInt() ?? 0;
+      final kills = (scores['kills'] as num?)?.toInt() ?? 0;
+      final assists = (scores['assists'] as num?)?.toInt() ?? 0;
+      final rawGoldTotal = items.fold<int>(0, (total, item) {
+        final id = (item['itemID'] as num?)?.toInt() ?? 0;
+        final count = (item['count'] as num?)?.toInt() ?? 1;
+        final gold = _stringMap(_itemCatalog[id]?['gold']);
+        return total + ((gold['total'] as num?)?.toInt() ?? 0) * count;
+      });
+      // If item catalog is still loading, estimate baseline gold from stats + passive gold
+      final goldTotal = rawGoldTotal > 0
+          ? rawGoldTotal
+          : (500 + cs * 21 + kills * 300 + assists * 100);
       return {
         'champion_name': value['championName'] ?? '',
         'summoner_name': value['summonerName'] ?? '',
@@ -329,14 +358,10 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
         'team': value['team'] ?? '',
         'role': value['position'] ?? '',
         'level': value['level'] ?? 0,
-        'kda': [
-          scores['kills'] ?? 0,
-          scores['deaths'] ?? 0,
-          scores['assists'] ?? 0,
-        ],
-        'cs': scores['creepScore'] ?? 0,
-        'items': _mapList(value['items']),
-        'gold_total': 0,
+        'kda': [kills, scores['deaths'] ?? 0, assists],
+        'cs': cs,
+        'items': items,
+        'gold_total': goldTotal,
         'gold_current': value['summonerName'] == activeName
             ? active['currentGold'] ?? 0
             : 0,
@@ -366,6 +391,17 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
         .map(player)
         .toList();
     final gameTime = (gameData['gameTime'] as num?)?.toDouble() ?? 0;
+    final teamGoldDiff =
+        allies.fold<int>(
+          0,
+          (total, player) =>
+              total + ((player['gold_total'] as num?)?.toInt() ?? 0),
+        ) -
+        enemies.fold<int>(
+          0,
+          (total, player) =>
+              total + ((player['gold_total'] as num?)?.toInt() ?? 0),
+        );
     final events = _mapList(_stringMap(raw['events'])['Events']);
     final objectives = <String, dynamic>{};
     for (final event in events) {
@@ -385,14 +421,65 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
       'allies': allies,
       'enemies': enemies,
       'active_player': local == null ? null : player(local),
-      'team_gold_diff': 0,
-      'team_state': 'EVEN',
+      'team_gold_diff': teamGoldDiff,
+      'team_state': teamGoldDiff > 1000
+          ? 'AHEAD'
+          : teamGoldDiff < -1000
+          ? 'BEHIND'
+          : 'EVEN',
       'lane_states': const {},
       'events': events,
       'derived': {'objectives': objectives},
       '_game_ended': false,
       'directives_pacing': const {},
     };
+  }
+
+  Future<void> _loadItemCatalog() async {
+    final client = HttpClient()..connectionTimeout = const Duration(seconds: 4);
+    try {
+      final versionsRequest = await client.getUrl(
+        Uri.parse('https://ddragon.leagueoflegends.com/api/versions.json'),
+      );
+      final versionsResponse = await versionsRequest.close();
+      final versionBytes = await versionsResponse.fold<List<int>>(
+        <int>[],
+        (buffer, data) => buffer..addAll(data),
+      );
+      final versionsRaw = jsonDecode(
+        utf8.decode(versionBytes, allowMalformed: true),
+      );
+      final version = versionsRaw is List && versionsRaw.isNotEmpty
+          ? versionsRaw.first.toString()
+          : '16.17.1';
+      final request = await client.getUrl(
+        Uri.parse(
+          'https://ddragon.leagueoflegends.com/cdn/$version/data/en_US/item.json',
+        ),
+      );
+      final response = await request.close();
+      final itemBytes = await response.fold<List<int>>(
+        <int>[],
+        (buffer, data) => buffer..addAll(data),
+      );
+      final decoded = jsonDecode(utf8.decode(itemBytes, allowMalformed: true));
+      final data = decoded is Map ? decoded['data'] : null;
+      if (data is Map) {
+        _itemCatalog = {
+          for (final entry in data.entries)
+            if (int.tryParse(entry.key.toString()) != null &&
+                entry.value is Map)
+              int.parse(entry.key.toString()): {
+                ...Map<String, dynamic>.from(entry.value as Map),
+                '_version': version,
+              },
+        };
+      }
+    } catch (_) {
+      _itemCatalog = const {};
+    } finally {
+      client.close(force: true);
+    }
   }
 
   @override

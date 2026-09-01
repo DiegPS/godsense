@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
@@ -62,8 +61,8 @@ class LocalCoachRuntime implements CoachRuntime {
       },
       mode: ProcessStartMode.normal,
     );
-    unawaited(_process!.stdout.transform(utf8.decoder).drain<void>());
-    unawaited(_process!.stderr.transform(utf8.decoder).drain<void>());
+    unawaited(_process!.stdout.drain<void>());
+    unawaited(_process!.stderr.drain<void>());
     unawaited(_process!.exitCode.then((_) => _process = null));
     for (var attempt = 0; attempt < 40; attempt++) {
       if (await _responds()) return true;

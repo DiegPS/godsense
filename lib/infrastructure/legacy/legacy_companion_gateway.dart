@@ -245,8 +245,8 @@ class LegacyCompanionRuntime implements CompanionRuntime {
       },
       mode: ProcessStartMode.normal,
     );
-    unawaited(_process!.stdout.transform(utf8.decoder).drain<void>());
-    unawaited(_process!.stderr.transform(utf8.decoder).drain<void>());
+    unawaited(_process!.stdout.drain<void>());
+    unawaited(_process!.stderr.drain<void>());
     unawaited(_process!.exitCode.then((_) => _process = null));
     return true;
   }
