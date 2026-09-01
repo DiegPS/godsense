@@ -204,6 +204,7 @@ class _ScoutProfileCard extends StatelessWidget {
         : const <String, dynamic>{};
     final badges = _asMapList(profile['badges']);
     final gpi = _asMapList(profile['gpi']);
+    final signatures = _asMapList(profile['signature_champions']);
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -224,6 +225,10 @@ class _ScoutProfileCard extends StatelessWidget {
                     '${rank['tier'] ?? 'UNRANKED'} ${rank['division'] ?? ''} · '
                     '${rank['lp'] ?? 0} LP · ${rank['winrate'] ?? 0}% WR',
                   ),
+                  Text(
+                    'Analítica local · ${profile['sample_size'] ?? 0} partidas',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
                   Wrap(
                     spacing: 6,
                     children: badges
@@ -241,14 +246,42 @@ class _ScoutProfileCard extends StatelessWidget {
                     spacing: 8,
                     children: gpi
                         .map(
-                          (item) => Chip(
-                            label: Text(
-                              '${item['category']}: ${item['value']}',
+                          (item) => Tooltip(
+                            message: item['unit']?.toString() ?? '',
+                            child: Chip(
+                              label: Text(
+                                '${item['category']}: ${item['value']}',
+                              ),
                             ),
                           ),
                         )
                         .toList(),
                   ),
+                  if (signatures.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      'Campeones insignia',
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 8,
+                      children: signatures
+                          .map(
+                            (champion) => Chip(
+                              avatar: _NetworkPortrait(
+                                url: champion['icon_url']?.toString(),
+                                size: 24,
+                              ),
+                              label: Text(
+                                '${champion['name']} · ${champion['games']} partidas · '
+                                '${champion['winrate']}% WR · ${champion['kda']} KDA',
+                              ),
+                            ),
+                          )
+                          .toList(growable: false),
+                    ),
+                  ],
                 ],
               ),
             ),

@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../domain/identity/league_identity.dart';
 import '../domain/league/account_context.dart';
 import '../domain/league/local_scout.dart';
+import 'scout_profile_analyzer.dart';
 
 typedef LoadLocalMatches = Future<List<LocalMatchRecord>> Function(
   Puuid puuid, {
@@ -60,17 +61,20 @@ class LocalScoutController extends StateNotifier<LocalScoutState> {
     required LoadLocalRanked loadRanked,
     ResolveScoutAccount? resolveAccount,
     LoadChampionNames? loadChampionNames,
+    ScoutProfileAnalyzer analyzer = const ScoutProfileAnalyzer(),
     LocalScoutState initialState = const LocalScoutState(),
   }) : _loadMatches = loadMatches,
        _loadRanked = loadRanked,
        _resolveAccount = resolveAccount,
        _loadChampionNames = loadChampionNames,
+       _analyzer = analyzer,
        super(initialState);
 
   final LoadLocalMatches _loadMatches;
   final LoadLocalRanked _loadRanked;
   final ResolveScoutAccount? _resolveAccount;
   final LoadChampionNames? _loadChampionNames;
+  final ScoutProfileAnalyzer _analyzer;
   Map<int, String> _championNames = const {};
   LeagueAccountProfile? _account;
   LeagueAccountProfile? _connectedAccount;
@@ -99,8 +103,13 @@ class LocalScoutController extends StateNotifier<LocalScoutState> {
       final matches = results[0] as List<LocalMatchRecord>;
       final ranked = results[1] as LocalRankedSnapshot?;
       _championNames = results[2] as Map<int, String>;
+      final analytics = _analyzer.analyze(
+        matches,
+        puuid: account.puuid,
+        championNames: _championNames,
+      );
       state = LocalScoutState(
-        profile: _profile(account, ranked),
+        profile: _profile(account, ranked, analytics),
         matches: matches
             .map((match) => _matchSummary(match, _championNames))
             .toList(growable: false),
@@ -135,8 +144,13 @@ class LocalScoutController extends StateNotifier<LocalScoutState> {
       final matches = results[0] as List<LocalMatchRecord>;
       final ranked = results[1] as LocalRankedSnapshot?;
       _championNames = results[2] as Map<int, String>;
+      final analytics = _analyzer.analyze(
+        matches,
+        puuid: account.puuid,
+        championNames: _championNames,
+      );
       state = LocalScoutState(
-        profile: _profile(account, ranked),
+        profile: _profile(account, ranked, analytics),
         matches: matches
             .map((match) => _matchSummary(match, _championNames))
             .toList(growable: false),
@@ -193,6 +207,7 @@ class LocalScoutController extends StateNotifier<LocalScoutState> {
 Map<String, dynamic> _profile(
   LeagueAccountProfile account,
   LocalRankedSnapshot? ranked,
+  ScoutProfileAnalytics analytics,
 ) {
   final rankedPayload = _map(_decode(ranked?.payloadJson));
   final queueMap = _map(rankedPayload['queueMap']);
@@ -219,8 +234,10 @@ Map<String, dynamic> _profile(
       'losses': losses,
       'winrate': total == 0 ? 0 : (wins * 100 / total).round(),
     },
-    'badges': const <Object?>[],
-    'gpi': const <Object?>[],
+    'sample_size': analytics.games,
+    'badges': analytics.badges,
+    'gpi': analytics.gpi,
+    'signature_champions': analytics.signatureChampions,
     'local_only': false,
     'last_ranked_sync': ranked?.observedAt.toIso8601String(),
   };

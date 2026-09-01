@@ -21,7 +21,7 @@
 | Item recommendations | Patch-exact Riot champion BIN overrides by map, mode, and role; Data Dragon validation, offline cache, and item-set import | Live Ahri 16.17 extraction and source/cache tests |
 | Jungle routes | Patch-exact Riot `Map11` routes for both teams, with validated camp order and offline cache | Live CommunityDragon 16.17 extraction and parser/cache tests |
 | Live Client | Native polling, current projection, complete event journal, logical game time | Adapter and projection parity tests |
-| Scout | Connected account plus arbitrary Riot ID lookup through LCU; legacy participant identities/stats are normalized and the account-scoped cache remains available offline | Live LCU 16.17 lookup/schema inspection and SQLite/controller/widget tests |
+| Scout | Connected account plus arbitrary Riot ID lookup through LCU; legacy participant identities/stats are normalized; rank, scoreboards, factual playstyle metrics and signature champions remain available from the account-scoped cache | Live LCU 16.17 lookup/schema inspection and SQLite/controller/analyzer/widget tests |
 | Data Dragon | Resource contracts, patch resolution, validation, and content-addressed cache | Resolver tests |
 | Voice | Sherpa STT, global Push-to-Talk, multiple local TTS models, native playback | Unit/lifecycle tests; copied-model discovery tests |
 | Voice coach | `STT -> intent -> live/lobby/vision/Riot facts -> advice -> TTS`; answers jungle, objective-specific state, build, measured game/lane state, and matchup context, with stale-result suppression | Controller and 17 tactical engine tests |
@@ -33,7 +33,7 @@
 
 ## Current measured baseline
 
-The complete suite currently has 168 passing tests and 13 explicitly skipped
+The complete suite currently has 170 passing tests and 13 explicitly skipped
 native smoke tests. The skipped tests require model-path environment variables;
 model discovery from the copied Airstream cache is covered separately.
 
@@ -44,9 +44,9 @@ The latest complete real-corpus run processed 866 frames with:
 - identity agreement: 100%
 - exact boxes: 1,249 / 1,249
 - average IoU: 1.0
-- average DartCV time in that run: 20.66 ms/frame
+- average DartCV time in that run: 21.04 ms/frame
 
-The 20.66 ms result is the honest end-to-end comparator measurement for that
+The 21.04 ms result is the honest end-to-end comparator measurement for that
 run. It is not reported as less than 10 ms.
 
 ## Deliberately not copied from the old coach

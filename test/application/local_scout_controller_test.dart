@@ -37,7 +37,8 @@ void main() {
           "player":{"puuid":"player","gameName":"Diego","tagLine":"LAN"}}],
           "participants":[{"participantId":3,"championId":22,
           "stats":{"win":true,"kills":8,"deaths":2,"assists":11,
-          "totalMinionsKilled":180,"neutralMinionsKilled":0},
+          "totalMinionsKilled":180,"neutralMinionsKilled":0,
+          "visionScore":32,"damageDealtToObjectives":6400},
           "timeline":{"lane":"BOTTOM","role":"DUO_CARRY"}}]}
         ''',
         detailsJson: '''
@@ -96,6 +97,17 @@ void main() {
       expect(controller.state.profile['game_name'], 'Diego');
       expect(controller.state.profile['rank'], containsPair('tier', 'GOLD'));
       expect(controller.state.profile['rank'], containsPair('winrate', 60));
+      expect(controller.state.profile['sample_size'], 1);
+      expect(controller.state.profile['gpi'], hasLength(8));
+      expect(
+        (controller.state.profile['gpi'] as List).first,
+        containsPair('category', 'KDA'),
+      );
+      expect(controller.state.profile['signature_champions'], hasLength(1));
+      expect(
+        (controller.state.profile['signature_champions'] as List).single,
+        containsPair('name', 'Ashe'),
+      );
       expect(controller.state.matches, hasLength(1));
       expect(controller.state.matches.single['result'], 'Victoria');
       expect(controller.state.matches.single['csm'], 6.0);
