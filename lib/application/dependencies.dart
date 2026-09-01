@@ -44,6 +44,7 @@ final nativeVoiceCoachProvider =
           return engine.answer(
             question: question,
             game: league.liveGame,
+            lobby: league.lobby,
             sightings: sightings,
           );
         },

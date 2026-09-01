@@ -1,4 +1,4 @@
-enum FactSource { lcu, liveClient, vision, user, derived }
+enum FactSource { lcu, liveClient, vision, riotData, user, derived }
 
 class TacticalSighting {
   const TacticalSighting({

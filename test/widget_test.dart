@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:godsense/application/companion_controller.dart';
 import 'package:godsense/application/dependencies.dart';
+import 'package:godsense/application/native_league_controller.dart';
 import 'package:godsense/infrastructure/native_runtime/native_companion_gateway.dart';
 import 'package:godsense/main.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -64,6 +65,7 @@ void main() {
 Widget _testApp() {
   return ProviderScope(
     overrides: [
+      nativeLeagueProvider.overrideWith((_) => NativeLeagueController()),
       companionControllerProvider.overrideWith(
         (_) => CompanionController(
           NativeCompanionGateway(),

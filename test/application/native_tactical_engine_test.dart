@@ -169,6 +169,86 @@ void main() {
     expect(answer.evidence.first.source, FactSource.user);
     expect(answer.evidence.last.source, FactSource.derived);
   });
+
+  test('answers build questions only from the loaded Riot artifact', () {
+    final answer = engine.answer(
+      question: '¿Qué objetos compro?',
+      game: _game(),
+      lobby: {
+        'builds': {
+          'patch': '16.17',
+          'position': 'MIDDLE',
+          'items': [
+            {
+              'category': 'Inicio 1',
+              'items': [
+                {'item_id': 1056, 'name': "Doran's Ring"},
+                {'item_id': 2003, 'name': 'Health Potion'},
+              ],
+            },
+            {
+              'category': 'Compra 1',
+              'items': [
+                {'item_id': 6657, 'name': 'Rod of Ages'},
+              ],
+            },
+          ],
+        },
+      },
+    );
+
+    expect(answer.id, 'voice_riot_build');
+    expect(answer.ttsText, contains("Doran's Ring"));
+    expect(answer.ttsText, contains('Rod of Ages'));
+    expect(answer.rationale, contains('parche 16.17'));
+    expect(answer.evidence.last.source, FactSource.riotData);
+  });
+
+  test('does not fabricate a build before Riot data is available', () {
+    final answer = engine.answer(question: '¿Qué build hago?', game: _game());
+
+    expect(answer.id, 'voice_build_unavailable');
+    expect(answer.ttsText, contains('no tengo una build de Riot'));
+    expect(answer.evidence.single.source, FactSource.user);
+  });
+
+  test('reports live gold KDA and CS for game-state questions', () {
+    final answer = engine.answer(
+      question: '¿Cómo voy de oro y KDA?',
+      game: _game(gold: -1350),
+    );
+
+    expect(answer.id, 'voice_game_state');
+    expect(answer.ttsText, contains('1350 de oro de desventaja'));
+    expect(answer.ttsText, contains('2, 1, 4'));
+    expect(answer.ttsText, contains('83 súbditos'));
+    expect(
+      answer.evidence.map((item) => item.source),
+      containsAll([FactSource.user, FactSource.liveClient, FactSource.derived]),
+    );
+  });
+
+  test('labels generic matchup coaching with reduced confidence', () {
+    final answer = engine.answer(
+      question: '¿Cuál es mi matchup?',
+      game: _game(),
+      lobby: {
+        'snapshot': {
+          'my_team': [
+            {'champion_name': 'Ahri', 'is_local': true},
+          ],
+          'their_team': [
+            {'champion_name': 'Vex'},
+          ],
+        },
+      },
+    );
+
+    expect(answer.id, 'voice_matchup_context');
+    expect(answer.title, 'Ahri contra Vex');
+    expect(answer.rationale.toLowerCase(), contains('regla general'));
+    expect(answer.evidence.last.confidence, 0.55);
+  });
 }
 
 Map<String, dynamic> _game({
@@ -179,7 +259,12 @@ Map<String, dynamic> _game({
   'game_time': 600.0,
   'phase': 'MID',
   'team_gold_diff': gold,
-  'active_player': {'champion_name': 'Ahri', 'is_dead': dead},
+  'active_player': {
+    'champion_name': 'Ahri',
+    'is_dead': dead,
+    'kda': [2, 1, 4],
+    'cs': 83,
+  },
   'derived': {'objectives': objectives},
   '_game_ended': false,
 };

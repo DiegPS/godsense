@@ -24,7 +24,7 @@
 | Scout | Connected account plus arbitrary Riot ID lookup through LCU; legacy participant identities/stats are normalized and the account-scoped cache remains available offline | Live LCU 16.17 lookup/schema inspection and SQLite/controller/widget tests |
 | Data Dragon | Resource contracts, patch resolution, validation, and content-addressed cache | Resolver tests |
 | Voice | Sherpa STT, global Push-to-Talk, multiple local TTS models, native playback | Unit/lifecycle tests; copied-model discovery tests |
-| Voice coach | `STT -> tactical facts -> advice -> TTS`, with stale-result suppression | Controller and tactical engine tests |
+| Voice coach | `STT -> intent -> live/lobby/vision/Riot facts -> advice -> TTS`; answers jungle, objectives, build, measured game state, and matchup context, with stale-result suppression | Controller and 14 tactical engine tests |
 | Provenance | Raw source records separated from decoded observations/events/advice | SQLite repository and adapter tests |
 | Vision journal | DartCV sightings stored by `MatchKey`, session generation, game time, and confidence | Adapter deduplication tests |
 | Advice journal | Voice question and tactical advice stored separately with evidence and confidence | Adapter tests |
@@ -33,7 +33,7 @@
 
 ## Current measured baseline
 
-The complete suite currently has 161 passing tests and 13 explicitly skipped
+The complete suite currently has 165 passing tests and 13 explicitly skipped
 native smoke tests. The skipped tests require model-path environment variables;
 model discovery from the copied Airstream cache is covered separately.
 
@@ -44,9 +44,9 @@ The latest complete real-corpus run processed 866 frames with:
 - identity agreement: 100%
 - exact boxes: 1,249 / 1,249
 - average IoU: 1.0
-- average DartCV time in that run: 19.60 ms/frame
+- average DartCV time in that run: 21.00 ms/frame
 
-The 19.60 ms result is the honest end-to-end comparator measurement for that
+The 21.00 ms result is the honest end-to-end comparator measurement for that
 run. It is not reported as less than 10 ms.
 
 ## Deliberately not copied from the old coach

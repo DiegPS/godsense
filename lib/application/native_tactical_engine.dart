@@ -8,6 +8,7 @@ class NativeTacticalEngine {
   TacticalAdvice answer({
     required String question,
     Map<String, dynamic>? game,
+    Map<String, dynamic>? lobby,
     List<TacticalSighting> sightings = const [],
   }) {
     final now = _now().toUtc();
@@ -19,6 +20,39 @@ class NativeTacticalEngine {
       now,
       gameTime,
     );
+
+    if (_containsAny(normalized, const [
+      'compro',
+      'comprar',
+      'compra',
+      'build',
+      'objeto',
+      'item',
+    ])) {
+      return _buildAnswer(_map(lobby?['builds']), userEvidence, now, gameTime);
+    }
+
+    if (_containsAny(normalized, const [
+      'como voy',
+      'estado',
+      'marcador',
+      'oro',
+      'ventaja',
+      'desventaja',
+      'kda',
+    ])) {
+      return _gameStateAnswer(game, userEvidence, now, gameTime);
+    }
+
+    if (_containsAny(normalized, const [
+      'matchup',
+      'enfrentamiento',
+      'contra quien',
+      'mi rival',
+      'rival de linea',
+    ])) {
+      return _matchupAnswer(lobby, userEvidence, now, gameTime);
+    }
 
     if (_containsAny(normalized, const ['jungla', 'jungler'])) {
       final recent = [...sightings]
@@ -283,6 +317,182 @@ class NativeTacticalEngine {
     evidence: [question, ...advice.evidence],
   );
 
+  TacticalAdvice _buildAnswer(
+    Map<String, dynamic> builds,
+    TacticalEvidence question,
+    DateTime now,
+    double? gameTime,
+  ) {
+    if (builds.isEmpty) {
+      return TacticalAdvice(
+        id: 'voice_build_unavailable',
+        title: 'Build todavía no disponible',
+        hints: const [
+          'Espera a que GodSense confirme campeón, rol y parche.',
+          'No se propondrán objetos inventados como sustituto.',
+        ],
+        rationale: 'No hay una recomendación Riot compatible cargada para este contexto.',
+        ttsText: 'Todavía no tengo una build de Riot confirmada para tu campeón, rol y parche.',
+        priority: 55,
+        evidence: [question],
+      );
+    }
+    final groups = _mapList(builds['items']);
+    final start = groups.firstOrNull;
+    final purchase = groups.skip(1).firstOrNull;
+    final startNames = _itemNames(start);
+    final purchaseNames = _itemNames(purchase);
+    final patch = builds['patch']?.toString().trim();
+    final position = builds['position']?.toString().trim();
+    final parts = <String>[
+      if (startNames.isNotEmpty) 'Empieza con ${_joinNames(startNames)}.',
+      if (purchaseNames.isNotEmpty)
+        'La siguiente compra recomendada incluye ${_joinNames(purchaseNames)}.',
+    ];
+    final context = [
+      if (position != null && position.isNotEmpty) position,
+      if (patch != null && patch.isNotEmpty) 'parche $patch',
+    ].join(', ');
+    return TacticalAdvice(
+      id: 'voice_riot_build',
+      title: 'Build oficial cargada',
+      hints: parts.isEmpty
+          ? const ['La build está cargada y disponible para importar.']
+          : parts,
+      rationale:
+          'Recomendación extraída de los artefactos de Riot${context.isEmpty ? '' : ' para $context'}.',
+      ttsText: parts.isEmpty
+          ? 'La build de Riot está cargada y lista para importar.'
+          : parts.join(' '),
+      priority: 75,
+      evidence: [
+        question,
+        _evidence(
+          'riot_item_recommendation',
+          FactSource.riotData,
+          now,
+          gameTime,
+        ),
+      ],
+    );
+  }
+
+  TacticalAdvice _gameStateAnswer(
+    Map<String, dynamic>? game,
+    TacticalEvidence question,
+    DateTime now,
+    double? gameTime,
+  ) {
+    if (game == null || game['_game_ended'] == true) {
+      return TacticalAdvice(
+        id: 'voice_game_state_unavailable',
+        title: 'Estado no disponible',
+        hints: const ['Inicia una partida para medir el estado en vivo.'],
+        rationale: 'Live Client no aporta una partida activa.',
+        ttsText: 'No tengo una partida activa para medir cómo vas.',
+        priority: 20,
+        evidence: [question],
+      );
+    }
+    final active = _map(game['active_player']);
+    final kda =
+        (active['kda'] as List?)
+            ?.whereType<num>()
+            .map((value) => value.toInt())
+            .toList(growable: false) ??
+        const <int>[];
+    final cs = (active['cs'] as num?)?.toInt();
+    final gold = (game['team_gold_diff'] as num?)?.toInt() ?? 0;
+    final state = gold >= 1000
+        ? 'Tu equipo lleva $gold de oro de ventaja.'
+        : gold <= -1000
+        ? 'Tu equipo lleva ${gold.abs()} de oro de desventaja.'
+        : 'La diferencia de oro está equilibrada en $gold.';
+    final personal = [
+      if (kda.length >= 3) 'Tu K D A es ${kda[0]}, ${kda[1]}, ${kda[2]}.',
+      if (cs != null) 'Tienes $cs súbditos.',
+    ].join(' ');
+    final next = directives(game).firstOrNull;
+    return TacticalAdvice(
+      id: 'voice_game_state',
+      title: 'Estado medido de la partida',
+      hints: [
+        state,
+        if (personal.isNotEmpty) personal,
+        if (next != null) next.ttsText,
+      ],
+      rationale: 'Resumen calculado con el snapshot actual de Live Client y la diferencia de oro derivada.',
+      ttsText: [
+        state,
+        personal,
+        if (next != null) next.ttsText,
+      ].where((part) => part.isNotEmpty).join(' '),
+      priority: 80,
+      evidence: [
+        question,
+        _evidence('live_player_state', FactSource.liveClient, now, gameTime),
+        _evidence('team_gold_difference', FactSource.derived, now, gameTime),
+      ],
+    );
+  }
+
+  TacticalAdvice _matchupAnswer(
+    Map<String, dynamic>? lobby,
+    TacticalEvidence question,
+    DateTime now,
+    double? gameTime,
+  ) {
+    final snapshot = _map(lobby?['snapshot']);
+    final allies = _mapList(snapshot['my_team']);
+    final enemies = _mapList(snapshot['their_team']);
+    final local = allies
+        .where((player) => player['is_local'] == true)
+        .firstOrNull;
+    final champion = _champion(local);
+    final enemy = enemies
+        .map(_champion)
+        .where((name) => name.isNotEmpty)
+        .firstOrNull;
+    if (champion.isEmpty || enemy == null) {
+      return TacticalAdvice(
+        id: 'voice_matchup_unavailable',
+        title: 'Matchup sin confirmar',
+        hints: const ['Espera a que ambos campeones estén confirmados.'],
+        rationale: 'Champion Select no aporta todavía los dos campeones.',
+        ttsText: 'Todavía no tengo tu matchup confirmado.',
+        priority: 45,
+        evidence: [question],
+      );
+    }
+    final matchup = _matchup(champion, enemy);
+    final patterns =
+        (matchup['trading_patterns'] as List?)?.whereType<String>().toList(
+          growable: false,
+        ) ??
+        const <String>[];
+    final winCondition = matchup['win_condition']?.toString() ?? '';
+    return TacticalAdvice(
+      id: 'voice_matchup_context',
+      title: '$champion contra $enemy',
+      hints: [...patterns, if (winCondition.isNotEmpty) winCondition],
+      rationale: 'Regla general determinista; todavía no es conocimiento específico validado para esta pareja.',
+      ttsText:
+          '$champion contra $enemy. ${patterns.firstOrNull ?? winCondition}',
+      priority: 60,
+      evidence: [
+        question,
+        _evidence('champ_select_matchup', FactSource.lcu, now, gameTime),
+        TacticalEvidence(
+          factType: 'general_matchup_rule',
+          source: FactSource.derived,
+          observedAt: now,
+          confidence: 0.55,
+          gameTimeSeconds: gameTime,
+        ),
+      ],
+    );
+  }
+
   TacticalAdvice? _objectiveDirective(
     Map<String, dynamic> objectives,
     DateTime now,
@@ -317,6 +527,20 @@ class NativeTacticalEngine {
     );
   }
 }
+
+List<String> _itemNames(Map<String, dynamic>? group) =>
+    _mapList(group?['items'])
+        .map((item) => item['name']?.toString().trim() ?? '')
+        .where((name) => name.isNotEmpty)
+        .toSet()
+        .take(4)
+        .toList(growable: false);
+
+String _joinNames(List<String> names) => switch (names) {
+  [] => '',
+  [final only] => only,
+  _ => '${names.sublist(0, names.length - 1).join(', ')} y ${names.last}',
+};
 
 bool _containsAny(String value, List<String> terms) =>
     terms.any(value.contains);
