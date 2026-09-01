@@ -1,15 +1,19 @@
 part of '../../app/godsense_app.dart';
 
-class GodSenseApp extends StatelessWidget {
+class GodSenseApp extends ConsumerWidget {
   const GodSenseApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return MaterialApp(
       title: 'GodSense',
       debugShowCheckedModeBanner: false,
       theme: godsenseTheme(),
-      home: const GodSenseHome(),
+      home: GettingStartedGate(
+        onDestination: (destination) =>
+            ref.read(selectedPageProvider.notifier).state = destination,
+        child: const GodSenseHome(),
+      ),
     );
   }
 }
@@ -185,6 +189,16 @@ class GodSenseHome extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('GodSense'),
         actions: [
+          IconButton(
+            tooltip: 'Ayuda y primeros pasos',
+            icon: const Icon(Icons.help_outline),
+            onPressed: () async {
+              final destination = await showGettingStartedGuide(context);
+              if (context.mounted && destination != null && destination >= 0) {
+                ref.read(selectedPageProvider.notifier).state = destination;
+              }
+            },
+          ),
           IconButton(
             tooltip: overlayOpen ? 'Close overlay' : 'Open overlay',
             onPressed: () => overlayWindowManager.toggle(context),

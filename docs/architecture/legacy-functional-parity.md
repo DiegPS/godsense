@@ -40,7 +40,7 @@ are the only deliberate product exclusions requested by the product owner.
 | Pick suggestions in Champion Select | **Missing** | Old local coach returned a fixed Ahri placeholder; GodSense needs a defensible local policy |
 | Matchup-specific knowledge | **Missing trusted source** | Generic rules exist and are labelled 0.55 confidence; no licensed/versioned matchup corpus yet |
 | Team-composition champion semantics | **Partial** | Current profile is role-based, not champion-kit based |
-| First-run guide/help | **Missing** | Installed Scoutr contains a local onboarding guide |
+| First-run guide/help | **Matched** | One-time guide with native navigation to Vision/voice settings; can be reopened from Help |
 | Application update delivery | **Missing distribution contract** | Build works, but no GodSense release feed/installer contract exists yet |
 | Settings, support artifact and diagnostics | **Matched** | Voice, PTT, overlay, language/cadence plus local secret-free support artifacts |
 | Highlights | **Excluded by product decision** | Intentionally absent, with no feature flag or dormant contract |

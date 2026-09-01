@@ -9,7 +9,11 @@ import 'package:godsense/main.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
-  setUp(() => SharedPreferences.setMockInitialValues({}));
+  setUp(
+    () => SharedPreferences.setMockInitialValues({
+      'godsense.getting_started.v1.seen': true,
+    }),
+  );
 
   testWidgets('shows the GodSense overview', (tester) async {
     await tester.pumpWidget(_testApp());
