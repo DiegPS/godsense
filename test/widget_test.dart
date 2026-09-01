@@ -16,6 +16,21 @@ void main() {
     expect(find.text('Vision tracker'), findsOneWidget);
   });
 
+  testWidgets('uses Flutter native navigation with labeled destinations', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_testApp());
+
+    final navigation = tester.widget<NavigationBar>(find.byType(NavigationBar));
+    expect(navigation.destinations, hasLength(6));
+    expect(
+      navigation.destinations.whereType<NavigationDestination>().map(
+        (destination) => destination.label,
+      ),
+      everyElement(isNotEmpty),
+    );
+  });
+
   testWidgets(
     'defaults to native vision and keeps Python diagnostics optional',
     (tester) async {

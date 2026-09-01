@@ -1,0 +1,543 @@
+part of '../../app/godsense_app.dart';
+
+class VisionPage extends ConsumerWidget {
+  const VisionPage({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final source = ref.watch(trackerSourceProvider);
+    final backend = ref.watch(companionControllerProvider);
+    final game = ref.watch(effectiveGameProvider);
+    final cv = backend.health?.components['cv'];
+    final calibrationState = ref.watch(nativeCalibrationProvider);
+    final calibration = calibrationState.calibration;
+    final native = ref.watch(nativeVisionProvider);
+    final pythonDiagnostics = ref.watch(pythonVisionDiagnosticsProvider);
+    final corpus = ref.watch(cvCorpusComparatorProvider);
+    final positionedEnemies = game?.enemies
+        .where((enemy) => enemy['position'] is Map)
+        .length;
+
+    return ListView(
+      padding: const EdgeInsets.all(24),
+      children: [
+        Text(
+          'Vision tracker',
+          style: Theme.of(context).textTheme.headlineMedium,
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          'Use the same interface to compare the current Python tracker with the DartCV implementation.',
+        ),
+        const SizedBox(height: 20),
+        SegmentedButton<TrackerSource>(
+          segments: const [
+            ButtonSegment(
+              value: TrackerSource.python,
+              icon: Icon(Icons.cloud_outlined),
+              label: Text('Python backend'),
+            ),
+            ButtonSegment(
+              value: TrackerSource.dartCv,
+              icon: Icon(Icons.memory),
+              label: Text('DartCV native'),
+            ),
+          ],
+          selected: {source},
+          onSelectionChanged: (selection) {
+            ref.read(trackerSourceProvider.notifier).state = selection.first;
+          },
+        ),
+        const SizedBox(height: 20),
+        Card(
+          child: ListTile(
+            leading: const Icon(Icons.circle_outlined),
+            title: Text(
+              source == TrackerSource.python
+                  ? 'Python tracker selected'
+                  : 'DartCV tracker selected',
+            ),
+            subtitle: Text(
+              source == TrackerSource.python
+                  ? 'Status: ${cv?.alive == true ? 'running' : cv?.error ?? 'idle'} · Target: 6 FPS'
+                  : 'Status: ${native.running
+                            ? 'running'
+                            : native.processing
+                            ? 'capturing'
+                            : 'idle'} · '
+                        '${native.fps.toStringAsFixed(1)} FPS · '
+                        'CV ${native.averageCvMilliseconds.toStringAsFixed(1)} ms avg / '
+                        '${native.p95CvMilliseconds.toStringAsFixed(1)} ms p95 · '
+                        'GDI ${native.averageCaptureMilliseconds.toStringAsFixed(1)} ms',
+            ),
+            trailing: Text(
+              'Legacy ${positionedEnemies ?? 0} · Native ${native.frame?.detections.length ?? 0}',
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Paridad determinista',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                    ),
+                    FilledButton.icon(
+                      onPressed: corpus.running
+                          ? null
+                          : () => ref
+                                .read(cvCorpusComparatorProvider.notifier)
+                                .run(),
+                      icon: corpus.running
+                          ? const SizedBox.square(
+                              dimension: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.compare),
+                      label: const Text('Comparar corpus'),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                if (corpus.error != null)
+                  Text(
+                    corpus.error!,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  )
+                else
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      Chip(label: Text('Frames ${corpus.frames}')),
+                      Chip(
+                        label: Text(
+                          'Precision ${(corpus.precision * 100).toStringAsFixed(2)}%',
+                        ),
+                      ),
+                      Chip(
+                        label: Text(
+                          'Recall ${(corpus.recall * 100).toStringAsFixed(2)}%',
+                        ),
+                      ),
+                      Chip(
+                        label: Text(
+                          'Identidad ${(corpus.identityAgreement * 100).toStringAsFixed(2)}%',
+                        ),
+                      ),
+                      Chip(
+                        label: Text(
+                          'Boxes exactos ${corpus.exactBoxes}/${corpus.matchedBoxes}',
+                        ),
+                      ),
+                      Chip(
+                        label: Text(
+                          'IoU ${corpus.averageIou.toStringAsFixed(4)}',
+                        ),
+                      ),
+                      Chip(
+                        label: Text(
+                          'Δ confidence ${corpus.averageConfidenceDelta.toStringAsFixed(4)}',
+                        ),
+                      ),
+                      Chip(
+                        label: Text(
+                          'Δ TM ${corpus.averageTemplateDelta.toStringAsFixed(4)}',
+                        ),
+                      ),
+                      Chip(
+                        label: Text(
+                          'Δ hist ${corpus.averageHistogramDelta.toStringAsFixed(4)}',
+                        ),
+                      ),
+                      Chip(
+                        label: Text(
+                          'Dart ${corpus.averageDartMilliseconds.toStringAsFixed(2)} ms/frame',
+                        ),
+                      ),
+                    ],
+                  ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Card(
+          child: ExpansionTile(
+            initiallyExpanded: true,
+            leading: Icon(
+              pythonDiagnostics.connected
+                  ? Icons.check_circle
+                  : Icons.error_outline,
+              color: pythonDiagnostics.connected ? Colors.green : Colors.orange,
+            ),
+            title: const Text('Python TrackerEngine diagnóstico'),
+            subtitle: Text(
+              pythonDiagnostics.connected
+                  ? '${pythonDiagnostics.status} · '
+                        '${pythonDiagnostics.metrics['fps'] ?? 0} FPS · '
+                        '${pythonDiagnostics.detections.length} detecciones'
+                  : 'API 8430 desconectada. Inicia -CvDashboard.',
+            ),
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: _TrackerMetricsComparison(
+                  native: native,
+                  python: pythonDiagnostics,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                Text(_calibrationDescription(calibration)),
+                FilledButton.icon(
+                  onPressed: native.processing
+                      ? null
+                      : () => ref
+                            .read(nativeVisionProvider.notifier)
+                            .detectCalibration(),
+                  icon: const Icon(Icons.center_focus_strong),
+                  label: const Text('Detectar nativo'),
+                ),
+                OutlinedButton.icon(
+                  onPressed:
+                      calibration?.effectiveBounds == null || native.processing
+                      ? null
+                      : () => ref
+                            .read(nativeVisionProvider.notifier)
+                            .captureOnce(calibration!.effectiveBounds!),
+                  icon: const Icon(Icons.camera_alt_outlined),
+                  label: const Text('Capturar ahora'),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children: [
+            _VisionPreview(
+              title: 'Captura del minimapa',
+              bytes: native.frame?.capturePng,
+            ),
+            _VisionPreview(
+              title: 'Máscara HSV roja',
+              bytes: native.frame?.maskPng,
+            ),
+            _VisionPreview(
+              title: 'Candidatos detectados',
+              bytes: native.frame?.annotatedPng,
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Text(
+          'Previews Python exacto',
+          style: Theme.of(context).textTheme.titleLarge,
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children: [
+            _VisionPreview(
+              title: 'Python frame',
+              bytes: pythonDiagnostics.framePng,
+            ),
+            _VisionPreview(
+              title: 'Python máscara',
+              bytes: pythonDiagnostics.maskPng,
+            ),
+            _VisionPreview(
+              title: 'Python anotado',
+              bytes: pythonDiagnostics.annotatedPng,
+            ),
+          ],
+        ),
+        if (native.calibrationProposal != null) ...[
+          const SizedBox(height: 16),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Calibración nativa propuesta',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  Text(
+                    '${native.calibrationProposal!.bounds} · '
+                    'icon ${native.calibrationProposal!.iconSize}px · '
+                    'confidence ${(native.calibrationProposal!.confidence * 100).toStringAsFixed(1)}%',
+                  ),
+                  const SizedBox(height: 8),
+                  Image.memory(
+                    native.calibrationProposal!.edgesPng,
+                    height: 260,
+                    fit: BoxFit.contain,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+        if (native.error != null) ...[
+          const SizedBox(height: 12),
+          Text(
+            native.error!,
+            style: TextStyle(color: Theme.of(context).colorScheme.error),
+          ),
+        ],
+        if (native.frame != null) ...[
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final entry in native.frame!.stageMicroseconds.entries)
+                Chip(
+                  label: Text(
+                    '${entry.key}: ${(entry.value / 1000).toStringAsFixed(2)} ms',
+                  ),
+                ),
+              Chip(
+                label: Text(
+                  'preview: ${(native.frame!.previewMicroseconds / 1000).toStringAsFixed(2)} ms',
+                ),
+              ),
+            ],
+          ),
+        ],
+        const SizedBox(height: 20),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Comparación cronológica',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+            ),
+            TextButton.icon(
+              onPressed: native.logs.isEmpty
+                  ? null
+                  : () => ref.read(nativeVisionProvider.notifier).clearLogs(),
+              icon: const Icon(Icons.delete_outline),
+              label: const Text('Limpiar'),
+            ),
+          ],
+        ),
+        Card(
+          child: native.logs.isEmpty
+              ? const ListTile(
+                  title: Text('Sin detecciones todavía'),
+                  subtitle: Text(
+                    'Los eventos se guardan en tracker-comparison.jsonl.',
+                  ),
+                )
+              : Column(
+                  children: native.logs.take(50).map((entry) {
+                    return ListTile(
+                      dense: true,
+                      leading: Icon(
+                        entry.source == TrackerLogSource.native
+                            ? Icons.memory
+                            : Icons.cloud_outlined,
+                      ),
+                      title: Text(
+                        '${entry.source.name.toUpperCase()} · ${entry.event}',
+                      ),
+                      subtitle: Text(entry.message),
+                      trailing: Text(_formatTimestamp(entry.timestamp)),
+                    );
+                  }).toList(),
+                ),
+        ),
+      ],
+    );
+  }
+}
+
+class _VisionPreview extends StatelessWidget {
+  const _VisionPreview({required this.title, required this.bytes});
+
+  final String title;
+  final Uint8List? bytes;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 330,
+      child: Card(
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Text(
+                title,
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+            ),
+            AspectRatio(
+              aspectRatio: 1,
+              child: ColoredBox(
+                color: Colors.black,
+                child: bytes == null
+                    ? const Center(
+                        child: Text(
+                          'Esperando captura…',
+                          style: TextStyle(color: Colors.white70),
+                        ),
+                      )
+                    : Image.memory(
+                        bytes!,
+                        fit: BoxFit.contain,
+                        gaplessPlayback: true,
+                      ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TrackerMetricsComparison extends StatelessWidget {
+  const _TrackerMetricsComparison({required this.native, required this.python});
+
+  final NativeVisionState native;
+  final PythonVisionDiagnosticsState python;
+
+  @override
+  Widget build(BuildContext context) {
+    final metrics = python.metrics;
+    String pythonValue(String key) {
+      final value = metrics[key];
+      if (value is num) return '${value.toStringAsFixed(2)} ms';
+      return '—';
+    }
+
+    final rows = [
+      (
+        'Captura',
+        '${native.averageCaptureMilliseconds.toStringAsFixed(2)} ms',
+        pythonValue('capture_ms'),
+      ),
+      (
+        'Detector',
+        _nativeStage(native, 'mask', 'artifact_filter', 'ring_sweep'),
+        pythonValue('detect_ms'),
+      ),
+      (
+        'Clasificación',
+        _nativeStage(native, 'classification'),
+        pythonValue('score_ms'),
+      ),
+      (
+        'Total actual',
+        '${(native.averageCaptureMilliseconds + native.averageCvMilliseconds).toStringAsFixed(2)} ms',
+        pythonValue('total_ms'),
+      ),
+      (
+        'Promedio CV',
+        '${native.averageCvMilliseconds.toStringAsFixed(2)} ms',
+        pythonValue('average_ms'),
+      ),
+      (
+        'P95 CV',
+        '${native.p95CvMilliseconds.toStringAsFixed(2)} ms',
+        pythonValue('p95_ms'),
+      ),
+      ('FPS', native.fps.toStringAsFixed(2), '${metrics['fps'] ?? '—'}'),
+      (
+        'Duty (1 core)',
+        '${((native.averageCaptureMilliseconds + native.averageCvMilliseconds) * native.fps / 10).toStringAsFixed(2)}%',
+        metrics['duty_percent'] is num
+            ? '${(metrics['duty_percent'] as num).toStringAsFixed(2)}%'
+            : '—',
+      ),
+      (
+        'CPU proceso',
+        'Incluido en Flutter',
+        metrics['cpu_percent'] is num
+            ? '${(metrics['cpu_percent'] as num).toStringAsFixed(2)}%'
+            : '—',
+      ),
+      (
+        'Working set',
+        _formatBytes(native.workingSetBytes),
+        metrics['working_set_bytes'] is num
+            ? _formatBytes((metrics['working_set_bytes'] as num).toInt())
+            : '—',
+      ),
+    ];
+    return Table(
+      columnWidths: const {
+        0: FlexColumnWidth(1.4),
+        1: FlexColumnWidth(),
+        2: FlexColumnWidth(),
+      },
+      children: [
+        const TableRow(
+          children: [
+            Padding(padding: EdgeInsets.all(6), child: Text('Métrica')),
+            Padding(padding: EdgeInsets.all(6), child: Text('DartCV')),
+            Padding(padding: EdgeInsets.all(6), child: Text('Python exacto')),
+          ],
+        ),
+        for (final row in rows)
+          TableRow(
+            children: [
+              Padding(padding: const EdgeInsets.all(6), child: Text(row.$1)),
+              Padding(padding: const EdgeInsets.all(6), child: Text(row.$2)),
+              Padding(padding: const EdgeInsets.all(6), child: Text(row.$3)),
+            ],
+          ),
+      ],
+    );
+  }
+
+  String _formatBytes(int bytes) {
+    if (bytes <= 0) return '—';
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MiB';
+  }
+
+  String _nativeStage(
+    NativeVisionState state,
+    String first, [
+    String? second,
+    String? third,
+  ]) {
+    final stages = state.frame?.stageMicroseconds ?? const {};
+    final microseconds =
+        (stages[first] ?? 0) +
+        (second == null ? 0 : stages[second] ?? 0) +
+        (third == null ? 0 : stages[third] ?? 0);
+    return '${(microseconds / 1000).toStringAsFixed(2)} ms';
+  }
+}
