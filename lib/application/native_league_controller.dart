@@ -190,6 +190,12 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
       final liveStopwatch = Stopwatch()..start();
       final liveData = await _live.allGameData();
       final liveLatency = liveStopwatch.elapsedMicroseconds / 1000;
+      await (foundation ??= NativeLeagueFoundation(
+        client: _lcu,
+      )).observeLiveClient(
+        allGameData: liveData,
+        gameId: int.tryParse(_currentGameId ?? ''),
+      );
       if (liveData != null && _itemCatalog.isEmpty) {
         _ensureItemCatalogLoaded();
       }

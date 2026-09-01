@@ -96,6 +96,34 @@ void main() {
       containsAll(['lcu:gameflow', 'lcu:champ-select']),
     );
   });
+
+  test('journals Live Client data under the active account match', () async {
+    await foundation.observeLcu(
+      connected: true,
+      gameflowPhase: 'InProgress',
+      gameId: 123,
+    );
+    await foundation.observeLiveClient(
+      gameId: 123,
+      allGameData: {
+        'gameData': {'gameTime': 25},
+        'events': {
+          'Events': [
+            {'EventID': 1, 'EventName': 'GameStart', 'EventTime': 0},
+          ],
+        },
+      },
+    );
+
+    final records = await database.select(database.sourceRecords).get();
+    final liveRecords = records.where(
+      (record) => record.sourceNamespace.startsWith('liveClient:'),
+    );
+    expect(liveRecords, hasLength(2));
+    expect(liveRecords.every((record) => record.platformId == 'LA1'), isTrue);
+    expect(liveRecords.every((record) => record.gameId == 123), isTrue);
+    expect(await database.select(database.domainEntries).get(), hasLength(1));
+  });
 }
 
 class _FakeLeagueClient implements LcuReadTransport {

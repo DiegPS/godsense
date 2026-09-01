@@ -13,6 +13,7 @@ import '../infrastructure/persistence/godsense_database.dart'
     hide AccountContextState;
 import '../infrastructure/persistence/journal_payload_codec.dart';
 import 'account_context_coordinator.dart';
+import 'live_client_journal_adapter.dart';
 
 class NativeLeagueFoundationState {
   const NativeLeagueFoundationState({
@@ -65,6 +66,7 @@ class NativeLeagueFoundation {
   DriftJournalRepository? _journal;
   AccountContextCoordinator? _accounts;
   LcuCapabilityProbe? _capabilityProbe;
+  LiveClientJournalAdapter? _liveClientJournal;
   Future<void>? _initializing;
   DateTime? _lastAccountSync;
   DateTime? _lastCapabilityProbe;
@@ -78,6 +80,32 @@ class NativeLeagueFoundation {
   bool _disposed = false;
 
   NativeLeagueFoundationState get state => _state;
+
+  Future<void> observeLiveClient({
+    required Map<String, dynamic>? allGameData,
+    int? gameId,
+  }) async {
+    try {
+      await _ensureInitialized();
+      if (_disposed) return;
+      final account = _accounts!.state.context?.account;
+      await _liveClientJournal!.ingest(
+        allGameData: allGameData,
+        match: gameId == null || account == null
+            ? null
+            : MatchKey(platformId: account.platformId, gameId: gameId),
+        gameGeneration: gameId == null
+            ? null
+            : GameSessionGeneration(_gameGeneration),
+      );
+    } catch (error) {
+      _state = NativeLeagueFoundationState(
+        account: _state.account,
+        capabilities: _state.capabilities,
+        lastError: error.toString(),
+      );
+    }
+  }
 
   Future<NativeLeagueFoundationState> observeLcu({
     required bool connected,
@@ -188,6 +216,11 @@ class NativeLeagueFoundation {
     }
     _database = database;
     _journal = DriftJournalRepository(database);
+    _liveClientJournal = LiveClientJournalAdapter(
+      repository: _journal!,
+      now: _now,
+      idPrefix: '${_captureEpochId.value}-live',
+    );
     final accountRepository = DriftAccountContextRepository(database);
     _accounts = AccountContextCoordinator(
       source: LcuCurrentAccountSource(client: client, now: _now),
