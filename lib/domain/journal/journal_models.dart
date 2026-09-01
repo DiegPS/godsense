@@ -13,6 +13,7 @@ enum DomainEntryKind {
   sourceSnapshot,
   sensorObservation,
   inference,
+  tacticalAdvice,
 }
 
 enum LineageRelation {

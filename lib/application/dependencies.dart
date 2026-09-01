@@ -48,6 +48,11 @@ final nativeVoiceCoachProvider =
           );
         },
         speak: speech.speak,
+        record: (question, advice) async {
+          await ref
+              .read(nativeLeagueProvider.notifier)
+              .recordTacticalAdvice(question: question, advice: advice);
+        },
       );
     });
 

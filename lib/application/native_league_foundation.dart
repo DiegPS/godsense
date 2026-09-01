@@ -6,6 +6,7 @@ import '../domain/journal/journal_models.dart';
 import '../domain/league/game_session.dart';
 import '../domain/league/lcu_capabilities.dart';
 import '../domain/league/local_scout.dart';
+import '../domain/tactical/tactical_models.dart';
 import '../infrastructure/league/lcu_capability_probe.dart';
 import '../infrastructure/league/lcu_current_account_source.dart';
 import '../infrastructure/league/lcu_probe_transport.dart';
@@ -19,6 +20,7 @@ import 'account_context_coordinator.dart';
 import 'game_session_coordinator.dart';
 import 'live_client_journal_adapter.dart';
 import 'local_scout_sync_service.dart';
+import 'tactical_advice_journal_adapter.dart';
 
 class NativeLeagueFoundationState {
   const NativeLeagueFoundationState({
@@ -78,6 +80,7 @@ class NativeLeagueFoundation {
   LcuCapabilityProbe? _capabilityProbe;
   LiveClientJournalAdapter? _liveClientJournal;
   LocalScoutSyncService? _scoutSync;
+  TacticalAdviceJournalAdapter? _tacticalAdviceJournal;
   late final GameSessionCoordinator _sessions = GameSessionCoordinator(
     now: _now,
   );
@@ -95,6 +98,19 @@ class NativeLeagueFoundation {
   bool _disposed = false;
 
   NativeLeagueFoundationState get state => _state;
+
+  Future<bool> recordTacticalAdvice({
+    required String question,
+    required TacticalAdvice advice,
+  }) async {
+    await _ensureInitialized();
+    if (_disposed) return false;
+    return _tacticalAdviceJournal!.ingest(
+      question: question,
+      advice: advice,
+      session: _sessions.state.current,
+    );
+  }
 
   Future<void> observeLiveClient({
     required Map<String, dynamic>? allGameData,
@@ -258,6 +274,11 @@ class NativeLeagueFoundation {
     }
     _database = database;
     _journal = DriftJournalRepository(database);
+    _tacticalAdviceJournal = TacticalAdviceJournalAdapter(
+      repository: _journal!,
+      now: _now,
+      idPrefix: '${_captureEpochId.value}-coach',
+    );
     _liveClientJournal = LiveClientJournalAdapter(
       repository: _journal!,
       now: _now,

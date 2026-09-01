@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../domain/identity/league_identity.dart';
 import '../domain/league/game_session.dart';
 import '../domain/league/lcu_capabilities.dart';
+import '../domain/tactical/tactical_models.dart';
 import '../infrastructure/data_dragon/data_dragon_catalog_service.dart';
 import '../infrastructure/league/league_clients.dart';
 import 'account_context_coordinator.dart';
@@ -129,6 +130,13 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
   String? _currentGameId;
 
   int? get localSummonerId => _localSummonerId;
+
+  Future<bool> recordTacticalAdvice({
+    required String question,
+    required TacticalAdvice advice,
+  }) => (foundation ??= NativeLeagueFoundation(
+    client: _lcu,
+  )).recordTacticalAdvice(question: question, advice: advice);
 
   void start() {
     if (_timer != null) return;

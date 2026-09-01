@@ -42,9 +42,11 @@ class NativeVoiceCoachController extends StateNotifier<NativeVoiceCoachState> {
     required Stream<String> questions,
     required FutureOr<TacticalAdvice> Function(String question) answer,
     required void Function(String text) speak,
+    Future<void> Function(String question, TacticalAdvice advice)? record,
     DateTime Function()? now,
   }) : _answer = answer,
        _speak = speak,
+       _record = record,
        _now = now ?? DateTime.now,
        super(const NativeVoiceCoachState()) {
     _subscription = questions.listen(
@@ -57,6 +59,7 @@ class NativeVoiceCoachController extends StateNotifier<NativeVoiceCoachState> {
 
   final FutureOr<TacticalAdvice> Function(String question) _answer;
   final void Function(String text) _speak;
+  final Future<void> Function(String question, TacticalAdvice advice)? _record;
   final DateTime Function() _now;
   late final StreamSubscription<String> _subscription;
   int _revision = 0;
@@ -74,11 +77,19 @@ class NativeVoiceCoachController extends StateNotifier<NativeVoiceCoachState> {
     try {
       final advice = await Future<TacticalAdvice>.sync(() => _answer(question));
       if (_disposed || revision != _revision) return;
+      Object? recordError;
+      try {
+        await _record?.call(question, advice);
+      } catch (error) {
+        recordError = error;
+      }
+      if (_disposed || revision != _revision) return;
       state = state.copyWith(
         processing: false,
         advice: advice,
         answeredAt: _now(),
-        clearError: true,
+        clearError: recordError == null,
+        error: recordError?.toString(),
       );
       if (advice.ttsText.trim().isNotEmpty) _speak(advice.ttsText);
     } catch (error) {

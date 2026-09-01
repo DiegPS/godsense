@@ -44,6 +44,39 @@ void main() {
     expect(spoken, isEmpty);
   });
 
+  test('records provenance before speaking the answer', () async {
+    final actions = <String>[];
+    controller.dispose();
+    controller = NativeVoiceCoachController(
+      questions: questions.stream,
+      answer: _answer,
+      record: (question, advice) async {
+        actions.add('record:$question:${advice.id}');
+      },
+      speak: (text) => actions.add('speak:$text'),
+    );
+
+    await controller.handleQuestion('objetivo');
+
+    expect(actions, ['record:objetivo:answer', 'speak:Respuesta local']);
+  });
+
+  test('still answers and speaks when journaling is unavailable', () async {
+    controller.dispose();
+    controller = NativeVoiceCoachController(
+      questions: questions.stream,
+      answer: _answer,
+      record: (_, _) => Future<void>.error(StateError('disk unavailable')),
+      speak: spoken.add,
+    );
+
+    await controller.handleQuestion('objetivo');
+
+    expect(controller.state.advice?.id, 'answer');
+    expect(controller.state.error, contains('disk unavailable'));
+    expect(spoken, ['Respuesta local']);
+  });
+
   test('publishes only the newest concurrent answer', () async {
     final first = Completer<TacticalAdvice>();
     controller.dispose();
