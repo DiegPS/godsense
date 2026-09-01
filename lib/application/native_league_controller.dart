@@ -8,6 +8,7 @@ import '../domain/league/lcu_capabilities.dart';
 import '../domain/tactical/tactical_models.dart';
 import '../infrastructure/data_dragon/data_dragon_catalog_service.dart';
 import '../infrastructure/league/league_clients.dart';
+import '../infrastructure/league/lcu_event_stream.dart';
 import 'account_context_coordinator.dart';
 import 'live_game_processor.dart';
 import 'native_league_foundation.dart';
@@ -15,6 +16,7 @@ import 'native_league_foundation.dart';
 class NativeLeagueState {
   const NativeLeagueState({
     this.lcuConnected = false,
+    this.lcuEventConnected = false,
     this.gameflowPhase = 'NO_LCU',
     this.lobby = const {},
     this.liveGame,
@@ -33,6 +35,7 @@ class NativeLeagueState {
   });
 
   final bool lcuConnected;
+  final bool lcuEventConnected;
   final String gameflowPhase;
   final Map<String, dynamic> lobby;
   final Map<String, dynamic>? liveGame;
@@ -53,6 +56,7 @@ class NativeLeagueState {
 
   NativeLeagueState copyWith({
     bool? lcuConnected,
+    bool? lcuEventConnected,
     String? gameflowPhase,
     Map<String, dynamic>? lobby,
     Map<String, dynamic>? liveGame,
@@ -74,6 +78,7 @@ class NativeLeagueState {
   }) {
     return NativeLeagueState(
       lcuConnected: lcuConnected ?? this.lcuConnected,
+      lcuEventConnected: lcuEventConnected ?? this.lcuEventConnected,
       gameflowPhase: gameflowPhase ?? this.gameflowPhase,
       lobby: lobby ?? this.lobby,
       liveGame: clearLiveGame ? null : liveGame ?? this.liveGame,
@@ -106,20 +111,28 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
   NativeLeagueController({
     LcuClient? lcu,
     LiveClientApi? live,
+    LcuEventStream? lcuEvents,
     LiveGameProcessor? processor,
     this.dataDragonCatalog,
     this.foundation,
   }) : _lcu = lcu ?? LcuClient(),
        _live = live ?? LiveClientApi(),
        _processor = processor ?? LiveGameProcessor(),
-       super(const NativeLeagueState());
+       super(const NativeLeagueState()) {
+    _lcuEvents =
+        lcuEvents ?? LcuEventStream(credentialsProvider: _lcu.discover);
+  }
 
   final LcuClient _lcu;
   final LiveClientApi _live;
   final LiveGameProcessor _processor;
+  late final LcuEventStream _lcuEvents;
   DataDragonCatalogService? dataDragonCatalog;
   NativeLeagueFoundation? foundation;
   Timer? _timer;
+  Timer? _eventDebounce;
+  StreamSubscription<LcuApiEvent>? _eventSubscription;
+  StreamSubscription<LcuEventConnectionState>? _eventStateSubscription;
   bool _polling = false;
   final Map<int, String> _championNames = {};
   int? _localSummonerId;
@@ -140,10 +153,26 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
 
   void start() {
     if (_timer != null) return;
+    _eventSubscription = _lcuEvents.events.listen(_onLcuEvent);
+    _eventStateSubscription = _lcuEvents.states.listen((connection) {
+      state = state.copyWith(
+        lcuEventConnected: connection == LcuEventConnectionState.connected,
+      );
+    });
+    _lcuEvents.start();
     unawaited(_poll());
     _timer = Timer.periodic(
       const Duration(milliseconds: 500),
       (_) => unawaited(_poll()),
+    );
+  }
+
+  void _onLcuEvent(LcuApiEvent event) {
+    if (!_reconciledLcuFamilies.any(event.uri.startsWith)) return;
+    _eventDebounce?.cancel();
+    _eventDebounce = Timer(
+      const Duration(milliseconds: 40),
+      () => unawaited(_poll()),
     );
   }
 
@@ -513,12 +542,24 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
   @override
   void dispose() {
     _timer?.cancel();
+    _eventDebounce?.cancel();
+    unawaited(_eventSubscription?.cancel() ?? Future<void>.value());
+    unawaited(_eventStateSubscription?.cancel() ?? Future<void>.value());
+    unawaited(_lcuEvents.dispose());
     _lcu.dispose();
     _live.dispose();
     unawaited(foundation?.dispose());
     super.dispose();
   }
 }
+
+const _reconciledLcuFamilies = <String>[
+  '/lol-gameflow/',
+  '/lol-champ-select/',
+  '/lol-summoner/',
+  '/lol-ranked/',
+  '/lol-match-history/',
+];
 
 Map<String, dynamic> _stringMap(Object? value) {
   if (value is! Map) return const {};

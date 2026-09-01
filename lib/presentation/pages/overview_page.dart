@@ -29,9 +29,11 @@ class OverviewPage extends ConsumerWidget {
             _StatusCard(
               title: 'League client',
               value: game != null
-                  ? 'In game · ${game.phase}'
+                  ? 'In game · ${game.phase} · '
+                        '${nativeLeague.lcuEventConnected ? 'eventos' : 'polling'}'
                   : lobby?.lcuConnected == true
-                  ? lobby!.phase
+                  ? '${lobby!.phase} · '
+                        '${nativeLeague.lcuEventConnected ? 'eventos' : 'polling'}'
                   : 'Not connected',
               icon: Icons.sports_esports,
             ),
