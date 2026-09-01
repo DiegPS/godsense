@@ -233,6 +233,25 @@ class _CoachPageState extends ConsumerState<CoachPage> {
                     ),
             ),
             _CoachPanel(
+              title: 'Objetos recomendados por Riot',
+              icon: Icons.inventory_2_outlined,
+              child: nativeLeague.itemRecommendationsLoading
+                  ? const LinearProgressIndicator()
+                  : nativeLeague.itemRecommendations == null
+                  ? Text(
+                      nativeLeague.itemRecommendationsError ??
+                          'Selecciona un campeón y una posición para cargar '
+                              'su build actual.',
+                    )
+                  : _ItemRecommendationsView(
+                      bundle: nativeLeague.itemRecommendations!,
+                      importing: nativeLeague.operationInProgress,
+                      onImport: () => ref
+                          .read(nativeLeagueProvider.notifier)
+                          .importItemRecommendations(),
+                    ),
+            ),
+            _CoachPanel(
               title: 'Ruta de jungla de Riot',
               icon: Icons.route_outlined,
               child: nativeLeague.jungleRecommendationsLoading
@@ -605,6 +624,103 @@ String _recommendationAttribute(String value) => switch (value) {
   'kDamage' => 'Daño',
   _ => value,
 };
+
+class _ItemRecommendationsView extends StatelessWidget {
+  const _ItemRecommendationsView({
+    required this.bundle,
+    required this.importing,
+    required this.onImport,
+  });
+
+  final ItemRecommendationBundle bundle;
+  final bool importing;
+  final VoidCallback onImport;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '${bundle.position.lcuValue} · ${bundle.mode} · mapa ${bundle.mapId} '
+          '· parche ${bundle.patch.value}',
+          style: Theme.of(context).textTheme.labelMedium,
+        ),
+        const SizedBox(height: 8),
+        for (var index = 0; index < bundle.startingBundles.length; index++)
+          _ItemRecommendationRow(
+            title: 'Inicio ${index + 1}',
+            items: bundle.startingBundles[index].items,
+          ),
+        for (var index = 0; index < bundle.purchaseRanges.length; index++)
+          _ItemRecommendationRow(
+            title:
+                'Compra ${index + 1}'
+                '${bundle.purchaseRanges[index].maxCompletedItems == null ? '' : ' · hasta ${bundle.purchaseRanges[index].maxCompletedItems} completos'}',
+            items: bundle.purchaseRanges[index].items,
+          ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            FilledButton.icon(
+              onPressed: importing ? null : onImport,
+              icon: const Icon(Icons.download_outlined),
+              label: const Text('Importar set'),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Tooltip(
+                message: bundle.sourceUri.toString(),
+                child: Text(
+                  bundle.positionSpecific
+                      ? 'Fuente Riot · variante específica de posición'
+                      : 'Fuente Riot · variante general del campeón',
+                  style: Theme.of(context).textTheme.labelSmall,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _ItemRecommendationRow extends StatelessWidget {
+  const _ItemRecommendationRow({required this.title, required this.items});
+
+  final String title;
+  final List<RecommendedItem> items;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: Theme.of(context).textTheme.titleSmall),
+          const SizedBox(height: 4),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: items
+                .map(
+                  (item) => Tooltip(
+                    message: 'ID ${item.id}',
+                    child: Chip(
+                      avatar: const Icon(Icons.shield_outlined, size: 16),
+                      label: Text(item.name),
+                    ),
+                  ),
+                )
+                .toList(growable: false),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 class _JungleRecommendationsView extends StatelessWidget {
   const _JungleRecommendationsView({required this.bundle});

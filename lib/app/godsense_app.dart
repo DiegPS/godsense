@@ -18,6 +18,7 @@ import '../application/overlay_parity_logger.dart';
 import '../domain/companion_models.dart';
 import '../domain/identity/league_identity.dart';
 import '../domain/jungle/jungle_recommendation.dart';
+import '../domain/league/item_recommendation.dart';
 import '../domain/league/rune_recommendation.dart';
 import '../domain/vision/vision_observation.dart';
 import '../presentation/native_speech_settings_card.dart';

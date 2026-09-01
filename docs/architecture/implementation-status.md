@@ -18,6 +18,7 @@
 | LCU compatibility | Granular capability results; known endpoint probing only | Probe tests |
 | LCU reactivity | `OnJsonApiEvent` accelerates REST reconciliation; polling remains fallback | WebSocket protocol tests |
 | Rune recommendations | Native LCU alternatives by champion, role, and map, including summoner spells and explicit import | Live LCU 16.17 probe and source contract tests |
+| Item recommendations | Patch-exact Riot champion BIN overrides by map, mode, and role; Data Dragon validation, offline cache, and item-set import | Live Ahri 16.17 extraction and source/cache tests |
 | Jungle routes | Patch-exact Riot `Map11` routes for both teams, with validated camp order and offline cache | Live CommunityDragon 16.17 extraction and parser/cache tests |
 | Live Client | Native polling, current projection, complete event journal, logical game time | Adapter and projection parity tests |
 | Scout | Account-scoped ranked and match cache available offline | SQLite, controller, and widget tests |
@@ -31,7 +32,7 @@
 
 ## Current measured baseline
 
-The complete suite currently has 151 passing tests and 12 explicitly skipped
+The complete suite currently has 156 passing tests and 13 explicitly skipped
 native smoke tests. The skipped tests require model-path environment variables;
 model discovery from the copied Airstream cache is covered separately.
 
@@ -54,10 +55,12 @@ champion or patch knowledge base. Its fallback returns fixed Electrocute/AP
 runes and generic matchup/teamfight prose independent of the actual champion.
 Copying that behavior would produce confident but false recommendations.
 
-GodSense now reads the League Client's native rune recommendations and exposes
-all returned alternatives with their exact recommendation IDs. It still
-withholds build recommendations when no patch-exact item artifact is available.
-This is a correctness feature, not a fabricated fallback.
+GodSense reads the League Client's native rune recommendations and exposes all
+returned alternatives with their exact recommendation IDs. Item builds come
+from Riot's patch-specific champion BIN artifacts, select the map/mode/position
+override, validate every item against the same-patch Data Dragon catalog, and
+remain available from a same-patch offline cache. No generic Python fallback is
+used.
 
 ## Gates that require a real League installation/session
 
@@ -73,12 +76,12 @@ Before a release candidate, run an on-machine acceptance session covering:
 7. Push-to-Talk, selected Sherpa model, audio playback, overlay focus, and
    fullscreen League behavior on the target machine.
 
-## Next product decision: patch-exact tactical knowledge
+## Next product decision: matchup-specific tactical knowledge
 
-Builds and matchup-specific advice need a trusted, versioned input. Runes use
-the installed League Client recommender and retain the exact client version,
-patch, champion, position, map, and recommendation IDs.
-The next implementation must choose and license a source, then store:
+Matchup-specific advice needs a trusted, versioned input. Runes and item builds
+now use Riot-owned artifacts and retain their patch, champion, position, map,
+mode, IDs, and source URI. The next implementation must choose and license a
+matchup evidence source, then store:
 
 - champion, role, opponent, queue, and rank context;
 - requested patch and exact resolved artifact version;

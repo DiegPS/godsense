@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../domain/identity/league_identity.dart';
 import '../domain/jungle/jungle_recommendation.dart';
 import '../domain/league/game_session.dart';
+import '../domain/league/item_recommendation.dart';
 import '../domain/league/lcu_capabilities.dart';
 import '../domain/league/local_scout.dart';
 import '../domain/league/rune_recommendation.dart';
@@ -15,8 +16,11 @@ import '../infrastructure/jungle/jungle_map_transport.dart';
 import '../infrastructure/jungle/jungle_recommendation_source.dart';
 import '../infrastructure/jungle/jungle_recommendation_cache.dart';
 import '../infrastructure/league/league_clients.dart';
+import '../infrastructure/league/item_recommendation_cache.dart';
 import '../infrastructure/league/lcu_event_stream.dart';
 import '../infrastructure/league/lcu_rune_recommendation_source.dart';
+import '../infrastructure/league/riot_item_recommendation_source.dart';
+import '../infrastructure/league/riot_item_recommendation_transport.dart';
 import 'account_context_coordinator.dart';
 import 'live_game_processor.dart';
 import 'native_league_foundation.dart';
@@ -46,6 +50,9 @@ class NativeLeagueState {
     this.jungleRecommendations,
     this.jungleRecommendationsLoading = false,
     this.jungleRecommendationsError,
+    this.itemRecommendations,
+    this.itemRecommendationsLoading = false,
+    this.itemRecommendationsError,
   });
 
   final bool lcuConnected;
@@ -71,6 +78,9 @@ class NativeLeagueState {
   final JungleRecommendationBundle? jungleRecommendations;
   final bool jungleRecommendationsLoading;
   final String? jungleRecommendationsError;
+  final ItemRecommendationBundle? itemRecommendations;
+  final bool itemRecommendationsLoading;
+  final String? itemRecommendationsError;
 
   bool get inGame => liveGame != null && liveGame!['_game_ended'] != true;
 
@@ -104,6 +114,11 @@ class NativeLeagueState {
     bool? jungleRecommendationsLoading,
     String? jungleRecommendationsError,
     bool clearJungleRecommendationsError = false,
+    ItemRecommendationBundle? itemRecommendations,
+    bool clearItemRecommendations = false,
+    bool? itemRecommendationsLoading,
+    String? itemRecommendationsError,
+    bool clearItemRecommendationsError = false,
   }) {
     return NativeLeagueState(
       lcuConnected: lcuConnected ?? this.lcuConnected,
@@ -140,6 +155,14 @@ class NativeLeagueState {
       jungleRecommendationsError: clearJungleRecommendationsError
           ? null
           : jungleRecommendationsError ?? this.jungleRecommendationsError,
+      itemRecommendations: clearItemRecommendations
+          ? null
+          : itemRecommendations ?? this.itemRecommendations,
+      itemRecommendationsLoading:
+          itemRecommendationsLoading ?? this.itemRecommendationsLoading,
+      itemRecommendationsError: clearItemRecommendationsError
+          ? null
+          : itemRecommendationsError ?? this.itemRecommendationsError,
     );
   }
 }
@@ -161,6 +184,7 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
     this.foundation,
     LcuRuneRecommendationSource? runeRecommendationSource,
     JungleRecommendationSource? jungleRecommendationSource,
+    RiotItemRecommendationSource? itemRecommendationSource,
   }) : _lcu = lcu ?? LcuClient(),
        _live = live ?? LiveClientApi(),
        _processor = processor ?? LiveGameProcessor(),
@@ -178,6 +202,16 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
         cache: FileJungleRecommendationCache.defaultCache(),
       );
     }
+    if (itemRecommendationSource != null) {
+      _itemRecommendationSource = itemRecommendationSource;
+    } else {
+      _itemRecommendationTransport =
+          CommunityDragonItemRecommendationTransport();
+      _itemRecommendationSource = RiotItemRecommendationSource(
+        transport: _itemRecommendationTransport!,
+        cache: FileItemRecommendationCache.defaultCache(),
+      );
+    }
   }
 
   final LcuClient _lcu;
@@ -187,6 +221,8 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
   late final LcuRuneRecommendationSource _runeRecommendationSource;
   late final JungleRecommendationSource _jungleRecommendationSource;
   CommunityDragonJungleMapTransport? _jungleTransport;
+  late final RiotItemRecommendationSource _itemRecommendationSource;
+  CommunityDragonItemRecommendationTransport? _itemRecommendationTransport;
   DataDragonCatalogService? dataDragonCatalog;
   NativeLeagueFoundation? foundation;
   Timer? _timer;
@@ -195,6 +231,7 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
   StreamSubscription<LcuEventConnectionState>? _eventStateSubscription;
   bool _polling = false;
   final Map<int, String> _championNames = {};
+  final Map<int, String> _championAliases = {};
   int? _localSummonerId;
   Map<int, Map<String, dynamic>> _itemCatalog = const {};
   bool _itemCatalogLoading = false;
@@ -203,6 +240,7 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
   String? _currentGameId;
   String? _runeRequestKey;
   String? _jungleRequestPatch;
+  String? _itemRecommendationRequestKey;
 
   int? get localSummonerId => _localSummonerId;
 
@@ -281,6 +319,7 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
             if (session is Map) {
               lobby = await _normalizeLobby(session);
               _ensureRuneRecommendationsLoaded(lobby);
+              _ensureItemRecommendationsLoaded(lobby);
             }
           }
           if (phase == 'InProgress' && _currentGameId == null) {
@@ -411,7 +450,10 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
         final data = await _lcu.get(
           '/lol-game-data/assets/v1/champions/$id.json',
         );
-        if (data is Map) _championNames[id] = data['name']?.toString() ?? '$id';
+        if (data is Map) {
+          _championNames[id] = data['name']?.toString() ?? '$id';
+          _championAliases[id] = data['alias']?.toString() ?? '';
+        }
       }
     }
     final localCell = (raw['localPlayerCellId'] as num?)?.toInt();
@@ -429,6 +471,7 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
               'cell_id': player['cellId'],
               'champion_id': id,
               'champion_name': _championNames[id] ?? '',
+              'champion_alias': _championAliases[id] ?? '',
               'position': player['assignedPosition'] ?? '',
               'locked': flatActions.any(
                 (action) =>
@@ -538,6 +581,9 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
                   .toList() ??
               <Map<String, dynamic>>[];
           final uid = 'GodSense-${DateTime.now().millisecondsSinceEpoch}';
+          final associatedChampion = (preferred['champion_id'] as num?)
+              ?.toInt();
+          final associatedMap = (preferred['map_id'] as num?)?.toInt();
           existing.add({
             'uid': uid,
             'title': 'GodSense Recommended',
@@ -547,8 +593,13 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
             'priority': true,
             'sortrank': 0,
             'startedFrom': 'blank',
-            'associatedChampions': const [],
-            'associatedMaps': const [],
+            'associatedChampions': [
+              if (associatedChampion != null && associatedChampion > 0)
+                associatedChampion,
+            ],
+            'associatedMaps': [
+              if (associatedMap != null && associatedMap > 0) associatedMap,
+            ],
             'blocks': groups.map((group) {
               return {
                 'type': group['category']?.toString() ?? 'Items',
@@ -556,7 +607,7 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
                     .map(
                       (item) => {
                         'id': '${item['item_id'] ?? item['id']}',
-                        'count': 1,
+                        'count': (item['count'] as num?)?.toInt() ?? 1,
                       },
                     )
                     .toList(),
@@ -650,6 +701,56 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
     }
   }
 
+  Future<void> loadItemRecommendations({
+    required int championId,
+    required String championAlias,
+    required LeaguePosition position,
+  }) async {
+    state = state.copyWith(
+      itemRecommendationsLoading: true,
+      clearItemRecommendations: true,
+      clearItemRecommendationsError: true,
+    );
+    try {
+      final account = foundation?.state.account.context?.account;
+      final patch = account?.patchKey;
+      if (patch == null) {
+        throw const ItemRecommendationException(
+          'League patch is not available yet.',
+        );
+      }
+      if (_itemCatalog.isEmpty) await _loadItemCatalog();
+      final bundle = await _itemRecommendationSource.load(
+        championId: championId,
+        championAlias: championAlias,
+        position: position,
+        patch: patch,
+        itemCatalog: _itemCatalog,
+      );
+      state = state.copyWith(
+        itemRecommendations: bundle,
+        itemRecommendationsLoading: false,
+        clearItemRecommendationsError: true,
+      );
+    } catch (error) {
+      _itemRecommendationRequestKey = null;
+      state = state.copyWith(
+        itemRecommendationsLoading: false,
+        itemRecommendationsError: error.toString(),
+      );
+    }
+  }
+
+  Future<void> importItemRecommendations() async {
+    final bundle = state.itemRecommendations;
+    if (bundle == null) return;
+    await importRecommendedSetup({
+      'champion_id': bundle.championId,
+      'map_id': bundle.mapId,
+      'items': bundle.toImportGroups(),
+    });
+  }
+
   void _ensureJungleRecommendationsLoaded(PatchKey? patch) {
     if (patch == null || _jungleRequestPatch == patch.value) return;
     _jungleRequestPatch = patch.value;
@@ -673,6 +774,38 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
     _runeRequestKey = key;
     unawaited(
       loadRuneRecommendations(championId: championId, position: position),
+    );
+  }
+
+  void _ensureItemRecommendationsLoaded(Map<String, dynamic> lobby) {
+    final snapshot = _stringMap(lobby['snapshot']);
+    final local = _mapList(snapshot['my_team'])
+        .where((player) => player['is_local'] == true);
+    if (local.isEmpty) return;
+    final championId = (local.first['champion_id'] as num?)?.toInt() ?? 0;
+    final championAlias = local.first['champion_alias']?.toString() ?? '';
+    final position = LeaguePosition.tryParse(local.first['position']);
+    final patch = foundation?.state.account.context?.account.patchKey;
+    if (championId <= 0 ||
+        championAlias.isEmpty ||
+        position == null ||
+        patch == null) {
+      return;
+    }
+    final key =
+        '$championId|$championAlias|${position.lcuValue}|${patch.value}';
+    if (_itemRecommendationRequestKey == key &&
+        (state.itemRecommendationsLoading ||
+            state.itemRecommendations?.championId == championId)) {
+      return;
+    }
+    _itemRecommendationRequestKey = key;
+    unawaited(
+      loadItemRecommendations(
+        championId: championId,
+        championAlias: championAlias,
+        position: position,
+      ),
     );
   }
 
@@ -719,6 +852,7 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
     _lcu.dispose();
     _live.dispose();
     _jungleTransport?.dispose();
+    _itemRecommendationTransport?.dispose();
     unawaited(foundation?.dispose());
     super.dispose();
   }
