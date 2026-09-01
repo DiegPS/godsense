@@ -2,7 +2,6 @@
 
 #include <flutter_secure_storage_windows/flutter_secure_storage_windows_plugin.h>
 #include <multiview_desktop/multi_view_desktop_plugin.h>
-#include <url_launcher_windows/url_launcher_windows.h>
 
 namespace {
 
@@ -10,8 +9,6 @@ void RegisterApplicationPlugins(FlutterDesktopEngineRef engine) {
   FlutterSecureStorageWindowsPluginRegisterWithRegistrar(
       FlutterDesktopEngineGetPluginRegistrar(
           engine, "FlutterSecureStorageWindowsPlugin"));
-  UrlLauncherWindowsRegisterWithRegistrar(
-      FlutterDesktopEngineGetPluginRegistrar(engine, "UrlLauncherWindows"));
 }
 
 }  // namespace

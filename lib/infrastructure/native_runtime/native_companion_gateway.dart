@@ -118,8 +118,6 @@ class NativeCompanionGateway implements CompanionGateway {
     'meta': const {
       'runtime': 'in_process',
       'cadence_editable': true,
-      'highlights_editable': false,
-      'highlights_ready': false,
       'language_restart_required': false,
       'locks': <String, Object?>{},
     },
@@ -151,16 +149,6 @@ class NativeCompanionGateway implements CompanionGateway {
     'runtime': 'native_sherpa',
     'message': 'Use the native speech test in Voice settings.',
   };
-
-  @override
-  Future<Map<String, dynamic>> highlights() async => const {
-    'enabled': false,
-    'clips': <Object?>[],
-  };
-
-  @override
-  Uri highlightClipUri(int slot) =>
-      Uri(scheme: 'godsense', host: 'local-highlight', path: '/$slot');
 
   @override
   Future<Map<String, dynamic>> importAll() async => const {
@@ -257,7 +245,6 @@ const _defaultSettings = <String, dynamic>{
   'tts_volume': 1.0,
   'language': 'auto',
   'cadence': 'normal',
-  'highlights_enabled': false,
   'overlay_hidden_panels': <String>[],
 };
 
@@ -267,7 +254,6 @@ const _allowedSettingKeys = <String>{
   'tts_volume',
   'language',
   'cadence',
-  'highlights_enabled',
   'overlay_hidden_panels',
 };
 

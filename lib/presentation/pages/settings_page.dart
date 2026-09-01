@@ -103,23 +103,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 ),
               ),
               const Divider(height: 1),
-              SwitchListTile(
-                title: const Text('Highlights'),
-                subtitle: Text(
-                  meta['highlights_ready'] == true
-                      ? 'Grabación disponible'
-                      : 'Grabador no disponible',
-                ),
-                value: settings?.highlightsEnabled ?? false,
-                onChanged:
-                    meta['highlights_editable'] == true &&
-                        !backend.operationInProgress
-                    ? (value) => ref
-                          .read(companionControllerProvider.notifier)
-                          .updateSettings({'highlights_enabled': value})
-                    : null,
-              ),
-              const Divider(height: 1),
               ListTile(
                 title: const Text('Calibración del minimapa'),
                 subtitle: Text(_calibrationDescription(calibration)),

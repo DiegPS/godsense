@@ -11,8 +11,6 @@ abstract interface class CompanionGateway {
   Future<Map<String, dynamic>> settings();
   Future<Map<String, dynamic>> updateSettings(Map<String, dynamic> patch);
   Future<Map<String, dynamic>> testVoice();
-  Future<Map<String, dynamic>> highlights();
-  Uri highlightClipUri(int slot);
   Future<Map<String, dynamic>> importAll();
   Future<Map<String, dynamic>> scoutSummoner({
     required String name,

@@ -5,7 +5,6 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:multiview_desktop/multiview_desktop.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../application/dependencies.dart';
 import '../application/cv_corpus_comparator.dart';

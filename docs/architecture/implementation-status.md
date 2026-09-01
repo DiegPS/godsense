@@ -29,10 +29,11 @@
 | Vision journal | DartCV sightings stored by `MatchKey`, session generation, game time, and confidence | Adapter deduplication tests |
 | Advice journal | Voice question and tactical advice stored separately with evidence and confidence | Adapter tests |
 | Persistence ownership | One database owner in `NativeLeagueFoundation`; UI uses application ports | Scout and foundation tests |
+| Product scope | Coaching, vision, voice, LCU, and Scout are first-class; Highlights and Discord Rich Presence are intentionally excluded | No dormant settings, gateway contracts, or UI placeholders |
 
 ## Current measured baseline
 
-The complete suite currently has 159 passing tests and 13 explicitly skipped
+The complete suite currently has 161 passing tests and 13 explicitly skipped
 native smoke tests. The skipped tests require model-path environment variables;
 model discovery from the copied Airstream cache is covered separately.
 

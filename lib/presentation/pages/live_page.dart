@@ -19,11 +19,6 @@ class LivePage extends ConsumerWidget {
         ? nativeLeague.timeline['gold_points'] as List
         : const [];
     final timelineEvents = _asMapList(nativeLeague.timeline['events']);
-    final clips = _asMapList(state.highlights['clips'])
-      ..sort(
-        (a, b) =>
-            ((a['slot'] as num?) ?? 0).compareTo((b['slot'] as num?) ?? 0),
-      );
     final activePlayer = game?.raw['active_player'] is Map
         ? Map<String, dynamic>.from(game!.raw['active_player'] as Map)
         : null;
@@ -193,43 +188,6 @@ class LivePage extends ConsumerWidget {
                         ),
                       )
                       .toList(),
-                ),
-        ),
-        const SizedBox(height: 20),
-        Text('Highlights', style: Theme.of(context).textTheme.titleLarge),
-        Card(
-          child: clips.isEmpty
-              ? ListTile(
-                  leading: const Icon(Icons.movie_outlined),
-                  title: Text(
-                    state.highlights['settled'] == false
-                        ? 'Procesando highlights…'
-                        : 'No hay clips para esta partida',
-                  ),
-                )
-              : Column(
-                  children: clips.map((clip) {
-                    final slot = (clip['slot'] as num?)?.toInt() ?? 0;
-                    return ListTile(
-                      leading: const Icon(Icons.play_circle_outline),
-                      title: Text(
-                        _highlightLabel(clip['event_type']?.toString()),
-                      ),
-                      subtitle: Text(
-                        _formatGameTime(
-                          (clip['game_time'] as num?)?.toDouble() ?? 0,
-                        ),
-                      ),
-                      trailing: FilledButton(
-                        onPressed: () => launchUrl(
-                          ref
-                              .read(companionControllerProvider.notifier)
-                              .highlightClipUri(slot),
-                        ),
-                        child: const Text('Reproducir'),
-                      ),
-                    );
-                  }).toList(),
                 ),
         ),
       ],

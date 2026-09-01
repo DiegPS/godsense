@@ -85,7 +85,6 @@ class CompanionController extends StateNotifier<CompanionState> {
       final players = await _optional(client.players);
       final config = await _optional(client.config);
       final settings = await _optional(client.settings);
-      final highlights = await _optional(client.highlights);
       state = state.copyWith(
         connection: CompanionConnection.online,
         coaching: coaching ?? state.coaching,
@@ -94,7 +93,6 @@ class CompanionController extends StateNotifier<CompanionState> {
         settings: settings == null
             ? state.settings
             : CompanionSettings.fromJson(settings),
-        highlights: highlights ?? state.highlights,
       );
     } catch (error) {
       state = state.copyWith(lastError: error.toString());
@@ -310,8 +308,6 @@ class CompanionController extends StateNotifier<CompanionState> {
       );
     }
   }
-
-  Uri highlightClipUri(int slot) => client.highlightClipUri(slot);
 
   void _recordFailure(Object error) {
     state = state.copyWith(

@@ -224,7 +224,6 @@ class CompanionSettings {
     required this.ttsVolume,
     required this.language,
     required this.cadence,
-    required this.highlightsEnabled,
     required this.overlayHiddenPanels,
     required this.meta,
   });
@@ -237,7 +236,6 @@ class CompanionSettings {
       ttsVolume: (json['tts_volume'] as num?)?.toDouble() ?? 1,
       language: json['language']?.toString() ?? 'auto',
       cadence: json['cadence']?.toString() ?? 'normal',
-      highlightsEnabled: json['highlights_enabled'] != false,
       overlayHiddenPanels: _stringList(json['overlay_hidden_panels']),
       meta: _map(response['meta']),
     );
@@ -248,7 +246,6 @@ class CompanionSettings {
   final double ttsVolume;
   final String language;
   final String cadence;
-  final bool highlightsEnabled;
   final List<String> overlayHiddenPanels;
   final Map<String, dynamic> meta;
 }
@@ -345,7 +342,6 @@ class CompanionState {
     this.coachingStatus = const {},
     this.config = const {},
     this.players = const {},
-    this.highlights = const {},
     this.scoutProfile = const {},
     this.scoutMatch = const {},
     this.supportResult = const {},
@@ -367,7 +363,6 @@ class CompanionState {
   final Map<String, dynamic> coachingStatus;
   final Map<String, dynamic> config;
   final Map<String, dynamic> players;
-  final Map<String, dynamic> highlights;
   final Map<String, dynamic> scoutProfile;
   final Map<String, dynamic> scoutMatch;
   final Map<String, dynamic> supportResult;
@@ -389,7 +384,6 @@ class CompanionState {
     Map<String, dynamic>? coachingStatus,
     Map<String, dynamic>? config,
     Map<String, dynamic>? players,
-    Map<String, dynamic>? highlights,
     Map<String, dynamic>? scoutProfile,
     Map<String, dynamic>? scoutMatch,
     Map<String, dynamic>? supportResult,
@@ -412,7 +406,6 @@ class CompanionState {
       coachingStatus: coachingStatus ?? this.coachingStatus,
       config: config ?? this.config,
       players: players ?? this.players,
-      highlights: highlights ?? this.highlights,
       scoutProfile: scoutProfile ?? this.scoutProfile,
       scoutMatch: scoutMatch ?? this.scoutMatch,
       supportResult: supportResult ?? this.supportResult,

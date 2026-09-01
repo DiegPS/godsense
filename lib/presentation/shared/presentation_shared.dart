@@ -72,18 +72,6 @@ int _teamGold(List<Map<String, dynamic>> players) {
   );
 }
 
-String _highlightLabel(String? eventType) {
-  return switch (eventType) {
-    'penta' => 'Pentakill',
-    'quadra' => 'Quadrakill',
-    'triple' => 'Triple kill',
-    'double' => 'Double kill',
-    'steal' => 'Robo de objetivo',
-    'solo' => 'Eliminación en solitario',
-    _ => eventType ?? 'Highlight',
-  };
-}
-
 NativeIdentifiedChampion? _nativeForEnemy(
   Map<String, NativeIdentifiedChampion> lastKnown,
   Map<String, dynamic> enemy,
