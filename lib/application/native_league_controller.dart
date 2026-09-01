@@ -516,7 +516,7 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
       },
       'brief_ready': false,
       'candidate': _championNames[candidateId],
-      'builds': null,
+      'builds': _matchingItemBuild(candidateId),
       'pick_advice': const [],
       'comp_analysis': null,
     };
@@ -731,6 +731,9 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
         itemRecommendations: bundle,
         itemRecommendationsLoading: false,
         clearItemRecommendationsError: true,
+        lobby: state.lobby.isEmpty
+            ? state.lobby
+            : {...state.lobby, 'builds': bundle.toBuildJson()},
       );
     } catch (error) {
       _itemRecommendationRequestKey = null;
@@ -749,6 +752,26 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
       'map_id': bundle.mapId,
       'items': bundle.toImportGroups(),
     });
+  }
+
+  Future<void> importCurrentRecommendations() async {
+    final runes = state.runeRecommendations?.variants.firstOrNull;
+    final items = state.itemRecommendations;
+    if (runes == null && items == null) return;
+    await importRecommendedSetup({
+      if (runes != null) 'runes': runes.toImportJson(),
+      if (items != null) ...{
+        'champion_id': items.championId,
+        'map_id': items.mapId,
+        'items': items.toImportGroups(),
+      },
+    });
+  }
+
+  Map<String, dynamic>? _matchingItemBuild(int championId) {
+    final bundle = state.itemRecommendations;
+    if (bundle == null || bundle.championId != championId) return null;
+    return bundle.toBuildJson();
   }
 
   void _ensureJungleRecommendationsLoaded(PatchKey? patch) {

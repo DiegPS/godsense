@@ -45,6 +45,9 @@ class _CoachPageState extends ConsumerState<CoachPage> {
     final goldDifference = game?.raw['team_gold_diff'];
     final analysisWaiting =
         'Esperando análisis — elige un enemigo y pulsa Generar informe';
+    final nativeSetupReady =
+        nativeLeague.runeRecommendations != null ||
+        nativeLeague.itemRecommendations != null;
 
     return ListView(
       padding: const EdgeInsets.all(24),
@@ -117,19 +120,15 @@ class _CoachPageState extends ConsumerState<CoachPage> {
                 ),
                 OutlinedButton.icon(
                   onPressed:
-                      builds != null &&
-                          !backend.operationInProgress &&
+                      nativeSetupReady &&
+                          nativeLeague.lcuConnected &&
                           !nativeLeague.operationInProgress
-                      ? () => nativeLeague.lcuConnected
-                            ? ref
-                                  .read(nativeLeagueProvider.notifier)
-                                  .importRecommendedSetup(builds)
-                            : ref
-                                  .read(companionControllerProvider.notifier)
-                                  .importLobbySetup()
+                      ? () => ref
+                            .read(nativeLeagueProvider.notifier)
+                            .importCurrentRecommendations()
                       : null,
                   icon: const Icon(Icons.download),
-                  label: const Text('Importar runas + build'),
+                  label: const Text('Importar configuración Riot'),
                 ),
                 if (enemies.isEmpty)
                   const Text('Esperando un enemigo bloqueado o visible.'),

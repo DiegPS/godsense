@@ -32,7 +32,7 @@
 
 ## Current measured baseline
 
-The complete suite currently has 156 passing tests and 13 explicitly skipped
+The complete suite currently has 157 passing tests and 13 explicitly skipped
 native smoke tests. The skipped tests require model-path environment variables;
 model discovery from the copied Airstream cache is covered separately.
 

@@ -129,15 +129,19 @@ class NativeTacticalEngine {
         ? null
         : _matchup(localChampion, opponent);
     final comp = _teamComposition(allies, enemies);
+    final builds = _map(normalizedLobby['builds']);
     return {
       'matchup': ?matchup,
+      if (builds.isNotEmpty) 'builds': builds,
       'team_comp': comp,
       'comp_analysis': {'ally': _profile(allies), 'enemy': _profile(enemies)},
       'knowledge': {
         'producer': 'native-tactical-engine',
         'producer_version': '1',
-        'builds_withheld': true,
-        'reason': 'No patch-exact champion build contract is loaded.',
+        'builds_withheld': builds.isEmpty,
+        'reason': builds.isEmpty
+            ? 'Waiting for a patch-exact Riot champion build.'
+            : 'Patch-exact Riot champion build loaded.',
       },
       if (game != null) 'live_context': {'phase': game['phase']},
     };

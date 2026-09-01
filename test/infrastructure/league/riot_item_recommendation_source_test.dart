@@ -104,6 +104,12 @@ void main() {
       {'item_id': 1056, 'count': 1},
       {'item_id': 2003, 'count': 2},
     ]);
+    final json = result.toBuildJson();
+    expect(json['patch'], '16.17');
+    expect(((json['items'] as List).first as Map)['items'], [
+      {'item_id': 1056, 'count': 1, 'name': "Doran's Ring"},
+      {'item_id': 2003, 'count': 2, 'name': 'Health Potion'},
+    ]);
   });
 
   test('rejects an item absent from the patch catalog', () async {

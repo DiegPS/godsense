@@ -68,6 +68,47 @@ class ItemRecommendationBundle {
     }
     return groups;
   }
+
+  Map<String, dynamic> toBuildJson() => {
+    'build_type': positionSpecific ? 'RIOT_POSITION' : 'RIOT_GENERAL',
+    'patch': patch.value,
+    'champion_id': championId,
+    'champion_alias': championAlias,
+    'position': position.lcuValue,
+    'map_id': mapId,
+    'mode': mode,
+    'source_uri': sourceUri.toString(),
+    'items': [
+      for (final group in toImportGroups())
+        {
+          'category': group['category'],
+          'items': [
+            for (final counted in group['items'] as List)
+              if (counted is Map)
+                {
+                  ...counted.map(
+                    (key, value) => MapEntry(key.toString(), value),
+                  ),
+                  'name': _nameFor((counted['item_id'] as num).toInt()),
+                },
+          ],
+        },
+    ],
+  };
+
+  String _nameFor(int id) {
+    for (final group in startingBundles) {
+      for (final item in group.items) {
+        if (item.id == id) return item.name;
+      }
+    }
+    for (final range in purchaseRanges) {
+      for (final item in range.items) {
+        if (item.id == id) return item.name;
+      }
+    }
+    return '$id';
+  }
 }
 
 List<Map<String, dynamic>> _countItems(List<RecommendedItem> items) {

@@ -70,6 +70,37 @@ void main() {
     expect((result['team_comp'] as Map)['ally_profile'], isNotNull);
   });
 
+  test('publishes a loaded Riot build to every tactical consumer', () {
+    final build = {
+      'build_type': 'RIOT_GENERAL',
+      'patch': '16.17',
+      'items': [
+        {
+          'category': 'Inicio 1',
+          'items': [
+            {'item_id': 1056, 'name': "Doran's Ring"},
+          ],
+        },
+      ],
+    };
+    final result = engine.analyze(
+      lobby: {
+        'builds': build,
+        'snapshot': {
+          'my_team': [
+            {'champion_name': 'Ahri', 'position': 'MIDDLE', 'is_local': true},
+          ],
+          'their_team': [
+            {'champion_name': 'Vex', 'position': 'MIDDLE'},
+          ],
+        },
+      },
+    );
+
+    expect(result['builds'], build);
+    expect((result['knowledge'] as Map)['builds_withheld'], isFalse);
+  });
+
   test('quality metrics make evidence and contradictions measurable', () {
     final advice = engine.directives(_game(gold: -2000));
     final clean = engine.evaluate(advice);
