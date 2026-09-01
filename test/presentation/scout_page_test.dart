@@ -11,9 +11,11 @@ void main() {
   ) async {
     await tester.pumpWidget(_scoutApp(const LocalScoutState()));
 
-    expect(find.text('Scout local'), findsOneWidget);
+    expect(find.text('Scout'), findsOneWidget);
     expect(find.text('Conecta una cuenta de League'), findsOneWidget);
     expect(find.byTooltip('Actualizar historial local'), findsOneWidget);
+    expect(find.text('Nombre de Riot'), findsOneWidget);
+    expect(find.text('Buscar'), findsOneWidget);
   });
 
   testWidgets('renders cached rank and match data', (tester) async {

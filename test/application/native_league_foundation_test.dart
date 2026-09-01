@@ -98,6 +98,32 @@ void main() {
     );
   });
 
+  test(
+    'resolves a Riot ID through LCU without switching AccountContext',
+    () async {
+      await foundation.observeLcu(connected: true, gameflowPhase: 'Lobby');
+
+      final scouted = await foundation.resolveAndSyncScout(
+        gameName: 'Other Player',
+        tagLine: 'LAN',
+      );
+
+      expect(scouted.puuid.value, 'scouted-puuid');
+      expect(scouted.riotId?.displayName, 'Other Player#LAN');
+      expect(scouted.profileIconId, 907);
+      expect(
+        foundation.state.account.context?.account.puuid.value,
+        'player-puuid',
+      );
+      expect(
+        client.paths,
+        contains(
+          '/lol-summoner/v1/alias/lookup?gameName=Other+Player&tagLine=LAN',
+        ),
+      );
+    },
+  );
+
   test('journals Live Client data under the active account match', () async {
     await foundation.observeLcu(
       connected: true,
@@ -178,8 +204,11 @@ void main() {
 }
 
 class _FakeLeagueClient implements LcuReadTransport {
+  final paths = <String>[];
+
   @override
   Future<LcuProbeResponse> getDetailed(String path) async {
+    paths.add(path);
     if (path == '/lol-summoner/v1/current-summoner') {
       return const LcuProbeResponse.success(
         statusCode: 200,
@@ -188,6 +217,26 @@ class _FakeLeagueClient implements LcuReadTransport {
           'gameName': 'Diego',
           'tagLine': 'LAN',
           'summonerId': 42,
+        },
+      );
+    }
+    if (path.startsWith('/lol-summoner/v1/alias/lookup?')) {
+      return const LcuProbeResponse.success(
+        statusCode: 200,
+        body: {
+          'puuid': 'scouted-puuid',
+          'alias': {'gameName': 'Other Player', 'tagLine': 'LAN'},
+        },
+      );
+    }
+    if (path.startsWith('/lol-summoner/v1/summoners?')) {
+      return const LcuProbeResponse.success(
+        statusCode: 200,
+        body: {
+          'puuid': 'scouted-puuid',
+          'summonerId': 99,
+          'summonerLevel': 38,
+          'profileIconId': 907,
         },
       );
     }

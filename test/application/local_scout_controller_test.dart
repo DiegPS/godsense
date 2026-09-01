@@ -58,6 +58,14 @@ void main() {
     controller = LocalScoutController(
       loadMatches: repository.loadMatches,
       loadRanked: repository.loadLatestRanked,
+      resolveAccount: ({required gameName, required tagLine}) async =>
+          LeagueAccountProfile(
+            puuid: Puuid('searched'),
+            platformId: PlatformId('LA1'),
+            riotId: RiotId(gameName: gameName, tagLine: tagLine),
+            firstSeenAt: DateTime.utc(2026, 9, 3),
+            lastSeenAt: DateTime.utc(2026, 9, 3),
+          ),
     );
   });
 
@@ -104,6 +112,21 @@ void main() {
     expect(controller.state.matches, isEmpty);
     expect(controller.state.selectedMatch, isEmpty);
   });
+
+  test(
+    'searches another Riot ID and returns to the connected account',
+    () async {
+      await controller.loadAccount(_account());
+      await controller.searchRiotId(gameName: 'Rival', tagLine: 'LAN');
+
+      expect(controller.state.profile['game_name'], 'Rival');
+      expect(controller.state.matches, isEmpty);
+
+      await controller.useConnectedAccount();
+      expect(controller.state.profile['game_name'], 'Diego');
+      expect(controller.state.matches, hasLength(1));
+    },
+  );
 }
 
 LeagueAccountProfile _account() => LeagueAccountProfile(

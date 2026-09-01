@@ -3,6 +3,7 @@ import 'dart:io';
 
 import '../domain/identity/league_identity.dart';
 import '../domain/journal/journal_models.dart';
+import '../domain/league/account_context.dart';
 import '../domain/league/game_session.dart';
 import '../domain/league/lcu_capabilities.dart';
 import '../domain/league/local_scout.dart';
@@ -78,6 +79,7 @@ class NativeLeagueFoundation {
   NativeLeagueFoundationState _state;
   GodSenseDatabase? _database;
   DriftJournalRepository? _journal;
+  DriftAccountContextRepository? _accountRepository;
   AccountContextCoordinator? _accounts;
   LcuCapabilityProbe? _capabilityProbe;
   LiveClientJournalAdapter? _liveClientJournal;
@@ -116,6 +118,57 @@ class NativeLeagueFoundation {
     await _ensureInitialized();
     if (_disposed) return null;
     return _scoutRepository!.loadLatestRanked(puuid);
+  }
+
+  Future<LeagueAccountProfile> resolveAndSyncScout({
+    required String gameName,
+    required String tagLine,
+  }) async {
+    await _ensureInitialized();
+    final normalizedName = gameName.trim();
+    final normalizedTag = tagLine.trim();
+    if (normalizedName.isEmpty || normalizedTag.isEmpty) {
+      throw const FormatException('Riot ID requires game name and tag line.');
+    }
+    final lookupQuery = Uri(
+      queryParameters: {'gameName': normalizedName, 'tagLine': normalizedTag},
+    ).query;
+    final lookup = await client.getDetailed(
+      '/lol-summoner/v1/alias/lookup?$lookupQuery',
+    );
+    final lookupBody = _foundationMap(lookup.body);
+    final puuidValue = lookupBody['puuid']?.toString() ?? '';
+    if (!lookup.isSuccess || puuidValue.isEmpty) {
+      throw StateError('No se encontró $normalizedName#$normalizedTag en LCU.');
+    }
+    final summonerQuery = Uri(
+      queryParameters: {'name': '$normalizedName#$normalizedTag'},
+    ).query;
+    final summoner = await client.getDetailed(
+      '/lol-summoner/v1/summoners?$summonerQuery',
+    );
+    final summonerBody = _foundationMap(summoner.body);
+    final connected = _accounts?.state.context?.account;
+    final now = _now().toUtc();
+    final account = LeagueAccountProfile(
+      puuid: Puuid(puuidValue),
+      platformId: connected?.platformId ?? PlatformId('LA1'),
+      riotId: RiotId(gameName: normalizedName, tagLine: normalizedTag),
+      summonerId: _foundationInt(summonerBody['summonerId']),
+      summonerLevel: _foundationInt(summonerBody['summonerLevel']),
+      profileIconId: _foundationInt(summonerBody['profileIconId']),
+      clientVersion: connected?.clientVersion,
+      patchKey: connected?.patchKey,
+      firstSeenAt: now,
+      lastSeenAt: now,
+    );
+    await _accountRepository!.saveKnownAccount(account);
+    await _scoutSync!.synchronize(
+      puuid: account.puuid,
+      platformId: account.platformId,
+      capabilities: _state.capabilities,
+    );
+    return account;
   }
 
   Future<bool> recordTacticalAdvice({
@@ -317,6 +370,7 @@ class NativeLeagueFoundation {
       idPrefix: '${_captureEpochId.value}-live',
     );
     final accountRepository = DriftAccountContextRepository(database);
+    _accountRepository = accountRepository;
     _scoutRepository = DriftLocalScoutRepository(database);
     _scoutSync = LocalScoutSyncService(
       transport: client,
@@ -451,3 +505,10 @@ class NativeLeagueFoundation {
     await _database?.close();
   }
 }
+
+Map<String, dynamic> _foundationMap(Object? value) => value is Map
+    ? value.map((key, item) => MapEntry(key.toString(), item))
+    : const {};
+
+int? _foundationInt(Object? value) =>
+    value is num ? value.toInt() : int.tryParse(value?.toString() ?? '');

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../domain/identity/league_identity.dart';
 import '../domain/jungle/jungle_recommendation.dart';
+import '../domain/league/account_context.dart';
 import '../domain/league/game_session.dart';
 import '../domain/league/item_recommendation.dart';
 import '../domain/league/lcu_capabilities.dart';
@@ -267,6 +268,13 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
       (foundation ??= NativeLeagueFoundation(
         client: _lcu,
       )).loadLocalRanked(puuid);
+
+  Future<LeagueAccountProfile> scoutByRiotId({
+    required String gameName,
+    required String tagLine,
+  }) => (foundation ??= NativeLeagueFoundation(
+    client: _lcu,
+  )).resolveAndSyncScout(gameName: gameName, tagLine: tagLine);
 
   void start() {
     if (_timer != null) return;

@@ -21,28 +21,7 @@ class DriftAccountContextRepository implements AccountContextRepository {
       }
 
       final account = context.account;
-      final existing =
-          await (_database.select(_database.accounts)
-                ..where((table) => table.puuid.equals(account.puuid.value)))
-              .getSingleOrNull();
-      await _database
-          .into(_database.accounts)
-          .insertOnConflictUpdate(
-            AccountsCompanion.insert(
-              puuid: account.puuid.value,
-              platformId: account.platformId.value,
-              gameName: Value(account.riotId?.gameName),
-              tagLine: Value(account.riotId?.tagLine),
-              summonerId: Value(account.summonerId),
-              summonerLevel: Value(account.summonerLevel),
-              profileIconId: Value(account.profileIconId),
-              lastClientVersion: Value(account.clientVersion),
-              lastPatchKey: Value(account.patchKey?.value),
-              firstSeenAtUs:
-                  existing?.firstSeenAtUs ?? _micros(account.firstSeenAt),
-              lastSeenAtUs: _micros(account.lastSeenAt),
-            ),
-          );
+      await saveKnownAccount(account);
       await _database
           .into(_database.accountContextStates)
           .insertOnConflictUpdate(
@@ -56,6 +35,31 @@ class DriftAccountContextRepository implements AccountContextRepository {
           );
       return true;
     });
+  }
+
+  Future<void> saveKnownAccount(LeagueAccountProfile account) async {
+    final existing =
+        await (_database.select(_database.accounts)
+              ..where((table) => table.puuid.equals(account.puuid.value)))
+            .getSingleOrNull();
+    await _database
+        .into(_database.accounts)
+        .insertOnConflictUpdate(
+          AccountsCompanion.insert(
+            puuid: account.puuid.value,
+            platformId: account.platformId.value,
+            gameName: Value(account.riotId?.gameName),
+            tagLine: Value(account.riotId?.tagLine),
+            summonerId: Value(account.summonerId),
+            summonerLevel: Value(account.summonerLevel),
+            profileIconId: Value(account.profileIconId),
+            lastClientVersion: Value(account.clientVersion),
+            lastPatchKey: Value(account.patchKey?.value),
+            firstSeenAtUs:
+                existing?.firstSeenAtUs ?? _micros(account.firstSeenAt),
+            lastSeenAtUs: _micros(account.lastSeenAt),
+          ),
+        );
   }
 
   @override

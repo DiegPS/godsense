@@ -1,10 +1,25 @@
 part of '../../app/godsense_app.dart';
 
-class ScoutPage extends ConsumerWidget {
+class ScoutPage extends ConsumerStatefulWidget {
   const ScoutPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ScoutPage> createState() => _ScoutPageState();
+}
+
+class _ScoutPageState extends ConsumerState<ScoutPage> {
+  final _gameName = TextEditingController();
+  final _tagLine = TextEditingController(text: 'LAN');
+
+  @override
+  void dispose() {
+    _gameName.dispose();
+    _tagLine.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final state = ref.watch(localScoutProvider);
     final profile = state.profile;
     final matches = state.matches;
@@ -20,11 +35,11 @@ class ScoutPage extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Scout local',
+                    'Scout',
                     style: Theme.of(context).textTheme.headlineMedium,
                   ),
                   const Text(
-                    'Historial de la cuenta conectada, disponible sin abrir League.',
+                    'Busca cualquier Riot ID desde el cliente y conserva su historial localmente.',
                   ),
                 ],
               ),
@@ -41,6 +56,57 @@ class ScoutPage extends ConsumerWidget {
               ),
             ),
           ],
+        ),
+        const SizedBox(height: 16),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                SizedBox(
+                  width: 260,
+                  child: TextField(
+                    controller: _gameName,
+                    textInputAction: TextInputAction.next,
+                    decoration: const InputDecoration(
+                      labelText: 'Nombre de Riot',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ),
+                SizedBox(
+                  width: 120,
+                  child: TextField(
+                    controller: _tagLine,
+                    textInputAction: TextInputAction.search,
+                    onSubmitted: state.loading ? null : (_) => _search(),
+                    decoration: const InputDecoration(
+                      labelText: 'Tag',
+                      prefixText: '#',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ),
+                FilledButton.icon(
+                  onPressed: state.loading ? null : _search,
+                  icon: const Icon(Icons.search),
+                  label: const Text('Buscar'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: state.loading
+                      ? null
+                      : () => ref
+                            .read(localScoutProvider.notifier)
+                            .useConnectedAccount(),
+                  icon: const Icon(Icons.person_outline),
+                  label: const Text('Mi cuenta'),
+                ),
+              ],
+            ),
+          ),
         ),
         const SizedBox(height: 16),
         if (state.loading) const LinearProgressIndicator(),
@@ -114,6 +180,15 @@ class ScoutPage extends ConsumerWidget {
         ],
       ],
     );
+  }
+
+  void _search() {
+    final gameName = _gameName.text.trim();
+    final tagLine = _tagLine.text.trim().replaceFirst('#', '');
+    if (gameName.isEmpty || tagLine.isEmpty) return;
+    ref
+        .read(localScoutProvider.notifier)
+        .searchRiotId(gameName: gameName, tagLine: tagLine);
   }
 }
 

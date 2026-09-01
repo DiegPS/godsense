@@ -14,6 +14,10 @@ typedef LoadLocalMatches = Future<List<LocalMatchRecord>> Function(
 });
 
 typedef LoadLocalRanked = Future<LocalRankedSnapshot?> Function(Puuid puuid);
+typedef ResolveScoutAccount = Future<LeagueAccountProfile> Function({
+  required String gameName,
+  required String tagLine,
+});
 
 class LocalScoutState {
   const LocalScoutState({
@@ -53,17 +57,26 @@ class LocalScoutController extends StateNotifier<LocalScoutState> {
   LocalScoutController({
     required LoadLocalMatches loadMatches,
     required LoadLocalRanked loadRanked,
+    ResolveScoutAccount? resolveAccount,
     LocalScoutState initialState = const LocalScoutState(),
   }) : _loadMatches = loadMatches,
        _loadRanked = loadRanked,
+       _resolveAccount = resolveAccount,
        super(initialState);
 
   final LoadLocalMatches _loadMatches;
   final LoadLocalRanked _loadRanked;
+  final ResolveScoutAccount? _resolveAccount;
   LeagueAccountProfile? _account;
+  LeagueAccountProfile? _connectedAccount;
   int _revision = 0;
 
   Future<void> loadAccount(LeagueAccountProfile? account) async {
+    _connectedAccount = account;
+    await _showAccount(account);
+  }
+
+  Future<void> _showAccount(LeagueAccountProfile? account) async {
     _account = account;
     final revision = ++_revision;
     if (account == null) {
@@ -88,6 +101,40 @@ class LocalScoutController extends StateNotifier<LocalScoutState> {
       state = state.copyWith(loading: false, lastError: error.toString());
     }
   }
+
+  Future<void> searchRiotId({
+    required String gameName,
+    required String tagLine,
+  }) async {
+    final resolver = _resolveAccount;
+    if (resolver == null) {
+      state = state.copyWith(lastError: 'La búsqueda LCU no está disponible.');
+      return;
+    }
+    final revision = ++_revision;
+    state = state.copyWith(loading: true, clearError: true);
+    try {
+      final account = await resolver(gameName: gameName, tagLine: tagLine);
+      if (revision != _revision) return;
+      _account = account;
+      final results = await Future.wait<Object?>([
+        _loadMatches(account.puuid, limit: 30),
+        _loadRanked(account.puuid),
+      ]);
+      if (revision != _revision) return;
+      final matches = results[0] as List<LocalMatchRecord>;
+      final ranked = results[1] as LocalRankedSnapshot?;
+      state = LocalScoutState(
+        profile: _profile(account, ranked),
+        matches: matches.map(_matchSummary).toList(growable: false),
+      );
+    } catch (error) {
+      if (revision != _revision) return;
+      state = state.copyWith(loading: false, lastError: error.toString());
+    }
+  }
+
+  Future<void> useConnectedAccount() => _showAccount(_connectedAccount);
 
   Future<void> refresh() => loadAccount(_account);
 
@@ -138,6 +185,11 @@ Map<String, dynamic> _profile(
     'game_name': account.riotId?.gameName ?? 'Cuenta local',
     'tag_line': account.riotId?.tagLine ?? account.platformId.value,
     'profile_icon_id': account.profileIconId,
+    'icon_url': account.profileIconId == null
+        ? null
+        : 'https://raw.communitydragon.org/latest/plugins/'
+              'rcp-be-lol-game-data/global/default/v1/profile-icons/'
+              '${account.profileIconId}.jpg',
     'rank': {
       'tier': solo['tier'] ?? 'UNRANKED',
       'division': solo['division'] ?? solo['rank'] ?? '',
@@ -148,7 +200,7 @@ Map<String, dynamic> _profile(
     },
     'badges': const <Object?>[],
     'gpi': const <Object?>[],
-    'local_only': true,
+    'local_only': false,
     'last_ranked_sync': ranked?.observedAt.toIso8601String(),
   };
 }

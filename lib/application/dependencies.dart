@@ -62,6 +62,7 @@ final localScoutProvider =
       final controller = LocalScoutController(
         loadMatches: league.loadLocalMatches,
         loadRanked: league.loadLocalRanked,
+        resolveAccount: league.scoutByRiotId,
       );
       ref.listen(
         nativeLeagueProvider.select(
