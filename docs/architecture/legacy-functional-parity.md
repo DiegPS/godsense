@@ -9,7 +9,9 @@
 
 This document tracks visible, usable product behavior. A class, endpoint, or
 empty panel does not count as implemented. Highlights and Discord Rich Presence
-are the only deliberate product exclusions requested by the product owner.
+are deliberate product exclusions. Generative AI is explicitly deferred by the
+product owner; the current delivery uses deterministic coaching and local
+Sherpa STT/TTS, without an LLM dependency or model download.
 
 ## Parity matrix
 
@@ -30,8 +32,8 @@ are the only deliberate product exclusions requested by the product owner.
 | Speech-to-text | **Exceeded** | Local Sherpa STT; old local coach had no working transcription |
 | Text-to-speech and voice choice | **Exceeded** | Local Sherpa TTS, copied production models and native playback |
 | Immediate macro directives | **Matched** | Death, exact objective, team-gold and lane-state policies with provenance |
-| Voice questions | **Partial** | Native STT plus factual intents work; open-ended generative coaching is not equivalent to the old OpenCode model |
-| Generative coaching model | **Missing** | Legacy directives called OpenCode `opencode/mimo-v2.5-free`; GodSense currently uses deterministic rules, not an embedded LLM |
+| Voice questions | **Matched within current scope** | Native STT and factual intents work; open-ended generative answers are deferred by product decision |
+| Generative coaching model | **Deferred by product decision** | No LLM integration or download now; deterministic coaching remains active |
 | Scout Riot-ID lookup | **Matched** | Arbitrary Riot ID through LCU, account-scoped SQLite cache |
 | Scout rank and recent matches | **Matched** | Ranked snapshot, 30 matches and full scoreboard detail |
 | Scout playstyle and signature champions | **Matched** | Eight unit-labelled local metrics, evidence-based badges and top-three champion aggregation |
