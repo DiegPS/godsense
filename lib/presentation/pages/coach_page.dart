@@ -233,6 +233,20 @@ class _CoachPageState extends ConsumerState<CoachPage> {
                     ),
             ),
             _CoachPanel(
+              title: 'Ruta de jungla de Riot',
+              icon: Icons.route_outlined,
+              child: nativeLeague.jungleRecommendationsLoading
+                  ? const LinearProgressIndicator()
+                  : nativeLeague.jungleRecommendations == null
+                  ? Text(
+                      nativeLeague.jungleRecommendationsError ??
+                          'Esperando la versión instalada de League.',
+                    )
+                  : _JungleRecommendationsView(
+                      bundle: nativeLeague.jungleRecommendations!,
+                    ),
+            ),
+            _CoachPanel(
               title: 'Tu Enfrentamiento',
               icon: Icons.compare_arrows,
               child: Row(
@@ -591,6 +605,56 @@ String _recommendationAttribute(String value) => switch (value) {
   'kDamage' => 'Daño',
   _ => value,
 };
+
+class _JungleRecommendationsView extends StatelessWidget {
+  const _JungleRecommendationsView({required this.bundle});
+
+  final JungleRecommendationBundle bundle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Map11 · parche ${bundle.patch.value}',
+          style: Theme.of(context).textTheme.labelMedium,
+        ),
+        const SizedBox(height: 8),
+        _JungleRouteRow(route: bundle.order),
+        const SizedBox(height: 12),
+        _JungleRouteRow(route: bundle.chaos),
+        const SizedBox(height: 8),
+        Tooltip(
+          message: bundle.sourceUri.toString(),
+          child: Text(
+            'Fuente: Map11.bin extraído del cliente de League',
+            style: Theme.of(context).textTheme.labelSmall,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _JungleRouteRow extends StatelessWidget {
+  const _JungleRouteRow({required this.route});
+
+  final JungleRoute route;
+
+  @override
+  Widget build(BuildContext context) {
+    final side = route.side == JungleSide.order ? 'ORDER' : 'CHAOS';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(side, style: Theme.of(context).textTheme.titleSmall),
+        const SizedBox(height: 4),
+        Text(route.camps.map((camp) => camp.name.split(' ').last).join(' → ')),
+      ],
+    );
+  }
+}
 
 class _PickAdviceView extends StatelessWidget {
   const _PickAdviceView({required this.advice});

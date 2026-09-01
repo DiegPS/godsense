@@ -18,6 +18,7 @@
 | LCU compatibility | Granular capability results; known endpoint probing only | Probe tests |
 | LCU reactivity | `OnJsonApiEvent` accelerates REST reconciliation; polling remains fallback | WebSocket protocol tests |
 | Rune recommendations | Native LCU alternatives by champion, role, and map, including summoner spells and explicit import | Live LCU 16.17 probe and source contract tests |
+| Jungle routes | Patch-exact Riot `Map11` routes for both teams, with validated camp order and offline cache | Live CommunityDragon 16.17 extraction and parser/cache tests |
 | Live Client | Native polling, current projection, complete event journal, logical game time | Adapter and projection parity tests |
 | Scout | Account-scoped ranked and match cache available offline | SQLite, controller, and widget tests |
 | Data Dragon | Resource contracts, patch resolution, validation, and content-addressed cache | Resolver tests |
@@ -30,7 +31,7 @@
 
 ## Current measured baseline
 
-The complete suite currently has 148 passing tests and 11 explicitly skipped
+The complete suite currently has 151 passing tests and 12 explicitly skipped
 native smoke tests. The skipped tests require model-path environment variables;
 model discovery from the copied Airstream cache is covered separately.
 
