@@ -110,8 +110,9 @@ class CvCorpusComparator extends StateNotifier<CvCorpusComparisonState> {
         final expected = jsonDecode(await metadataFile.readAsString());
         if (expected is! Map) continue;
         final iconSize = (expected['icon_size'] as num?)?.round() ?? 28;
-        final targetIcons =
-            expected[rawTargets ? 'target_raw' : 'target_original'];
+        final targetIcons = rawTargets
+            ? (expected['target_raw'] ?? expected['target_icons'])
+            : (expected['target_original'] ?? expected['target_icons']);
         if (targetIcons is Map) {
           final signature = '$iconSize:${jsonEncode(targetIcons)}';
           if (signature != targetSignature) {

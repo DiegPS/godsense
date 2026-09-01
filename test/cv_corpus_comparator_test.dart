@@ -82,7 +82,11 @@ void main() {
       debugPrint('MISMATCH $mismatch');
     }
     expect(result.error, isNull);
-    expect(result.frames, greaterThan(0));
+    expect(result.frames, equals(866));
+    expect(result.precision, greaterThan(0.99));
+    expect(result.recall, greaterThan(0.99));
+    expect(result.averageIou, greaterThan(0.99));
+    expect(result.identityAgreement, greaterThan(0.99));
   }, timeout: const Timeout(Duration(minutes: 2)), skip: realCorpusExists ? false : 'Real-game corpus unavailable.');
 
   test('checks direct Dart pixel parity for a saved frame', () async {
