@@ -164,10 +164,75 @@ void main() {
       ),
     );
 
-    expect(answer.id, 'voice_prepare_dragon');
+    expect(answer.id, 'voice_dragon_timer');
     expect(answer.ttsText, contains('25 segundos'));
     expect(answer.evidence.first.source, FactSource.user);
     expect(answer.evidence.last.source, FactSource.derived);
+  });
+
+  test('answers the named objective instead of the shortest timer', () {
+    final answer = engine.answer(
+      question: '¿Cuánto falta para el dragón?',
+      game: _game(
+        objectives: {
+          'dragon': {'status': 'respawning', 'respawn_in': 140},
+          'baron': {'status': 'respawning', 'respawn_in': 20},
+        },
+      ),
+    );
+
+    expect(answer.id, 'voice_dragon_timer');
+    expect(answer.ttsText, contains('140 segundos'));
+    expect(answer.ttsText, isNot(contains('Barón')));
+  });
+
+  test('reports an alive objective without a fake zero-second timer', () {
+    final answer = engine.answer(
+      question: '¿Qué hacemos con Barón?',
+      game: _game(
+        objectives: {
+          'baron': {'status': 'alive', 'respawn_in': 0},
+        },
+      ),
+    );
+
+    expect(answer.id, 'voice_baron_alive');
+    expect(answer.ttsText, contains('disponible ahora'));
+    expect(answer.ttsText, isNot(contains('0 segundos')));
+    expect(
+      engine
+          .directives(
+            _game(
+              objectives: {
+                'baron': {'status': 'alive', 'respawn_in': 0},
+              },
+            ),
+          )
+          .single
+          .id,
+      'neutral_setup',
+    );
+  });
+
+  test('answers lane-state questions from the comparable live role', () {
+    final answer = engine.answer(
+      question: '¿Cómo está mi línea?',
+      game: _game(
+        laneStates: {
+          'MIDDLE': {
+            'state': 'BEHIND',
+            'advantage_score': -820,
+            'ally': 'Ahri',
+            'enemy': 'Vex',
+          },
+        },
+      ),
+    );
+
+    expect(answer.id, 'voice_lane_state');
+    expect(answer.ttsText, contains('por detrás frente a Vex'));
+    expect(answer.rationale, contains('no es una diferencia de oro exacta'));
+    expect(answer.evidence.last.confidence, 0.75);
   });
 
   test('answers build questions only from the loaded Riot artifact', () {
@@ -255,6 +320,7 @@ Map<String, dynamic> _game({
   int gold = 0,
   bool dead = false,
   Map<String, dynamic> objectives = const {},
+  Map<String, dynamic> laneStates = const {},
 }) => {
   'game_time': 600.0,
   'phase': 'MID',
@@ -264,7 +330,9 @@ Map<String, dynamic> _game({
     'is_dead': dead,
     'kda': [2, 1, 4],
     'cs': 83,
+    'role': 'MIDDLE',
   },
+  'lane_states': laneStates,
   'derived': {'objectives': objectives},
   '_game_ended': false,
 };

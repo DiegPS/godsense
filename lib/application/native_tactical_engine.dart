@@ -45,6 +45,17 @@ class NativeTacticalEngine {
     }
 
     if (_containsAny(normalized, const [
+      'mi linea',
+      'la linea',
+      'estado de linea',
+      'estado del carril',
+      'mi carril',
+      'fase de lineas',
+    ])) {
+      return _laneStateAnswer(game, userEvidence, now, gameTime);
+    }
+
+    if (_containsAny(normalized, const [
       'matchup',
       'enfrentamiento',
       'contra quien',
@@ -102,31 +113,16 @@ class NativeTacticalEngine {
       );
     }
 
-    final current = directives(game);
     if (_containsAny(normalized, const [
       'dragon',
       'baron',
       'heraldo',
       'objetivo',
     ])) {
-      final objective = current
-          .where((item) => item.id.startsWith('prepare_'))
-          .firstOrNull;
-      if (objective == null) {
-        return TacticalAdvice(
-          id: 'voice_objective_unknown',
-          title: 'Sin objetivo inminente confirmado',
-          hints: const ['Mantén visión y prioridad antes de moverte.'],
-          rationale:
-              'No hay un temporizador de objetivo dentro de 75 segundos.',
-          ttsText: 'No tengo un objetivo inminente confirmado. Mantén prioridad y visión.',
-          priority: 65,
-          evidence: [userEvidence],
-        );
-      }
-      return _withQuestionEvidence(objective, userEvidence);
+      return _objectiveAnswer(normalized, game, userEvidence, now, gameTime);
     }
 
+    final current = directives(game);
     if (current.isEmpty) {
       return TacticalAdvice(
         id: 'voice_no_live_game',
@@ -493,6 +489,186 @@ class NativeTacticalEngine {
     );
   }
 
+  TacticalAdvice _laneStateAnswer(
+    Map<String, dynamic>? game,
+    TacticalEvidence question,
+    DateTime now,
+    double? gameTime,
+  ) {
+    if (game == null || game['_game_ended'] == true) {
+      return TacticalAdvice(
+        id: 'voice_lane_state_unavailable',
+        title: 'Estado de línea no disponible',
+        hints: const ['Inicia una partida para medir el carril en vivo.'],
+        rationale: 'Live Client no aporta una partida activa.',
+        ttsText: 'No tengo una partida activa para medir tu línea.',
+        priority: 20,
+        evidence: [question],
+      );
+    }
+    final active = _map(game['active_player']);
+    final role = active['role']?.toString().toUpperCase() ?? '';
+    final laneStates = _map(game['lane_states']);
+    final lane = _map(laneStates[role]);
+    if (role.isEmpty || lane.isEmpty) {
+      return TacticalAdvice(
+        id: 'voice_lane_state_unknown',
+        title: 'Carril sin pareja comparable',
+        hints: const [
+          'Live Client todavía no identificó un rival del mismo rol.',
+        ],
+        rationale: 'No existe una pareja de rol comparable en el snapshot.',
+        ttsText:
+            'Todavía no puedo comparar tu línea con un rival del mismo rol.',
+        priority: 40,
+        evidence: [question],
+      );
+    }
+    final state = lane['state']?.toString() ?? 'EVEN';
+    final enemy = lane['enemy']?.toString().trim() ?? '';
+    final (summary, action) = switch (state) {
+      'AHEAD' => (
+        'Tu línea está por delante${enemy.isEmpty ? '' : ' frente a $enemy'}.',
+        'Presiona sólo después de localizar amenazas y convierte la ventaja.',
+      ),
+      'BEHIND' => (
+        'Tu línea está por detrás${enemy.isEmpty ? '' : ' frente a $enemy'}.',
+        'Prioriza experiencia y recursos seguros; no fuerces intercambios largos.',
+      ),
+      _ => (
+        'Tu línea está equilibrada${enemy.isEmpty ? '' : ' frente a $enemy'}.',
+        'Gana prioridad antes de abandonar el carril.',
+      ),
+    };
+    return TacticalAdvice(
+      id: 'voice_lane_state',
+      title: 'Estado comparado del carril',
+      hints: [summary, action],
+      rationale: 'Comparación heurística de nivel, súbditos, KDA y recursos observables; no es una diferencia de oro exacta.',
+      ttsText: '$summary $action',
+      priority: 70,
+      evidence: [
+        question,
+        TacticalEvidence(
+          factType: 'lane_state_estimate',
+          source: FactSource.derived,
+          observedAt: now,
+          confidence: 0.75,
+          gameTimeSeconds: gameTime,
+        ),
+      ],
+    );
+  }
+
+  TacticalAdvice _objectiveAnswer(
+    String normalizedQuestion,
+    Map<String, dynamic>? game,
+    TacticalEvidence question,
+    DateTime now,
+    double? gameTime,
+  ) {
+    if (game == null || game['_game_ended'] == true) {
+      return TacticalAdvice(
+        id: 'voice_objective_unavailable',
+        title: 'Objetivos no disponibles',
+        hints: const ['Inicia una partida para leer temporizadores en vivo.'],
+        rationale: 'Live Client no aporta una partida activa.',
+        ttsText: 'No tengo una partida activa para consultar objetivos.',
+        priority: 20,
+        evidence: [question],
+      );
+    }
+    final objectives = _map(_map(game['derived'])['objectives']);
+    final requested = _requestedObjectiveKey(normalizedQuestion);
+    MapEntry<String, dynamic>? selected;
+    if (requested != null && objectives.containsKey(requested)) {
+      selected = MapEntry(requested, objectives[requested]);
+    } else {
+      final candidates = objectives.entries.where((entry) {
+        final value = _map(entry.value);
+        return value['status'] == 'alive' || value['respawn_in'] is num;
+      }).toList();
+      candidates.sort((left, right) {
+        final leftState = _map(left.value);
+        final rightState = _map(right.value);
+        final leftTime = leftState['status'] == 'alive'
+            ? 0.0
+            : (leftState['respawn_in'] as num?)?.toDouble() ?? double.infinity;
+        final rightTime = rightState['status'] == 'alive'
+            ? 0.0
+            : (rightState['respawn_in'] as num?)?.toDouble() ?? double.infinity;
+        return leftTime.compareTo(rightTime);
+      });
+      selected = candidates.firstOrNull;
+    }
+    if (selected == null) {
+      return TacticalAdvice(
+        id: 'voice_objective_unknown',
+        title: 'Objetivo sin estado confirmado',
+        hints: const ['Mantén visión y prioridad antes de moverte.'],
+        rationale: 'No existe un estado de objetivo utilizable en el snapshot.',
+        ttsText: 'No tengo un estado de objetivo confirmado.',
+        priority: 50,
+        evidence: [question],
+      );
+    }
+    final key = selected.key;
+    final value = _map(selected.value);
+    final label = _objectiveLabel(key);
+    final status = value['status']?.toString() ?? '';
+    final seconds = (value['respawn_in'] as num?)?.toDouble().round();
+    if (status == 'alive') {
+      return TacticalAdvice(
+        id: 'voice_${key}_alive',
+        title: '$label disponible',
+        hints: const [
+          'Comprueba prioridad y posiciones antes de iniciarlo.',
+          'Controla visión de los accesos y la entrada del jungla rival.',
+        ],
+        rationale: '$label está vivo según el estado derivado de Live Client.',
+        ttsText:
+            '$label está disponible ahora. Comprueba prioridad y posiciones antes de iniciarlo.',
+        priority: 90,
+        evidence: [
+          question,
+          _evidence('${key}_alive', FactSource.derived, now, gameTime),
+        ],
+      );
+    }
+    if (seconds != null) {
+      return TacticalAdvice(
+        id: 'voice_${key}_timer',
+        title: 'Temporizador de $label',
+        hints: [
+          if (seconds <= 75)
+            'Empuja y prepara visión antes de que aparezca.'
+          else
+            'Aún hay tiempo para recoger recursos sin abandonar el plan.',
+        ],
+        rationale: '$label estará disponible en $seconds segundos.',
+        ttsText:
+            '$label estará disponible en $seconds segundos.${seconds <= 75 ? ' Empuja y prepara visión.' : ''}',
+        priority: seconds <= 75 ? 90 : 60,
+        evidence: [
+          question,
+          _evidence('${key}_timer', FactSource.derived, now, gameTime),
+        ],
+      );
+    }
+    return TacticalAdvice(
+      id: 'voice_${key}_unavailable',
+      title: '$label no disponible',
+      hints: const ['Reorienta el plan al siguiente objetivo disponible.'],
+      rationale: '$label no volverá a aparecer en esta partida.',
+      ttsText: '$label ya no está disponible en esta partida.',
+      priority: 45,
+      evidence: [
+        question,
+        _evidence('${key}_unavailable', FactSource.derived, now, gameTime),
+      ],
+    );
+  }
+
   TacticalAdvice? _objectiveDirective(
     Map<String, dynamic> objectives,
     DateTime now,
@@ -502,7 +678,7 @@ class NativeTacticalEngine {
     for (final entry in objectives.entries) {
       final value = _map(entry.value);
       final seconds = (value['respawn_in'] as num?)?.toDouble();
-      if (seconds != null && seconds >= 0 && seconds <= 75) {
+      if (seconds != null && seconds > 0 && seconds <= 75) {
         candidates.add((entry.key, seconds));
       }
     }
@@ -643,6 +819,18 @@ String _objectiveLabel(String key) => switch (key) {
   'void_grubs' => 'larvas del Vacío',
   _ => key,
 };
+
+String? _requestedObjectiveKey(String question) {
+  if (question.contains('dragon')) return 'dragon';
+  if (question.contains('baron')) return 'baron';
+  if (question.contains('heraldo')) return 'herald';
+  if (question.contains('larva') ||
+      question.contains('vacío') ||
+      question.contains('vacio')) {
+    return 'void_grubs';
+  }
+  return null;
+}
 
 Map<String, dynamic> _map(Object? value) => value is Map
     ? value.map((key, item) => MapEntry(key.toString(), item))
