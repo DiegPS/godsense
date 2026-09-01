@@ -63,6 +63,7 @@ final localScoutProvider =
         loadMatches: league.loadLocalMatches,
         loadRanked: league.loadLocalRanked,
         resolveAccount: league.scoutByRiotId,
+        loadChampionNames: league.loadChampionNames,
       );
       ref.listen(
         nativeLeagueProvider.select(

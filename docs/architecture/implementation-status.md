@@ -21,7 +21,7 @@
 | Item recommendations | Patch-exact Riot champion BIN overrides by map, mode, and role; Data Dragon validation, offline cache, and item-set import | Live Ahri 16.17 extraction and source/cache tests |
 | Jungle routes | Patch-exact Riot `Map11` routes for both teams, with validated camp order and offline cache | Live CommunityDragon 16.17 extraction and parser/cache tests |
 | Live Client | Native polling, current projection, complete event journal, logical game time | Adapter and projection parity tests |
-| Scout | Connected account plus arbitrary Riot ID lookup through LCU; account-scoped ranked/match cache remains available offline | Live LCU 16.17 lookup and SQLite/controller/widget tests |
+| Scout | Connected account plus arbitrary Riot ID lookup through LCU; legacy participant identities/stats are normalized and the account-scoped cache remains available offline | Live LCU 16.17 lookup/schema inspection and SQLite/controller/widget tests |
 | Data Dragon | Resource contracts, patch resolution, validation, and content-addressed cache | Resolver tests |
 | Voice | Sherpa STT, global Push-to-Talk, multiple local TTS models, native playback | Unit/lifecycle tests; copied-model discovery tests |
 | Voice coach | `STT -> tactical facts -> advice -> TTS`, with stale-result suppression | Controller and tactical engine tests |

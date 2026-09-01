@@ -32,13 +32,24 @@ void main() {
         queueId: 420,
         startedAt: DateTime.utc(2026, 9, 1),
         summaryJson: '''
-          {"participants":[{"puuid":"player","championName":"Ashe",
-          "win":true,"kills":8,"deaths":2,"assists":11,
-          "teamPosition":"BOTTOM"}]}
+          {"gameDuration":1800,
+          "participantIdentities":[{"participantId":3,
+          "player":{"puuid":"player","gameName":"Diego","tagLine":"LAN"}}],
+          "participants":[{"participantId":3,"championId":22,
+          "stats":{"win":true,"kills":8,"deaths":2,"assists":11,
+          "totalMinionsKilled":180,"neutralMinionsKilled":0},
+          "timeline":{"lane":"BOTTOM","role":"DUO_CARRY"}}]}
         ''',
         detailsJson: '''
-          {"teams":[{"side":"Azul","win":true}],
-          "participants":[{"puuid":"player","championName":"Ashe"}]}
+          {"teams":[{"teamId":100,"win":"Win","baronKills":1,
+          "dragonKills":2,"towerKills":7}],
+          "participantIdentities":[{"participantId":3,
+          "player":{"puuid":"player","gameName":"Diego","tagLine":"LAN"}}],
+          "participants":[{"participantId":3,"championId":22,
+          "stats":{"kills":8,"deaths":2,"assists":11,
+          "totalMinionsKilled":180,"neutralMinionsKilled":0,
+          "totalDamageDealtToChampions":24500},
+          "timeline":{"lane":"BOTTOM","role":"DUO_CARRY"}}]}
         ''',
         timelineJson: '{"frames":[]}',
         syncedAt: DateTime.utc(2026, 9, 2),
@@ -58,6 +69,7 @@ void main() {
     controller = LocalScoutController(
       loadMatches: repository.loadMatches,
       loadRanked: repository.loadLatestRanked,
+      loadChampionNames: () async => const {22: 'Ashe'},
       resolveAccount: ({required gameName, required tagLine}) async =>
           LeagueAccountProfile(
             puuid: Puuid('searched'),
@@ -86,6 +98,7 @@ void main() {
       expect(controller.state.profile['rank'], containsPair('winrate', 60));
       expect(controller.state.matches, hasLength(1));
       expect(controller.state.matches.single['result'], 'Victoria');
+      expect(controller.state.matches.single['csm'], 6.0);
       expect(
         controller.state.matches.single['champion'],
         containsPair('name', 'Ashe'),
@@ -102,6 +115,14 @@ void main() {
     expect(controller.state.selectedMatch['timeline_available'], isTrue);
     expect(controller.state.selectedMatch['teams'], hasLength(1));
     expect(controller.state.selectedMatch['players'], hasLength(1));
+    expect(
+      (controller.state.selectedMatch['players'] as List).single,
+      containsPair('damage', 24500),
+    );
+    expect(
+      (controller.state.selectedMatch['players'] as List).single,
+      containsPair('is_subject', true),
+    );
   });
 
   test('clears account-scoped data when no account is active', () async {

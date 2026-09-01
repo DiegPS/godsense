@@ -276,6 +276,23 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
     client: _lcu,
   )).resolveAndSyncScout(gameName: gameName, tagLine: tagLine);
 
+  Future<Map<int, String>> loadChampionNames() async {
+    if (_championNames.length >= 150) return Map.unmodifiable(_championNames);
+    final response = await _lcu.get(
+      '/lol-game-data/assets/v1/champion-summary.json',
+    );
+    if (response is List) {
+      for (final raw in response.whereType<Map>()) {
+        final id = (raw['id'] as num?)?.toInt();
+        final name = raw['name']?.toString().trim() ?? '';
+        if (id != null && id > 0 && name.isNotEmpty) {
+          _championNames[id] = name;
+        }
+      }
+    }
+    return Map.unmodifiable(_championNames);
+  }
+
   void start() {
     if (_timer != null) return;
     _eventSubscription = _lcuEvents.events.listen(_onLcuEvent);

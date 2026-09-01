@@ -18,6 +18,7 @@ typedef ResolveScoutAccount = Future<LeagueAccountProfile> Function({
   required String gameName,
   required String tagLine,
 });
+typedef LoadChampionNames = Future<Map<int, String>> Function();
 
 class LocalScoutState {
   const LocalScoutState({
@@ -58,15 +59,19 @@ class LocalScoutController extends StateNotifier<LocalScoutState> {
     required LoadLocalMatches loadMatches,
     required LoadLocalRanked loadRanked,
     ResolveScoutAccount? resolveAccount,
+    LoadChampionNames? loadChampionNames,
     LocalScoutState initialState = const LocalScoutState(),
   }) : _loadMatches = loadMatches,
        _loadRanked = loadRanked,
        _resolveAccount = resolveAccount,
+       _loadChampionNames = loadChampionNames,
        super(initialState);
 
   final LoadLocalMatches _loadMatches;
   final LoadLocalRanked _loadRanked;
   final ResolveScoutAccount? _resolveAccount;
+  final LoadChampionNames? _loadChampionNames;
+  Map<int, String> _championNames = const {};
   LeagueAccountProfile? _account;
   LeagueAccountProfile? _connectedAccount;
   int _revision = 0;
@@ -88,13 +93,17 @@ class LocalScoutController extends StateNotifier<LocalScoutState> {
       final results = await Future.wait<Object?>([
         _loadMatches(account.puuid, limit: 30),
         _loadRanked(account.puuid),
+        _loadChampionNamesSafely(),
       ]);
       if (revision != _revision) return;
       final matches = results[0] as List<LocalMatchRecord>;
       final ranked = results[1] as LocalRankedSnapshot?;
+      _championNames = results[2] as Map<int, String>;
       state = LocalScoutState(
         profile: _profile(account, ranked),
-        matches: matches.map(_matchSummary).toList(growable: false),
+        matches: matches
+            .map((match) => _matchSummary(match, _championNames))
+            .toList(growable: false),
       );
     } catch (error) {
       if (revision != _revision) return;
@@ -120,13 +129,17 @@ class LocalScoutController extends StateNotifier<LocalScoutState> {
       final results = await Future.wait<Object?>([
         _loadMatches(account.puuid, limit: 30),
         _loadRanked(account.puuid),
+        _loadChampionNamesSafely(),
       ]);
       if (revision != _revision) return;
       final matches = results[0] as List<LocalMatchRecord>;
       final ranked = results[1] as LocalRankedSnapshot?;
+      _championNames = results[2] as Map<int, String>;
       state = LocalScoutState(
         profile: _profile(account, ranked),
-        matches: matches.map(_matchSummary).toList(growable: false),
+        matches: matches
+            .map((match) => _matchSummary(match, _championNames))
+            .toList(growable: false),
       );
     } catch (error) {
       if (revision != _revision) return;
@@ -135,6 +148,14 @@ class LocalScoutController extends StateNotifier<LocalScoutState> {
   }
 
   Future<void> useConnectedAccount() => _showAccount(_connectedAccount);
+
+  Future<Map<int, String>> _loadChampionNamesSafely() async {
+    try {
+      return await _loadChampionNames?.call() ?? _championNames;
+    } catch (_) {
+      return _championNames;
+    }
+  }
 
   Future<void> refresh() => loadAccount(_account);
 
@@ -154,7 +175,7 @@ class LocalScoutController extends StateNotifier<LocalScoutState> {
       }
       state = state.copyWith(
         loading: false,
-        selectedMatch: _matchDetail(match),
+        selectedMatch: _matchDetail(match, _championNames),
       );
     } catch (error) {
       if (revision != _revision) return;
@@ -205,41 +226,107 @@ Map<String, dynamic> _profile(
   };
 }
 
-Map<String, dynamic> _matchSummary(LocalMatchRecord record) {
+Map<String, dynamic> _matchSummary(
+  LocalMatchRecord record,
+  Map<int, String> championNames,
+) {
   final summary = _map(_decode(record.summaryJson));
   final participant = _subjectParticipant(summary, record.puuid);
+  final stats = _map(participant['stats']);
+  final timeline = _map(participant['timeline']);
+  final championId = (participant['championId'] as num?)?.toInt();
+  final durationMinutes =
+      ((summary['gameDuration'] as num?)?.toDouble() ?? 0) / 60;
+  final cs =
+      ((stats['totalMinionsKilled'] as num?)?.toInt() ?? 0) +
+      ((stats['neutralMinionsKilled'] as num?)?.toInt() ?? 0);
   return {
     'match_id': record.match.gameId,
-    'result': participant['win'] == true
+    'result': stats['win'] == true || participant['win'] == true
         ? 'Victoria'
-        : participant['win'] == false
+        : stats['win'] == false || participant['win'] == false
         ? 'Derrota'
         : 'Resultado local',
     'champion': {
       'name':
           participant['championName'] ??
+          championNames[championId] ??
           participant['champion_name'] ??
           'Partida ${record.match.gameId}',
+      'icon_url': championId == null ? null : _championIcon(championId),
     },
-    'kills': participant['kills'] ?? 0,
-    'deaths': participant['deaths'] ?? 0,
-    'assists': participant['assists'] ?? 0,
-    'role': participant['teamPosition'] ?? participant['role'] ?? '',
-    'csm': 0,
+    'kills': stats['kills'] ?? participant['kills'] ?? 0,
+    'deaths': stats['deaths'] ?? participant['deaths'] ?? 0,
+    'assists': stats['assists'] ?? participant['assists'] ?? 0,
+    'role': timeline['lane'] ?? timeline['role'] ?? participant['role'] ?? '',
+    'csm': durationMinutes <= 0 ? 0 : (cs / durationMinutes * 10).round() / 10,
     'patch': record.patch?.value,
     'queue_id': record.queueId,
     'started_at': record.startedAt?.toIso8601String(),
   };
 }
 
-Map<String, dynamic> _matchDetail(LocalMatchRecord record) {
+Map<String, dynamic> _matchDetail(
+  LocalMatchRecord record,
+  Map<int, String> championNames,
+) {
   final details = _map(_decode(record.detailsJson ?? record.summaryJson));
+  final identityById = <int, Map<String, dynamic>>{};
+  for (final identity in _mapList(details['participantIdentities'])) {
+    final id = (identity['participantId'] as num?)?.toInt();
+    if (id != null) identityById[id] = _map(identity['player']);
+  }
+  final teams = _mapList(details['teams'])
+      .map((team) {
+        final teamId = (team['teamId'] as num?)?.toInt();
+        return {
+          'side': teamId == 100
+              ? 'Azul'
+              : teamId == 200
+              ? 'Rojo'
+              : '$teamId',
+          'win': team['win'] == true || team['win'] == 'Win',
+          'kills': 0,
+          'barons': team['baronKills'] ?? 0,
+          'drakes': team['dragonKills'] ?? 0,
+          'towers': team['towerKills'] ?? 0,
+        };
+      })
+      .toList(growable: false);
+  final players = _mapList(details['participants'])
+      .map((participant) {
+        final participantId = (participant['participantId'] as num?)?.toInt();
+        final player = identityById[participantId] ?? const <String, dynamic>{};
+        final stats = _map(participant['stats']);
+        final timeline = _map(participant['timeline']);
+        final championId = (participant['championId'] as num?)?.toInt();
+        return {
+          'name': player['gameName'] ?? player['summonerName'] ?? '',
+          'tag': player['tagLine'] ?? '',
+          'champion': {
+            'name': championNames[championId] ?? '$championId',
+            'icon_url': championId == null ? null : _championIcon(championId),
+          },
+          'role': [timeline['lane'], timeline['role']]
+              .where((value) => value != null && value.toString().isNotEmpty)
+              .join(' · '),
+          'kills': stats['kills'] ?? 0,
+          'deaths': stats['deaths'] ?? 0,
+          'assists': stats['assists'] ?? 0,
+          'cs':
+              ((stats['totalMinionsKilled'] as num?)?.toInt() ?? 0) +
+              ((stats['neutralMinionsKilled'] as num?)?.toInt() ?? 0),
+          'damage': stats['totalDamageDealtToChampions'] ?? 0,
+          'is_subject': player['puuid']?.toString() == record.puuid.value,
+        };
+      })
+      .toList(growable: false);
   return {
     'match_id': record.match.gameId,
     'patch': record.patch?.value,
     'queue_id': record.queueId,
-    'teams': _mapList(details['teams']),
-    'players': _mapList(details['participants']),
+    'teams': teams,
+    'players': players,
     'raw': details,
     'timeline_available': record.timelineJson != null,
     'synced_at': record.syncedAt.toIso8601String(),
@@ -251,11 +338,27 @@ Map<String, dynamic> _subjectParticipant(
   Puuid puuid,
 ) {
   final participants = _mapList(payload['participants']);
-  return participants
-          .where((item) => item['puuid']?.toString() == puuid.value)
-          .firstOrNull ??
-      const {};
+  final identity = _mapList(payload['participantIdentities'])
+      .where((item) => _map(item['player'])['puuid']?.toString() == puuid.value)
+      .firstOrNull;
+  if (identity == null) {
+    return participants
+            .where((item) => item['puuid']?.toString() == puuid.value)
+            .firstOrNull ??
+        const {};
+  }
+  final participantId = (identity['participantId'] as num?)?.toInt();
+  final participant = participants
+      .where(
+        (item) => (item['participantId'] as num?)?.toInt() == participantId,
+      )
+      .firstOrNull;
+  return {...?participant, ..._map(identity['player'])};
 }
+
+String _championIcon(int championId) =>
+    'https://raw.communitydragon.org/latest/plugins/'
+    'rcp-be-lol-game-data/global/default/v1/champion-icons/$championId.png';
 
 Object? _decode(String? value) {
   if (value == null) return null;
