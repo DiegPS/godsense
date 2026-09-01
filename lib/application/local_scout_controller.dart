@@ -1,4 +1,5 @@
-import 'dart:async';
+// ignore_for_file: prefer_initializing_formals
+
 import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,8 +7,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../domain/identity/league_identity.dart';
 import '../domain/league/account_context.dart';
 import '../domain/league/local_scout.dart';
-import '../infrastructure/persistence/drift_local_scout_repository.dart';
-import '../infrastructure/persistence/godsense_database.dart';
+
+typedef LoadLocalMatches = Future<List<LocalMatchRecord>> Function(
+  Puuid puuid, {
+  int limit,
+});
+
+typedef LoadLocalRanked = Future<LocalRankedSnapshot?> Function(Puuid puuid);
 
 class LocalScoutState {
   const LocalScoutState({
@@ -45,14 +51,15 @@ class LocalScoutState {
 
 class LocalScoutController extends StateNotifier<LocalScoutState> {
   LocalScoutController({
-    Future<GodSenseDatabase> Function()? databaseFactory,
+    required LoadLocalMatches loadMatches,
+    required LoadLocalRanked loadRanked,
     LocalScoutState initialState = const LocalScoutState(),
-  }) : _databaseFactory = databaseFactory ?? openGodSenseDatabase,
+  }) : _loadMatches = loadMatches,
+       _loadRanked = loadRanked,
        super(initialState);
 
-  final Future<GodSenseDatabase> Function() _databaseFactory;
-  GodSenseDatabase? _database;
-  DriftLocalScoutRepository? _repository;
+  final LoadLocalMatches _loadMatches;
+  final LoadLocalRanked _loadRanked;
   LeagueAccountProfile? _account;
   int _revision = 0;
 
@@ -65,10 +72,9 @@ class LocalScoutController extends StateNotifier<LocalScoutState> {
     }
     state = state.copyWith(loading: true, clearError: true);
     try {
-      final repository = await _ensureRepository();
       final results = await Future.wait<Object?>([
-        repository.loadMatches(account.puuid, limit: 30),
-        repository.loadLatestRanked(account.puuid),
+        _loadMatches(account.puuid, limit: 30),
+        _loadRanked(account.puuid),
       ]);
       if (revision != _revision) return;
       final matches = results[0] as List<LocalMatchRecord>;
@@ -91,10 +97,7 @@ class LocalScoutController extends StateNotifier<LocalScoutState> {
     final revision = _revision;
     state = state.copyWith(loading: true, clearError: true);
     try {
-      final matches = await (await _ensureRepository()).loadMatches(
-        account.puuid,
-        limit: 100,
-      );
+      final matches = await _loadMatches(account.puuid, limit: 100);
       if (revision != _revision) return;
       final match = matches
           .where((item) => item.match.gameId == gameId)
@@ -112,18 +115,9 @@ class LocalScoutController extends StateNotifier<LocalScoutState> {
     }
   }
 
-  Future<DriftLocalScoutRepository> _ensureRepository() async {
-    final existing = _repository;
-    if (existing != null) return existing;
-    final database = await _databaseFactory();
-    _database = database;
-    return _repository = DriftLocalScoutRepository(database);
-  }
-
   @override
   void dispose() {
     _revision++;
-    unawaited(_database?.close());
     super.dispose();
   }
 }

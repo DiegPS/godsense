@@ -55,12 +55,15 @@ void main() {
         semanticHash: 'gold-2-64',
       ),
     );
-    controller = LocalScoutController(databaseFactory: () async => database);
+    controller = LocalScoutController(
+      loadMatches: repository.loadMatches,
+      loadRanked: repository.loadLatestRanked,
+    );
   });
 
   tearDown(() async {
     controller.dispose();
-    await Future<void>.delayed(Duration.zero);
+    await database.close();
   });
 
   test(

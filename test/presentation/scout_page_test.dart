@@ -52,7 +52,11 @@ Widget _scoutApp(LocalScoutState state) {
   return ProviderScope(
     overrides: [
       localScoutProvider.overrideWith(
-        (_) => LocalScoutController(initialState: state),
+        (_) => LocalScoutController(
+          loadMatches: (_, {limit = 20}) async => const [],
+          loadRanked: (_) async => null,
+          initialState: state,
+        ),
       ),
     ],
     child: const MaterialApp(home: Scaffold(body: ScoutPage())),

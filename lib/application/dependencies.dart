@@ -58,7 +58,11 @@ final nativeVoiceCoachProvider =
 
 final localScoutProvider =
     StateNotifierProvider<LocalScoutController, LocalScoutState>((ref) {
-      final controller = LocalScoutController();
+      final league = ref.read(nativeLeagueProvider.notifier);
+      final controller = LocalScoutController(
+        loadMatches: league.loadLocalMatches,
+        loadRanked: league.loadLocalRanked,
+      );
       ref.listen(
         nativeLeagueProvider.select(
           (state) => state.accountContext?.context?.account,

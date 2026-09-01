@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../domain/identity/league_identity.dart';
 import '../domain/league/game_session.dart';
 import '../domain/league/lcu_capabilities.dart';
+import '../domain/league/local_scout.dart';
 import '../domain/tactical/tactical_models.dart';
 import '../infrastructure/data_dragon/data_dragon_catalog_service.dart';
 import '../infrastructure/league/league_clients.dart';
@@ -150,6 +151,18 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
   }) => (foundation ??= NativeLeagueFoundation(
     client: _lcu,
   )).recordTacticalAdvice(question: question, advice: advice);
+
+  Future<List<LocalMatchRecord>> loadLocalMatches(
+    Puuid puuid, {
+    int limit = 20,
+  }) => (foundation ??= NativeLeagueFoundation(
+    client: _lcu,
+  )).loadLocalMatches(puuid, limit: limit);
+
+  Future<LocalRankedSnapshot?> loadLocalRanked(Puuid puuid) =>
+      (foundation ??= NativeLeagueFoundation(
+        client: _lcu,
+      )).loadLocalRanked(puuid);
 
   void start() {
     if (_timer != null) return;

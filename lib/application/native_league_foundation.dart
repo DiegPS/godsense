@@ -80,6 +80,7 @@ class NativeLeagueFoundation {
   LcuCapabilityProbe? _capabilityProbe;
   LiveClientJournalAdapter? _liveClientJournal;
   LocalScoutSyncService? _scoutSync;
+  DriftLocalScoutRepository? _scoutRepository;
   TacticalAdviceJournalAdapter? _tacticalAdviceJournal;
   late final GameSessionCoordinator _sessions = GameSessionCoordinator(
     now: _now,
@@ -98,6 +99,21 @@ class NativeLeagueFoundation {
   bool _disposed = false;
 
   NativeLeagueFoundationState get state => _state;
+
+  Future<List<LocalMatchRecord>> loadLocalMatches(
+    Puuid puuid, {
+    int limit = 20,
+  }) async {
+    await _ensureInitialized();
+    if (_disposed) return const [];
+    return _scoutRepository!.loadMatches(puuid, limit: limit);
+  }
+
+  Future<LocalRankedSnapshot?> loadLocalRanked(Puuid puuid) async {
+    await _ensureInitialized();
+    if (_disposed) return null;
+    return _scoutRepository!.loadLatestRanked(puuid);
+  }
 
   Future<bool> recordTacticalAdvice({
     required String question,
@@ -285,9 +301,10 @@ class NativeLeagueFoundation {
       idPrefix: '${_captureEpochId.value}-live',
     );
     final accountRepository = DriftAccountContextRepository(database);
+    _scoutRepository = DriftLocalScoutRepository(database);
     _scoutSync = LocalScoutSyncService(
       transport: client,
-      repository: DriftLocalScoutRepository(database),
+      repository: _scoutRepository!,
       now: _now,
       detailLimit: 5,
     );
