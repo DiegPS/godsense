@@ -1,99 +1,61 @@
 part of '../../app/godsense_app.dart';
 
-class ScoutPage extends ConsumerStatefulWidget {
+class ScoutPage extends ConsumerWidget {
   const ScoutPage({super.key});
 
   @override
-  ConsumerState<ScoutPage> createState() => _ScoutPageState();
-}
-
-class _ScoutPageState extends ConsumerState<ScoutPage> {
-  final _nameController = TextEditingController();
-  final _tagController = TextEditingController();
-  String _region = 'LAN';
-
-  @override
-  void dispose() {
-    _nameController.dispose();
-    _tagController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final state = ref.watch(companionControllerProvider);
-    final profile = state.scoutProfile;
-    final matches = _asMapList(profile['matches']);
-    final detail = state.scoutMatch;
+  Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(localScoutProvider);
+    final profile = state.profile;
+    final matches = state.matches;
+    final detail = state.selectedMatch;
 
     return ListView(
       padding: const EdgeInsets.all(24),
       children: [
-        Text('Scout', style: Theme.of(context).textTheme.headlineMedium),
+        Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Scout local',
+                    style: Theme.of(context).textTheme.headlineMedium,
+                  ),
+                  const Text(
+                    'Historial de la cuenta conectada, disponible sin abrir League.',
+                  ),
+                ],
+              ),
+            ),
+            Semantics(
+              button: true,
+              label: 'Actualizar historial local',
+              child: IconButton.filledTonal(
+                tooltip: 'Actualizar historial local',
+                onPressed: state.loading
+                    ? null
+                    : () => ref.read(localScoutProvider.notifier).refresh(),
+                icon: const Icon(Icons.refresh),
+              ),
+            ),
+          ],
+        ),
         const SizedBox(height: 16),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                SizedBox(
-                  width: 240,
-                  child: TextField(
-                    controller: _nameController,
-                    decoration: const InputDecoration(
-                      labelText: 'Nombre de invocador',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                ),
-                SizedBox(
-                  width: 130,
-                  child: TextField(
-                    controller: _tagController,
-                    decoration: const InputDecoration(
-                      labelText: 'Tag',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                ),
-                DropdownButton<String>(
-                  value: _region,
-                  items: const ['LAN', 'LAS', 'NA', 'EUW', 'EUNE', 'BR', 'KR']
-                      .map(
-                        (region) => DropdownMenuItem(
-                          value: region,
-                          child: Text(region),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (value) =>
-                      setState(() => _region = value ?? 'LAN'),
-                ),
-                FilledButton.icon(
-                  onPressed:
-                      state.operationInProgress ||
-                          _nameController.text.trim().isEmpty ||
-                          _tagController.text.trim().isEmpty
-                      ? null
-                      : () => ref
-                            .read(companionControllerProvider.notifier)
-                            .scoutSummoner(
-                              name: _nameController.text.trim(),
-                              tag: _tagController.text.trim(),
-                              region: _region,
-                            ),
-                  icon: const Icon(Icons.search),
-                  label: const Text('Buscar'),
-                ),
-              ],
+        if (state.loading) const LinearProgressIndicator(),
+        if (state.loading) const SizedBox(height: 12),
+        if (profile.isEmpty && !state.loading)
+          const Card(
+            child: ListTile(
+              leading: Icon(Icons.account_circle_outlined),
+              title: Text('Conecta una cuenta de League'),
+              subtitle: Text(
+                'GodSense mostrará aquí su rango e historial sincronizado.',
+              ),
             ),
           ),
-        ),
         if (profile.isNotEmpty) ...[
-          const SizedBox(height: 16),
           _ScoutProfileCard(profile: profile),
           const SizedBox(height: 16),
           Text(
@@ -122,17 +84,13 @@ class _ScoutPageState extends ConsumerState<ScoutPage> {
                           '${match['role'] ?? ''} · ${match['csm'] ?? 0} CS/m',
                         ),
                         trailing: IconButton(
+                          tooltip: 'Abrir detalle de partida',
                           icon: const Icon(Icons.chevron_right),
                           onPressed: matchId == null
                               ? null
                               : () => ref
-                                    .read(companionControllerProvider.notifier)
-                                    .scoutMatch(
-                                      matchId: matchId,
-                                      region: _region,
-                                      name: _nameController.text.trim(),
-                                      tag: _tagController.text.trim(),
-                                    ),
+                                    .read(localScoutProvider.notifier)
+                                    .selectMatch(matchId),
                         ),
                       );
                     }).toList(),

@@ -5,11 +5,25 @@ import '../domain/companion_models.dart';
 import '../infrastructure/native_runtime/native_companion_gateway.dart';
 import 'companion_controller.dart';
 import 'native_league_controller.dart';
+import 'local_scout_controller.dart';
 import 'native_tactical_engine.dart';
 
 final nativeTacticalEngineProvider = Provider<NativeTacticalEngine>(
   (_) => NativeTacticalEngine(),
 );
+
+final localScoutProvider =
+    StateNotifierProvider<LocalScoutController, LocalScoutState>((ref) {
+      final controller = LocalScoutController();
+      ref.listen(
+        nativeLeagueProvider.select(
+          (state) => state.accountContext?.context?.account,
+        ),
+        (_, account) => controller.loadAccount(account),
+        fireImmediately: true,
+      );
+      return controller;
+    });
 
 final companionGatewayProvider = Provider<CompanionGateway>((ref) {
   final engine = ref.watch(nativeTacticalEngineProvider);
