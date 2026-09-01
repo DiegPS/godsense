@@ -57,4 +57,131 @@ class DataDragonCatalogService {
           },
     };
   }
+
+  Future<Map<String, List<Map<String, dynamic>>>> loadChampionAbilities({
+    required Iterable<String> championNames,
+    required PatchKey patch,
+    required PlatformId platformId,
+    ClientVersion? clientVersion,
+    LeagueLocale? locale,
+  }) async {
+    final artifact = await resolver.resolve(
+      DataDragonResolutionRequest(
+        clientVersion: clientVersion,
+        patch: patch,
+        platformId: platformId,
+        requestedLocale: locale ?? LeagueLocale('en_US'),
+        resource: DataDragonResource.champions,
+        intent: DataDragonResolutionIntent.currentRegional,
+      ),
+    );
+    final decoded = jsonDecode(utf8.decode(artifact.bytes));
+    final summaries = decoded is Map ? decoded['data'] : null;
+    if (summaries is! Map) return const {};
+
+    final requested = championNames.map(_championKey).toSet();
+    final result = <String, List<Map<String, dynamic>>>{};
+    for (final raw in summaries.values.whereType<Map>()) {
+      final name = raw['name']?.toString() ?? '';
+      final alias = raw['id']?.toString() ?? '';
+      final key = _championKey(name);
+      if (alias.isEmpty || !requested.contains(key)) continue;
+      try {
+        final bytes = await resolver.transport.get(
+          resolver.baseUri.replace(
+            path:
+                '/cdn/${artifact.resolvedVersion.value}/data/'
+                '${artifact.resolvedLocale.value}/champion/$alias.json',
+          ),
+        );
+        final detailJson = jsonDecode(utf8.decode(bytes));
+        final detailData = detailJson is Map ? detailJson['data'] : null;
+        final detail = detailData is Map ? detailData[alias] : null;
+        if (detail is! Map) continue;
+        result[key] = _abilities(
+          detail,
+          version: artifact.resolvedVersion.value,
+        );
+      } catch (_) {
+        // One unavailable champion must not suppress the other nine players.
+      }
+    }
+    return result;
+  }
 }
+
+List<Map<String, dynamic>> _abilities(Map detail, {required String version}) {
+  final result = <Map<String, dynamic>>[];
+  final passive = detail['passive'];
+  if (passive is Map) {
+    result.add(
+      _ability(
+        passive,
+        slot: 'P',
+        version: version,
+        cooldown: '—',
+        cost: '—',
+        range: '—',
+      ),
+    );
+  }
+  final spells = detail['spells'];
+  if (spells is List) {
+    const slots = ['Q', 'W', 'E', 'R'];
+    for (
+      var index = 0;
+      index < spells.length && index < slots.length;
+      index++
+    ) {
+      final spell = spells[index];
+      if (spell is! Map) continue;
+      result.add(
+        _ability(
+          spell,
+          slot: slots[index],
+          version: version,
+          cooldown: spell['cooldownBurn']?.toString() ?? '—',
+          cost: spell['costBurn']?.toString() ?? '—',
+          range: spell['rangeBurn']?.toString() ?? '—',
+        ),
+      );
+    }
+  }
+  return List.unmodifiable(result);
+}
+
+Map<String, dynamic> _ability(
+  Map raw, {
+  required String slot,
+  required String version,
+  required String cooldown,
+  required String cost,
+  required String range,
+}) {
+  final image = raw['image'];
+  final imageName = image is Map ? image['full']?.toString() ?? '' : '';
+  return {
+    'slot': slot,
+    'name': raw['name']?.toString() ?? '',
+    'description': _plainText(raw['description']?.toString() ?? ''),
+    'cooldown': cooldown,
+    'cost': cost,
+    'range': range,
+    'icon_url': imageName.isEmpty
+        ? ''
+        : 'https://ddragon.leagueoflegends.com/cdn/$version/img/'
+              '${slot == 'P' ? 'passive' : 'spell'}/'
+              '$imageName',
+    'source': 'data_dragon',
+    'source_version': version,
+  };
+}
+
+String _plainText(String value) => value
+    .replaceAll(RegExp(r'<[^>]*>'), '')
+    .replaceAll('&nbsp;', ' ')
+    .replaceAll('&amp;', '&')
+    .trim();
+
+String _championKey(String value) =>
+    value.toLowerCase().replaceAll(RegExp(r"[^a-z0-9]"), '');

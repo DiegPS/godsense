@@ -235,8 +235,12 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
   final Map<int, String> _championAliases = {};
   int? _localSummonerId;
   Map<int, Map<String, dynamic>> _itemCatalog = const {};
+  final Map<String, List<Map<String, dynamic>>> _championAbilities = {};
   bool _itemCatalogLoading = false;
+  bool _championAbilitiesLoading = false;
   DateTime? _lastItemCatalogAttempt;
+  DateTime? _lastChampionAbilitiesAttempt;
+  String? _championAbilitiesPatch;
   int _consecutiveLiveFailures = 0;
   String? _currentGameId;
   String? _runeRequestKey;
@@ -394,10 +398,14 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
         _ensureItemCatalogLoaded();
       }
       if (liveData != null) {
+        _ensureChampionAbilitiesLoaded(liveData);
+      }
+      if (liveData != null) {
         _consecutiveLiveFailures = 0;
         final processed = _processor.process(
           liveData,
           itemCatalog: _itemCatalog,
+          championAbilities: _championAbilities,
           gameId: _currentGameId,
         );
         state = state.copyWith(
@@ -890,6 +898,53 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
     );
   }
 
+  void _ensureChampionAbilitiesLoaded(Map<String, dynamic> liveData) {
+    final account = foundation?.state.account.context?.account;
+    final patch = account?.patchKey;
+    if (patch == null) return;
+    if (_championAbilitiesPatch != patch.value) {
+      _championAbilities.clear();
+      _championAbilitiesPatch = patch.value;
+      _lastChampionAbilitiesAttempt = null;
+    }
+    final names = _mapList(liveData['allPlayers'])
+        .map((player) => player['championName']?.toString().trim() ?? '')
+        .where((name) => name.isNotEmpty)
+        .toSet();
+    final missing = names.where(
+      (name) => !_championAbilities.containsKey(_championKey(name)),
+    );
+    if (missing.isEmpty || _championAbilitiesLoading) return;
+    final now = DateTime.now();
+    if (_lastChampionAbilitiesAttempt != null &&
+        now.difference(_lastChampionAbilitiesAttempt!) <
+            const Duration(seconds: 10)) {
+      return;
+    }
+    _championAbilitiesLoading = true;
+    _lastChampionAbilitiesAttempt = now;
+    unawaited(() async {
+      try {
+        dataDragonCatalog ??= await DataDragonCatalogService.createDefault();
+        final loaded = await dataDragonCatalog!.loadChampionAbilities(
+          championNames: missing.toList(growable: false),
+          patch: patch,
+          platformId: account?.platformId ?? PlatformId('LA1'),
+          clientVersion: account?.clientVersion == null
+              ? null
+              : ClientVersion(account!.clientVersion!),
+        );
+        if (_championAbilitiesPatch == patch.value) {
+          _championAbilities.addAll(loaded);
+        }
+      } catch (_) {
+        // Asset enrichment is optional; retry without interrupting live state.
+      } finally {
+        _championAbilitiesLoading = false;
+      }
+    }());
+  }
+
   @override
   void dispose() {
     _timer?.cancel();
@@ -927,3 +982,6 @@ List<Map<String, dynamic>> _mapList(Object? value) {
       .map((item) => item.map((key, value) => MapEntry(key.toString(), value)))
       .toList(growable: false);
 }
+
+String _championKey(String value) =>
+    value.toLowerCase().replaceAll(RegExp(r"[^a-z0-9]"), '');

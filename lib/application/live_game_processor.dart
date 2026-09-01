@@ -27,6 +27,7 @@ class LiveGameProcessor {
   LiveGameProcessingResult process(
     Map<String, dynamic> raw, {
     required Map<int, Map<String, dynamic>> itemCatalog,
+    Map<String, List<Map<String, dynamic>>> championAbilities = const {},
     String? gameId,
     DateTime? observedAt,
   }) {
@@ -123,6 +124,7 @@ class LiveGameProcessor {
             .where((name) => name.isNotEmpty)
             .toList(growable: false),
         'runes': value['runes'] ?? const {},
+        'abilities': championAbilities[_championKey(championName)] ?? const [],
         'position': null,
         'map_location': null,
         'is_mia': false,
@@ -558,6 +560,9 @@ class LiveGameProcessor {
     return '$minutes:${(total % 60).toString().padLeft(2, '0')}';
   }
 }
+
+String _championKey(String value) =>
+    value.toLowerCase().replaceAll(RegExp(r"[^a-z0-9]"), '');
 
 Map<String, dynamic> _stringMap(Object? value) {
   if (value is! Map) return const {};

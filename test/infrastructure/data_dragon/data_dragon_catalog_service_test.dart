@@ -31,6 +31,28 @@ void main() {
       expect(items[1001]?['_content_hash'], hasLength(64));
     },
   );
+
+  test('champion catalog exposes normalized passive and four spells', () async {
+    final service = DataDragonCatalogService(
+      DataDragonResolver(
+        transport: _SingleBuildTransport(),
+        store: _MemoryStore(),
+      ),
+    );
+
+    final abilities = await service.loadChampionAbilities(
+      championNames: const ['Vex'],
+      patch: PatchKey('16.17'),
+      platformId: PlatformId('LA1'),
+    );
+
+    expect(abilities['vex'], hasLength(5));
+    expect(abilities['vex']?.first['slot'], 'P');
+    expect(abilities['vex']?[1]['slot'], 'Q');
+    expect(abilities['vex']?[1]['cooldown'], '8');
+    expect(abilities['vex']?[1]['description'], 'Deals magic damage.');
+    expect(abilities['vex']?[1]['source_version'], '16.17.2');
+  });
 }
 
 class _SingleBuildTransport implements DataDragonTransport {
@@ -46,9 +68,41 @@ class _SingleBuildTransport implements DataDragonTransport {
     if (uri.path == '/api/versions.json') {
       return utf8.encode(jsonEncode(['16.17.2']));
     }
+    if (uri.path.endsWith('/champion/Vex.json')) {
+      return utf8.encode(
+        jsonEncode({
+          'data': {
+            'Vex': {
+              'passive': {
+                'name': 'Doom n Gloom',
+                'description': 'Passive.',
+                'image': {'full': 'Vex_Passive.png'},
+              },
+              'spells': [
+                for (final entry in const [
+                  ('Q', 'Mistral Bolt'),
+                  ('W', 'Personal Space'),
+                  ('E', 'Looming Darkness'),
+                  ('R', 'Shadow Surge'),
+                ])
+                  {
+                    'name': entry.$2,
+                    'description': '<b>Deals</b> magic damage.',
+                    'cooldownBurn': '8',
+                    'costBurn': '45',
+                    'rangeBurn': '1200',
+                    'image': {'full': 'Vex${entry.$1}.png'},
+                  },
+              ],
+            },
+          },
+        }),
+      );
+    }
     return utf8.encode(
       jsonEncode({
         'data': {
+          'Vex': {'id': 'Vex', 'name': 'Vex'},
           '1001': {
             'name': 'Boots',
             'gold': {'total': 300},

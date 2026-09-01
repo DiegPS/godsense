@@ -11,6 +11,7 @@ void main() {
       final result = processor.process(
         _snapshot(gameTime: 400),
         itemCatalog: _items,
+        championAbilities: _abilities,
         gameId: 'game-1',
         observedAt: DateTime.utc(2026),
       );
@@ -27,6 +28,10 @@ void main() {
       );
       expect((result.snapshot['allies'] as List), hasLength(1));
       expect((result.snapshot['enemies'] as List), hasLength(1));
+      expect(
+        ((result.snapshot['enemies'] as List).single as Map)['abilities'],
+        hasLength(5),
+      );
 
       final derived = result.snapshot['derived'] as Map;
       final objectives = derived['objectives'] as Map;
@@ -97,6 +102,16 @@ const _items = <int, Map<String, dynamic>>{
     'gold': {'total': 300},
     '_version': '1.0.0',
   },
+};
+
+const _abilities = <String, List<Map<String, dynamic>>>{
+  'vex': [
+    {'slot': 'P', 'name': 'Doom n Gloom'},
+    {'slot': 'Q', 'name': 'Mistral Bolt'},
+    {'slot': 'W', 'name': 'Personal Space'},
+    {'slot': 'E', 'name': 'Looming Darkness'},
+    {'slot': 'R', 'name': 'Shadow Surge'},
+  ],
 };
 
 Map<String, dynamic> _snapshot({

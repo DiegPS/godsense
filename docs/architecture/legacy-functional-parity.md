@@ -34,7 +34,7 @@ are the only deliberate product exclusions requested by the product owner.
 | Scout Riot-ID lookup | **Matched** | Arbitrary Riot ID through LCU, account-scoped SQLite cache |
 | Scout rank and recent matches | **Matched** | Ranked snapshot, 30 matches and full scoreboard detail |
 | Scout playstyle and signature champions | **Matched** | Eight unit-labelled local metrics, evidence-based badges and top-three champion aggregation |
-| Live opponent abilities | **Missing** | UI exists, but enemy champion details are not enriched yet |
+| Live opponent abilities | **Matched** | Patch-resolved Data Dragon passive and Q/W/E/R details enrich every live player; partial fetch failures do not suppress the remaining roster |
 | Live opponent ranked profile | **Missing** | Must connect the existing LCU Scout resolver to the active roster |
 | Pick suggestions in Champion Select | **Missing** | Old local coach returned a fixed Ahri placeholder; GodSense needs a defensible local policy |
 | Matchup-specific knowledge | **Missing trusted source** | Generic rules exist and are labelled 0.55 confidence; no licensed/versioned matchup corpus yet |
