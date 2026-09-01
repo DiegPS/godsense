@@ -71,6 +71,33 @@ class AccountMatches extends Table {
   ];
 }
 
+class MatchDocuments extends Table {
+  TextColumn get platformId => text()();
+  IntColumn get gameId => integer()();
+  TextColumn get puuid => text().references(Accounts, #puuid)();
+  TextColumn get summaryJson => text()();
+  TextColumn get detailsJson => text().nullable()();
+  TextColumn get timelineJson => text().nullable()();
+  IntColumn get syncedAtUs => integer()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {platformId, gameId, puuid};
+
+  @override
+  List<String> get customConstraints => [
+    'FOREIGN KEY (platform_id, game_id) '
+        'REFERENCES matches(platform_id, game_id)',
+  ];
+}
+
+class RankedSnapshots extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get puuid => text().references(Accounts, #puuid)();
+  IntColumn get observedAtUs => integer()();
+  TextColumn get payloadJson => text()();
+  TextColumn get semanticHash => text()();
+}
+
 class CaptureEpochs extends Table {
   TextColumn get id => text()();
   IntColumn get startedAtUs => integer()();
@@ -163,6 +190,8 @@ class SnapshotCursors extends Table {
     AccountContextStates,
     Matches,
     AccountMatches,
+    MatchDocuments,
+    RankedSnapshots,
     CaptureEpochs,
     SourceRecords,
     DomainEntries,
@@ -176,7 +205,7 @@ class GodSenseDatabase extends _$GodSenseDatabase {
   GodSenseDatabase.inMemory() : super(NativeDatabase.memory());
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -205,6 +234,7 @@ class GodSenseDatabase extends _$GodSenseDatabase {
         CREATE INDEX domain_entries_source_record
         ON domain_entries(source_record_id)
       ''');
+      await _createScoutIndexes();
     },
     onUpgrade: (migrator, from, to) async {
       if (from < 2) {
@@ -215,6 +245,11 @@ class GodSenseDatabase extends _$GodSenseDatabase {
         await migrator.addColumn(accounts, accounts.lastPatchKey);
         await migrator.createTable(accountContextStates);
       }
+      if (from < 3) {
+        await migrator.createTable(matchDocuments);
+        await migrator.createTable(rankedSnapshots);
+        await _createScoutIndexes();
+      }
     },
     beforeOpen: (details) async {
       await customStatement('PRAGMA foreign_keys = ON');
@@ -223,6 +258,21 @@ class GodSenseDatabase extends _$GodSenseDatabase {
       await customStatement('PRAGMA synchronous = NORMAL');
     },
   );
+
+  Future<void> _createScoutIndexes() async {
+    await customStatement('''
+      CREATE INDEX IF NOT EXISTS match_documents_account_time
+      ON match_documents(puuid, synced_at_us DESC)
+    ''');
+    await customStatement('''
+      CREATE UNIQUE INDEX IF NOT EXISTS ranked_snapshots_consecutive_identity
+      ON ranked_snapshots(puuid, observed_at_us, semantic_hash)
+    ''');
+    await customStatement('''
+      CREATE INDEX IF NOT EXISTS ranked_snapshots_account_time
+      ON ranked_snapshots(puuid, observed_at_us DESC)
+    ''');
+  }
 }
 
 Future<GodSenseDatabase> openGodSenseDatabase() async {

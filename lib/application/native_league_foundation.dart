@@ -4,21 +4,25 @@ import 'dart:io';
 import '../domain/identity/league_identity.dart';
 import '../domain/journal/journal_models.dart';
 import '../domain/league/lcu_capabilities.dart';
+import '../domain/league/local_scout.dart';
 import '../infrastructure/league/lcu_capability_probe.dart';
 import '../infrastructure/league/lcu_current_account_source.dart';
 import '../infrastructure/league/lcu_probe_transport.dart';
 import '../infrastructure/persistence/drift_account_context_repository.dart';
 import '../infrastructure/persistence/drift_journal_repository.dart';
+import '../infrastructure/persistence/drift_local_scout_repository.dart';
 import '../infrastructure/persistence/godsense_database.dart'
     hide AccountContextState;
 import '../infrastructure/persistence/journal_payload_codec.dart';
 import 'account_context_coordinator.dart';
 import 'live_client_journal_adapter.dart';
+import 'local_scout_sync_service.dart';
 
 class NativeLeagueFoundationState {
   const NativeLeagueFoundationState({
     required this.account,
     required this.capabilities,
+    this.lastScoutSync,
     this.lastError,
   });
 
@@ -39,6 +43,7 @@ class NativeLeagueFoundationState {
 
   final AccountContextState account;
   final LcuCapabilities capabilities;
+  final LocalScoutSyncResult? lastScoutSync;
   final String? lastError;
 }
 
@@ -67,9 +72,13 @@ class NativeLeagueFoundation {
   AccountContextCoordinator? _accounts;
   LcuCapabilityProbe? _capabilityProbe;
   LiveClientJournalAdapter? _liveClientJournal;
+  LocalScoutSyncService? _scoutSync;
+  Future<void>? _scoutSyncRunning;
   Future<void>? _initializing;
   DateTime? _lastAccountSync;
   DateTime? _lastCapabilityProbe;
+  DateTime? _lastScoutSyncAt;
+  String? _lastScoutPuuid;
   String? _lastCapabilityContext;
   int _recordCounter = 0;
   int _transportGeneration = 0;
@@ -103,6 +112,7 @@ class NativeLeagueFoundation {
         account: _state.account,
         capabilities: _state.capabilities,
         lastError: error.toString(),
+        lastScoutSync: _state.lastScoutSync,
       );
     }
   }
@@ -130,6 +140,7 @@ class NativeLeagueFoundation {
         return _state = NativeLeagueFoundationState(
           account: account,
           capabilities: _state.capabilities,
+          lastScoutSync: _state.lastScoutSync,
         );
       }
 
@@ -194,11 +205,13 @@ class NativeLeagueFoundation {
       return _state = NativeLeagueFoundationState(
         account: _accounts!.state,
         capabilities: _state.capabilities,
+        lastScoutSync: _state.lastScoutSync,
       );
     } catch (error) {
       return _state = NativeLeagueFoundationState(
         account: _state.account,
         capabilities: _state.capabilities,
+        lastScoutSync: _state.lastScoutSync,
         lastError: error.toString(),
       );
     }
@@ -222,6 +235,12 @@ class NativeLeagueFoundation {
       idPrefix: '${_captureEpochId.value}-live',
     );
     final accountRepository = DriftAccountContextRepository(database);
+    _scoutSync = LocalScoutSyncService(
+      transport: client,
+      repository: DriftLocalScoutRepository(database),
+      now: _now,
+      detailLimit: 5,
+    );
     _accounts = AccountContextCoordinator(
       source: LcuCurrentAccountSource(client: client, now: _now),
       repository: accountRepository,
@@ -232,6 +251,7 @@ class NativeLeagueFoundation {
     _state = NativeLeagueFoundationState(
       account: _accounts!.state,
       capabilities: _state.capabilities,
+      lastScoutSync: _state.lastScoutSync,
     );
   }
 
@@ -246,7 +266,57 @@ class NativeLeagueFoundation {
     _state = NativeLeagueFoundationState(
       account: _accounts!.state,
       capabilities: capabilities,
+      lastScoutSync: _state.lastScoutSync,
     );
+    _scheduleScoutSync(now);
+  }
+
+  void _scheduleScoutSync(DateTime now) {
+    final account = _accounts?.state.context?.account;
+    if (account == null ||
+        _scoutSyncRunning != null ||
+        (!_state.capabilities.canLoadRanked &&
+            !_state
+                .capabilities[LcuCapabilityId.matchHistoryList]
+                .isAvailable)) {
+      return;
+    }
+    final accountChanged = _lastScoutPuuid != account.puuid.value;
+    if (!accountChanged &&
+        _lastScoutSyncAt != null &&
+        now.difference(_lastScoutSyncAt!) < const Duration(minutes: 2)) {
+      return;
+    }
+    _lastScoutSyncAt = now;
+    _lastScoutPuuid = account.puuid.value;
+    final running = _runScoutSync(account.puuid, account.platformId);
+    _scoutSyncRunning = running;
+    unawaited(running.whenComplete(() => _scoutSyncRunning = null));
+  }
+
+  Future<void> _runScoutSync(Puuid puuid, PlatformId platformId) async {
+    try {
+      final result = await _scoutSync!.synchronize(
+        puuid: puuid,
+        platformId: platformId,
+        capabilities: _state.capabilities,
+      );
+      if (_disposed || _accounts?.state.context?.account.puuid != puuid) return;
+      _state = NativeLeagueFoundationState(
+        account: _state.account,
+        capabilities: _state.capabilities,
+        lastScoutSync: result,
+        lastError: _state.lastError,
+      );
+    } catch (error) {
+      if (_disposed) return;
+      _state = NativeLeagueFoundationState(
+        account: _state.account,
+        capabilities: _state.capabilities,
+        lastScoutSync: _state.lastScoutSync,
+        lastError: error.toString(),
+      );
+    }
   }
 
   Future<void> _appendSnapshot({
@@ -290,6 +360,7 @@ class NativeLeagueFoundation {
     _disposed = true;
     final initializing = _initializing;
     if (initializing != null) await initializing;
+    await _scoutSyncRunning;
     await _database?.close();
   }
 }

@@ -1966,6 +1966,867 @@ class AccountMatchesCompanion extends UpdateCompanion<AccountMatche> {
   }
 }
 
+class $MatchDocumentsTable extends MatchDocuments
+    with TableInfo<$MatchDocumentsTable, MatchDocument> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $MatchDocumentsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _platformIdMeta = const VerificationMeta(
+    'platformId',
+  );
+  @override
+  late final GeneratedColumn<String> platformId = GeneratedColumn<String>(
+    'platform_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _gameIdMeta = const VerificationMeta('gameId');
+  @override
+  late final GeneratedColumn<int> gameId = GeneratedColumn<int>(
+    'game_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _puuidMeta = const VerificationMeta('puuid');
+  @override
+  late final GeneratedColumn<String> puuid = GeneratedColumn<String>(
+    'puuid',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES accounts (puuid)',
+    ),
+  );
+  static const VerificationMeta _summaryJsonMeta = const VerificationMeta(
+    'summaryJson',
+  );
+  @override
+  late final GeneratedColumn<String> summaryJson = GeneratedColumn<String>(
+    'summary_json',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _detailsJsonMeta = const VerificationMeta(
+    'detailsJson',
+  );
+  @override
+  late final GeneratedColumn<String> detailsJson = GeneratedColumn<String>(
+    'details_json',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _timelineJsonMeta = const VerificationMeta(
+    'timelineJson',
+  );
+  @override
+  late final GeneratedColumn<String> timelineJson = GeneratedColumn<String>(
+    'timeline_json',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _syncedAtUsMeta = const VerificationMeta(
+    'syncedAtUs',
+  );
+  @override
+  late final GeneratedColumn<int> syncedAtUs = GeneratedColumn<int>(
+    'synced_at_us',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    platformId,
+    gameId,
+    puuid,
+    summaryJson,
+    detailsJson,
+    timelineJson,
+    syncedAtUs,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'match_documents';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<MatchDocument> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('platform_id')) {
+      context.handle(
+        _platformIdMeta,
+        platformId.isAcceptableOrUnknown(data['platform_id']!, _platformIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_platformIdMeta);
+    }
+    if (data.containsKey('game_id')) {
+      context.handle(
+        _gameIdMeta,
+        gameId.isAcceptableOrUnknown(data['game_id']!, _gameIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_gameIdMeta);
+    }
+    if (data.containsKey('puuid')) {
+      context.handle(
+        _puuidMeta,
+        puuid.isAcceptableOrUnknown(data['puuid']!, _puuidMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_puuidMeta);
+    }
+    if (data.containsKey('summary_json')) {
+      context.handle(
+        _summaryJsonMeta,
+        summaryJson.isAcceptableOrUnknown(
+          data['summary_json']!,
+          _summaryJsonMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_summaryJsonMeta);
+    }
+    if (data.containsKey('details_json')) {
+      context.handle(
+        _detailsJsonMeta,
+        detailsJson.isAcceptableOrUnknown(
+          data['details_json']!,
+          _detailsJsonMeta,
+        ),
+      );
+    }
+    if (data.containsKey('timeline_json')) {
+      context.handle(
+        _timelineJsonMeta,
+        timelineJson.isAcceptableOrUnknown(
+          data['timeline_json']!,
+          _timelineJsonMeta,
+        ),
+      );
+    }
+    if (data.containsKey('synced_at_us')) {
+      context.handle(
+        _syncedAtUsMeta,
+        syncedAtUs.isAcceptableOrUnknown(
+          data['synced_at_us']!,
+          _syncedAtUsMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_syncedAtUsMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {platformId, gameId, puuid};
+  @override
+  MatchDocument map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return MatchDocument(
+      platformId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}platform_id'],
+      )!,
+      gameId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}game_id'],
+      )!,
+      puuid: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}puuid'],
+      )!,
+      summaryJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}summary_json'],
+      )!,
+      detailsJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}details_json'],
+      ),
+      timelineJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}timeline_json'],
+      ),
+      syncedAtUs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}synced_at_us'],
+      )!,
+    );
+  }
+
+  @override
+  $MatchDocumentsTable createAlias(String alias) {
+    return $MatchDocumentsTable(attachedDatabase, alias);
+  }
+}
+
+class MatchDocument extends DataClass implements Insertable<MatchDocument> {
+  final String platformId;
+  final int gameId;
+  final String puuid;
+  final String summaryJson;
+  final String? detailsJson;
+  final String? timelineJson;
+  final int syncedAtUs;
+  const MatchDocument({
+    required this.platformId,
+    required this.gameId,
+    required this.puuid,
+    required this.summaryJson,
+    this.detailsJson,
+    this.timelineJson,
+    required this.syncedAtUs,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['platform_id'] = Variable<String>(platformId);
+    map['game_id'] = Variable<int>(gameId);
+    map['puuid'] = Variable<String>(puuid);
+    map['summary_json'] = Variable<String>(summaryJson);
+    if (!nullToAbsent || detailsJson != null) {
+      map['details_json'] = Variable<String>(detailsJson);
+    }
+    if (!nullToAbsent || timelineJson != null) {
+      map['timeline_json'] = Variable<String>(timelineJson);
+    }
+    map['synced_at_us'] = Variable<int>(syncedAtUs);
+    return map;
+  }
+
+  MatchDocumentsCompanion toCompanion(bool nullToAbsent) {
+    return MatchDocumentsCompanion(
+      platformId: Value(platformId),
+      gameId: Value(gameId),
+      puuid: Value(puuid),
+      summaryJson: Value(summaryJson),
+      detailsJson: detailsJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(detailsJson),
+      timelineJson: timelineJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(timelineJson),
+      syncedAtUs: Value(syncedAtUs),
+    );
+  }
+
+  factory MatchDocument.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return MatchDocument(
+      platformId: serializer.fromJson<String>(json['platformId']),
+      gameId: serializer.fromJson<int>(json['gameId']),
+      puuid: serializer.fromJson<String>(json['puuid']),
+      summaryJson: serializer.fromJson<String>(json['summaryJson']),
+      detailsJson: serializer.fromJson<String?>(json['detailsJson']),
+      timelineJson: serializer.fromJson<String?>(json['timelineJson']),
+      syncedAtUs: serializer.fromJson<int>(json['syncedAtUs']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'platformId': serializer.toJson<String>(platformId),
+      'gameId': serializer.toJson<int>(gameId),
+      'puuid': serializer.toJson<String>(puuid),
+      'summaryJson': serializer.toJson<String>(summaryJson),
+      'detailsJson': serializer.toJson<String?>(detailsJson),
+      'timelineJson': serializer.toJson<String?>(timelineJson),
+      'syncedAtUs': serializer.toJson<int>(syncedAtUs),
+    };
+  }
+
+  MatchDocument copyWith({
+    String? platformId,
+    int? gameId,
+    String? puuid,
+    String? summaryJson,
+    Value<String?> detailsJson = const Value.absent(),
+    Value<String?> timelineJson = const Value.absent(),
+    int? syncedAtUs,
+  }) => MatchDocument(
+    platformId: platformId ?? this.platformId,
+    gameId: gameId ?? this.gameId,
+    puuid: puuid ?? this.puuid,
+    summaryJson: summaryJson ?? this.summaryJson,
+    detailsJson: detailsJson.present ? detailsJson.value : this.detailsJson,
+    timelineJson: timelineJson.present ? timelineJson.value : this.timelineJson,
+    syncedAtUs: syncedAtUs ?? this.syncedAtUs,
+  );
+  MatchDocument copyWithCompanion(MatchDocumentsCompanion data) {
+    return MatchDocument(
+      platformId: data.platformId.present
+          ? data.platformId.value
+          : this.platformId,
+      gameId: data.gameId.present ? data.gameId.value : this.gameId,
+      puuid: data.puuid.present ? data.puuid.value : this.puuid,
+      summaryJson: data.summaryJson.present
+          ? data.summaryJson.value
+          : this.summaryJson,
+      detailsJson: data.detailsJson.present
+          ? data.detailsJson.value
+          : this.detailsJson,
+      timelineJson: data.timelineJson.present
+          ? data.timelineJson.value
+          : this.timelineJson,
+      syncedAtUs: data.syncedAtUs.present
+          ? data.syncedAtUs.value
+          : this.syncedAtUs,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('MatchDocument(')
+          ..write('platformId: $platformId, ')
+          ..write('gameId: $gameId, ')
+          ..write('puuid: $puuid, ')
+          ..write('summaryJson: $summaryJson, ')
+          ..write('detailsJson: $detailsJson, ')
+          ..write('timelineJson: $timelineJson, ')
+          ..write('syncedAtUs: $syncedAtUs')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    platformId,
+    gameId,
+    puuid,
+    summaryJson,
+    detailsJson,
+    timelineJson,
+    syncedAtUs,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is MatchDocument &&
+          other.platformId == this.platformId &&
+          other.gameId == this.gameId &&
+          other.puuid == this.puuid &&
+          other.summaryJson == this.summaryJson &&
+          other.detailsJson == this.detailsJson &&
+          other.timelineJson == this.timelineJson &&
+          other.syncedAtUs == this.syncedAtUs);
+}
+
+class MatchDocumentsCompanion extends UpdateCompanion<MatchDocument> {
+  final Value<String> platformId;
+  final Value<int> gameId;
+  final Value<String> puuid;
+  final Value<String> summaryJson;
+  final Value<String?> detailsJson;
+  final Value<String?> timelineJson;
+  final Value<int> syncedAtUs;
+  final Value<int> rowid;
+  const MatchDocumentsCompanion({
+    this.platformId = const Value.absent(),
+    this.gameId = const Value.absent(),
+    this.puuid = const Value.absent(),
+    this.summaryJson = const Value.absent(),
+    this.detailsJson = const Value.absent(),
+    this.timelineJson = const Value.absent(),
+    this.syncedAtUs = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  MatchDocumentsCompanion.insert({
+    required String platformId,
+    required int gameId,
+    required String puuid,
+    required String summaryJson,
+    this.detailsJson = const Value.absent(),
+    this.timelineJson = const Value.absent(),
+    required int syncedAtUs,
+    this.rowid = const Value.absent(),
+  }) : platformId = Value(platformId),
+       gameId = Value(gameId),
+       puuid = Value(puuid),
+       summaryJson = Value(summaryJson),
+       syncedAtUs = Value(syncedAtUs);
+  static Insertable<MatchDocument> custom({
+    Expression<String>? platformId,
+    Expression<int>? gameId,
+    Expression<String>? puuid,
+    Expression<String>? summaryJson,
+    Expression<String>? detailsJson,
+    Expression<String>? timelineJson,
+    Expression<int>? syncedAtUs,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (platformId != null) 'platform_id': platformId,
+      if (gameId != null) 'game_id': gameId,
+      if (puuid != null) 'puuid': puuid,
+      if (summaryJson != null) 'summary_json': summaryJson,
+      if (detailsJson != null) 'details_json': detailsJson,
+      if (timelineJson != null) 'timeline_json': timelineJson,
+      if (syncedAtUs != null) 'synced_at_us': syncedAtUs,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  MatchDocumentsCompanion copyWith({
+    Value<String>? platformId,
+    Value<int>? gameId,
+    Value<String>? puuid,
+    Value<String>? summaryJson,
+    Value<String?>? detailsJson,
+    Value<String?>? timelineJson,
+    Value<int>? syncedAtUs,
+    Value<int>? rowid,
+  }) {
+    return MatchDocumentsCompanion(
+      platformId: platformId ?? this.platformId,
+      gameId: gameId ?? this.gameId,
+      puuid: puuid ?? this.puuid,
+      summaryJson: summaryJson ?? this.summaryJson,
+      detailsJson: detailsJson ?? this.detailsJson,
+      timelineJson: timelineJson ?? this.timelineJson,
+      syncedAtUs: syncedAtUs ?? this.syncedAtUs,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (platformId.present) {
+      map['platform_id'] = Variable<String>(platformId.value);
+    }
+    if (gameId.present) {
+      map['game_id'] = Variable<int>(gameId.value);
+    }
+    if (puuid.present) {
+      map['puuid'] = Variable<String>(puuid.value);
+    }
+    if (summaryJson.present) {
+      map['summary_json'] = Variable<String>(summaryJson.value);
+    }
+    if (detailsJson.present) {
+      map['details_json'] = Variable<String>(detailsJson.value);
+    }
+    if (timelineJson.present) {
+      map['timeline_json'] = Variable<String>(timelineJson.value);
+    }
+    if (syncedAtUs.present) {
+      map['synced_at_us'] = Variable<int>(syncedAtUs.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('MatchDocumentsCompanion(')
+          ..write('platformId: $platformId, ')
+          ..write('gameId: $gameId, ')
+          ..write('puuid: $puuid, ')
+          ..write('summaryJson: $summaryJson, ')
+          ..write('detailsJson: $detailsJson, ')
+          ..write('timelineJson: $timelineJson, ')
+          ..write('syncedAtUs: $syncedAtUs, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $RankedSnapshotsTable extends RankedSnapshots
+    with TableInfo<$RankedSnapshotsTable, RankedSnapshot> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $RankedSnapshotsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _puuidMeta = const VerificationMeta('puuid');
+  @override
+  late final GeneratedColumn<String> puuid = GeneratedColumn<String>(
+    'puuid',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES accounts (puuid)',
+    ),
+  );
+  static const VerificationMeta _observedAtUsMeta = const VerificationMeta(
+    'observedAtUs',
+  );
+  @override
+  late final GeneratedColumn<int> observedAtUs = GeneratedColumn<int>(
+    'observed_at_us',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _payloadJsonMeta = const VerificationMeta(
+    'payloadJson',
+  );
+  @override
+  late final GeneratedColumn<String> payloadJson = GeneratedColumn<String>(
+    'payload_json',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _semanticHashMeta = const VerificationMeta(
+    'semanticHash',
+  );
+  @override
+  late final GeneratedColumn<String> semanticHash = GeneratedColumn<String>(
+    'semantic_hash',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    puuid,
+    observedAtUs,
+    payloadJson,
+    semanticHash,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'ranked_snapshots';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<RankedSnapshot> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('puuid')) {
+      context.handle(
+        _puuidMeta,
+        puuid.isAcceptableOrUnknown(data['puuid']!, _puuidMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_puuidMeta);
+    }
+    if (data.containsKey('observed_at_us')) {
+      context.handle(
+        _observedAtUsMeta,
+        observedAtUs.isAcceptableOrUnknown(
+          data['observed_at_us']!,
+          _observedAtUsMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_observedAtUsMeta);
+    }
+    if (data.containsKey('payload_json')) {
+      context.handle(
+        _payloadJsonMeta,
+        payloadJson.isAcceptableOrUnknown(
+          data['payload_json']!,
+          _payloadJsonMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_payloadJsonMeta);
+    }
+    if (data.containsKey('semantic_hash')) {
+      context.handle(
+        _semanticHashMeta,
+        semanticHash.isAcceptableOrUnknown(
+          data['semantic_hash']!,
+          _semanticHashMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_semanticHashMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  RankedSnapshot map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return RankedSnapshot(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      puuid: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}puuid'],
+      )!,
+      observedAtUs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}observed_at_us'],
+      )!,
+      payloadJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}payload_json'],
+      )!,
+      semanticHash: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}semantic_hash'],
+      )!,
+    );
+  }
+
+  @override
+  $RankedSnapshotsTable createAlias(String alias) {
+    return $RankedSnapshotsTable(attachedDatabase, alias);
+  }
+}
+
+class RankedSnapshot extends DataClass implements Insertable<RankedSnapshot> {
+  final int id;
+  final String puuid;
+  final int observedAtUs;
+  final String payloadJson;
+  final String semanticHash;
+  const RankedSnapshot({
+    required this.id,
+    required this.puuid,
+    required this.observedAtUs,
+    required this.payloadJson,
+    required this.semanticHash,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['puuid'] = Variable<String>(puuid);
+    map['observed_at_us'] = Variable<int>(observedAtUs);
+    map['payload_json'] = Variable<String>(payloadJson);
+    map['semantic_hash'] = Variable<String>(semanticHash);
+    return map;
+  }
+
+  RankedSnapshotsCompanion toCompanion(bool nullToAbsent) {
+    return RankedSnapshotsCompanion(
+      id: Value(id),
+      puuid: Value(puuid),
+      observedAtUs: Value(observedAtUs),
+      payloadJson: Value(payloadJson),
+      semanticHash: Value(semanticHash),
+    );
+  }
+
+  factory RankedSnapshot.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return RankedSnapshot(
+      id: serializer.fromJson<int>(json['id']),
+      puuid: serializer.fromJson<String>(json['puuid']),
+      observedAtUs: serializer.fromJson<int>(json['observedAtUs']),
+      payloadJson: serializer.fromJson<String>(json['payloadJson']),
+      semanticHash: serializer.fromJson<String>(json['semanticHash']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'puuid': serializer.toJson<String>(puuid),
+      'observedAtUs': serializer.toJson<int>(observedAtUs),
+      'payloadJson': serializer.toJson<String>(payloadJson),
+      'semanticHash': serializer.toJson<String>(semanticHash),
+    };
+  }
+
+  RankedSnapshot copyWith({
+    int? id,
+    String? puuid,
+    int? observedAtUs,
+    String? payloadJson,
+    String? semanticHash,
+  }) => RankedSnapshot(
+    id: id ?? this.id,
+    puuid: puuid ?? this.puuid,
+    observedAtUs: observedAtUs ?? this.observedAtUs,
+    payloadJson: payloadJson ?? this.payloadJson,
+    semanticHash: semanticHash ?? this.semanticHash,
+  );
+  RankedSnapshot copyWithCompanion(RankedSnapshotsCompanion data) {
+    return RankedSnapshot(
+      id: data.id.present ? data.id.value : this.id,
+      puuid: data.puuid.present ? data.puuid.value : this.puuid,
+      observedAtUs: data.observedAtUs.present
+          ? data.observedAtUs.value
+          : this.observedAtUs,
+      payloadJson: data.payloadJson.present
+          ? data.payloadJson.value
+          : this.payloadJson,
+      semanticHash: data.semanticHash.present
+          ? data.semanticHash.value
+          : this.semanticHash,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('RankedSnapshot(')
+          ..write('id: $id, ')
+          ..write('puuid: $puuid, ')
+          ..write('observedAtUs: $observedAtUs, ')
+          ..write('payloadJson: $payloadJson, ')
+          ..write('semanticHash: $semanticHash')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, puuid, observedAtUs, payloadJson, semanticHash);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is RankedSnapshot &&
+          other.id == this.id &&
+          other.puuid == this.puuid &&
+          other.observedAtUs == this.observedAtUs &&
+          other.payloadJson == this.payloadJson &&
+          other.semanticHash == this.semanticHash);
+}
+
+class RankedSnapshotsCompanion extends UpdateCompanion<RankedSnapshot> {
+  final Value<int> id;
+  final Value<String> puuid;
+  final Value<int> observedAtUs;
+  final Value<String> payloadJson;
+  final Value<String> semanticHash;
+  const RankedSnapshotsCompanion({
+    this.id = const Value.absent(),
+    this.puuid = const Value.absent(),
+    this.observedAtUs = const Value.absent(),
+    this.payloadJson = const Value.absent(),
+    this.semanticHash = const Value.absent(),
+  });
+  RankedSnapshotsCompanion.insert({
+    this.id = const Value.absent(),
+    required String puuid,
+    required int observedAtUs,
+    required String payloadJson,
+    required String semanticHash,
+  }) : puuid = Value(puuid),
+       observedAtUs = Value(observedAtUs),
+       payloadJson = Value(payloadJson),
+       semanticHash = Value(semanticHash);
+  static Insertable<RankedSnapshot> custom({
+    Expression<int>? id,
+    Expression<String>? puuid,
+    Expression<int>? observedAtUs,
+    Expression<String>? payloadJson,
+    Expression<String>? semanticHash,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (puuid != null) 'puuid': puuid,
+      if (observedAtUs != null) 'observed_at_us': observedAtUs,
+      if (payloadJson != null) 'payload_json': payloadJson,
+      if (semanticHash != null) 'semantic_hash': semanticHash,
+    });
+  }
+
+  RankedSnapshotsCompanion copyWith({
+    Value<int>? id,
+    Value<String>? puuid,
+    Value<int>? observedAtUs,
+    Value<String>? payloadJson,
+    Value<String>? semanticHash,
+  }) {
+    return RankedSnapshotsCompanion(
+      id: id ?? this.id,
+      puuid: puuid ?? this.puuid,
+      observedAtUs: observedAtUs ?? this.observedAtUs,
+      payloadJson: payloadJson ?? this.payloadJson,
+      semanticHash: semanticHash ?? this.semanticHash,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (puuid.present) {
+      map['puuid'] = Variable<String>(puuid.value);
+    }
+    if (observedAtUs.present) {
+      map['observed_at_us'] = Variable<int>(observedAtUs.value);
+    }
+    if (payloadJson.present) {
+      map['payload_json'] = Variable<String>(payloadJson.value);
+    }
+    if (semanticHash.present) {
+      map['semantic_hash'] = Variable<String>(semanticHash.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('RankedSnapshotsCompanion(')
+          ..write('id: $id, ')
+          ..write('puuid: $puuid, ')
+          ..write('observedAtUs: $observedAtUs, ')
+          ..write('payloadJson: $payloadJson, ')
+          ..write('semanticHash: $semanticHash')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $CaptureEpochsTable extends CaptureEpochs
     with TableInfo<$CaptureEpochsTable, CaptureEpoch> {
   @override
@@ -4979,6 +5840,10 @@ abstract class _$GodSenseDatabase extends GeneratedDatabase {
       $AccountContextStatesTable(this);
   late final $MatchesTable matches = $MatchesTable(this);
   late final $AccountMatchesTable accountMatches = $AccountMatchesTable(this);
+  late final $MatchDocumentsTable matchDocuments = $MatchDocumentsTable(this);
+  late final $RankedSnapshotsTable rankedSnapshots = $RankedSnapshotsTable(
+    this,
+  );
   late final $CaptureEpochsTable captureEpochs = $CaptureEpochsTable(this);
   late final $SourceRecordsTable sourceRecords = $SourceRecordsTable(this);
   late final $DomainEntriesTable domainEntries = $DomainEntriesTable(this);
@@ -4995,6 +5860,8 @@ abstract class _$GodSenseDatabase extends GeneratedDatabase {
     accountContextStates,
     matches,
     accountMatches,
+    matchDocuments,
+    rankedSnapshots,
     captureEpochs,
     sourceRecords,
     domainEntries,
@@ -5080,6 +5947,46 @@ final class $$AccountsTableReferences
     ).filter((f) => f.puuid.puuid.sqlEquals($_itemColumn<String>('puuid')!));
 
     final cache = $_typedResult.readTableOrNull(_accountMatchesRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$MatchDocumentsTable, List<MatchDocument>>
+  _matchDocumentsRefsTable(_$GodSenseDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.matchDocuments,
+        aliasName: 'accounts__puuid__match_documents__puuid',
+      );
+
+  $$MatchDocumentsTableProcessedTableManager get matchDocumentsRefs {
+    final manager = $$MatchDocumentsTableTableManager(
+      $_db,
+      $_db.matchDocuments,
+    ).filter((f) => f.puuid.puuid.sqlEquals($_itemColumn<String>('puuid')!));
+
+    final cache = $_typedResult.readTableOrNull(_matchDocumentsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$RankedSnapshotsTable, List<RankedSnapshot>>
+  _rankedSnapshotsRefsTable(_$GodSenseDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.rankedSnapshots,
+        aliasName: 'accounts__puuid__ranked_snapshots__puuid',
+      );
+
+  $$RankedSnapshotsTableProcessedTableManager get rankedSnapshotsRefs {
+    final manager = $$RankedSnapshotsTableTableManager(
+      $_db,
+      $_db.rankedSnapshots,
+    ).filter((f) => f.puuid.puuid.sqlEquals($_itemColumn<String>('puuid')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _rankedSnapshotsRefsTable($_db),
+    );
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
     );
@@ -5196,6 +6103,56 @@ class $$AccountsTableFilterComposer
           }) => $$AccountMatchesTableFilterComposer(
             $db: $db,
             $table: $db.accountMatches,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> matchDocumentsRefs(
+    Expression<bool> Function($$MatchDocumentsTableFilterComposer f) f,
+  ) {
+    final $$MatchDocumentsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.puuid,
+      referencedTable: $db.matchDocuments,
+      getReferencedColumn: (t) => t.puuid,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$MatchDocumentsTableFilterComposer(
+            $db: $db,
+            $table: $db.matchDocuments,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> rankedSnapshotsRefs(
+    Expression<bool> Function($$RankedSnapshotsTableFilterComposer f) f,
+  ) {
+    final $$RankedSnapshotsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.puuid,
+      referencedTable: $db.rankedSnapshots,
+      getReferencedColumn: (t) => t.puuid,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$RankedSnapshotsTableFilterComposer(
+            $db: $db,
+            $table: $db.rankedSnapshots,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -5389,6 +6346,56 @@ class $$AccountsTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> matchDocumentsRefs<T extends Object>(
+    Expression<T> Function($$MatchDocumentsTableAnnotationComposer a) f,
+  ) {
+    final $$MatchDocumentsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.puuid,
+      referencedTable: $db.matchDocuments,
+      getReferencedColumn: (t) => t.puuid,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$MatchDocumentsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.matchDocuments,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<T> rankedSnapshotsRefs<T extends Object>(
+    Expression<T> Function($$RankedSnapshotsTableAnnotationComposer a) f,
+  ) {
+    final $$RankedSnapshotsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.puuid,
+      referencedTable: $db.rankedSnapshots,
+      getReferencedColumn: (t) => t.puuid,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$RankedSnapshotsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.rankedSnapshots,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$AccountsTableTableManager
@@ -5407,6 +6414,8 @@ class $$AccountsTableTableManager
           PrefetchHooks Function({
             bool accountContextStatesRefs,
             bool accountMatchesRefs,
+            bool matchDocumentsRefs,
+            bool rankedSnapshotsRefs,
           })
         > {
   $$AccountsTableTableManager(_$GodSenseDatabase db, $AccountsTable table)
@@ -5489,12 +6498,19 @@ class $$AccountsTableTableManager
               )
               .toList(),
           prefetchHooksCallback:
-              ({accountContextStatesRefs = false, accountMatchesRefs = false}) {
+              ({
+                accountContextStatesRefs = false,
+                accountMatchesRefs = false,
+                matchDocumentsRefs = false,
+                rankedSnapshotsRefs = false,
+              }) {
                 return PrefetchHooks(
                   db: db,
                   explicitlyWatchedTables: [
                     if (accountContextStatesRefs) db.accountContextStates,
                     if (accountMatchesRefs) db.accountMatches,
+                    if (matchDocumentsRefs) db.matchDocuments,
+                    if (rankedSnapshotsRefs) db.rankedSnapshots,
                   ],
                   addJoins: null,
                   getPrefetchedDataCallback: (items) async {
@@ -5541,6 +6557,48 @@ class $$AccountsTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (matchDocumentsRefs)
+                        await $_getPrefetchedData<
+                          Account,
+                          $AccountsTable,
+                          MatchDocument
+                        >(
+                          currentTable: table,
+                          referencedTable: $$AccountsTableReferences
+                              ._matchDocumentsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$AccountsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).matchDocumentsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.puuid == item.puuid,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (rankedSnapshotsRefs)
+                        await $_getPrefetchedData<
+                          Account,
+                          $AccountsTable,
+                          RankedSnapshot
+                        >(
+                          currentTable: table,
+                          referencedTable: $$AccountsTableReferences
+                              ._rankedSnapshotsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$AccountsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).rankedSnapshotsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.puuid == item.puuid,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -5564,6 +6622,8 @@ typedef $$AccountsTableProcessedTableManager =
       PrefetchHooks Function({
         bool accountContextStatesRefs,
         bool accountMatchesRefs,
+        bool matchDocumentsRefs,
+        bool rankedSnapshotsRefs,
       })
     >;
 typedef $$AccountContextStatesTableCreateCompanionBuilder =
@@ -6445,6 +7505,706 @@ typedef $$AccountMatchesTableProcessedTableManager =
       $$AccountMatchesTableUpdateCompanionBuilder,
       (AccountMatche, $$AccountMatchesTableReferences),
       AccountMatche,
+      PrefetchHooks Function({bool puuid})
+    >;
+typedef $$MatchDocumentsTableCreateCompanionBuilder =
+    MatchDocumentsCompanion Function({
+      required String platformId,
+      required int gameId,
+      required String puuid,
+      required String summaryJson,
+      Value<String?> detailsJson,
+      Value<String?> timelineJson,
+      required int syncedAtUs,
+      Value<int> rowid,
+    });
+typedef $$MatchDocumentsTableUpdateCompanionBuilder =
+    MatchDocumentsCompanion Function({
+      Value<String> platformId,
+      Value<int> gameId,
+      Value<String> puuid,
+      Value<String> summaryJson,
+      Value<String?> detailsJson,
+      Value<String?> timelineJson,
+      Value<int> syncedAtUs,
+      Value<int> rowid,
+    });
+
+final class $$MatchDocumentsTableReferences
+    extends
+        BaseReferences<
+          _$GodSenseDatabase,
+          $MatchDocumentsTable,
+          MatchDocument
+        > {
+  $$MatchDocumentsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $AccountsTable _puuidTable(_$GodSenseDatabase db) =>
+      db.accounts.createAlias('match_documents__puuid__accounts__puuid');
+
+  $$AccountsTableProcessedTableManager get puuid {
+    final $_column = $_itemColumn<String>('puuid')!;
+
+    final manager = $$AccountsTableTableManager(
+      $_db,
+      $_db.accounts,
+    ).filter((f) => f.puuid.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_puuidTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$MatchDocumentsTableFilterComposer
+    extends Composer<_$GodSenseDatabase, $MatchDocumentsTable> {
+  $$MatchDocumentsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get platformId => $composableBuilder(
+    column: $table.platformId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get gameId => $composableBuilder(
+    column: $table.gameId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get summaryJson => $composableBuilder(
+    column: $table.summaryJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get detailsJson => $composableBuilder(
+    column: $table.detailsJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get timelineJson => $composableBuilder(
+    column: $table.timelineJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get syncedAtUs => $composableBuilder(
+    column: $table.syncedAtUs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$AccountsTableFilterComposer get puuid {
+    final $$AccountsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.puuid,
+      referencedTable: $db.accounts,
+      getReferencedColumn: (t) => t.puuid,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AccountsTableFilterComposer(
+            $db: $db,
+            $table: $db.accounts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$MatchDocumentsTableOrderingComposer
+    extends Composer<_$GodSenseDatabase, $MatchDocumentsTable> {
+  $$MatchDocumentsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get platformId => $composableBuilder(
+    column: $table.platformId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get gameId => $composableBuilder(
+    column: $table.gameId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get summaryJson => $composableBuilder(
+    column: $table.summaryJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get detailsJson => $composableBuilder(
+    column: $table.detailsJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get timelineJson => $composableBuilder(
+    column: $table.timelineJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get syncedAtUs => $composableBuilder(
+    column: $table.syncedAtUs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$AccountsTableOrderingComposer get puuid {
+    final $$AccountsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.puuid,
+      referencedTable: $db.accounts,
+      getReferencedColumn: (t) => t.puuid,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AccountsTableOrderingComposer(
+            $db: $db,
+            $table: $db.accounts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$MatchDocumentsTableAnnotationComposer
+    extends Composer<_$GodSenseDatabase, $MatchDocumentsTable> {
+  $$MatchDocumentsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get platformId => $composableBuilder(
+    column: $table.platformId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get gameId =>
+      $composableBuilder(column: $table.gameId, builder: (column) => column);
+
+  GeneratedColumn<String> get summaryJson => $composableBuilder(
+    column: $table.summaryJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get detailsJson => $composableBuilder(
+    column: $table.detailsJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get timelineJson => $composableBuilder(
+    column: $table.timelineJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get syncedAtUs => $composableBuilder(
+    column: $table.syncedAtUs,
+    builder: (column) => column,
+  );
+
+  $$AccountsTableAnnotationComposer get puuid {
+    final $$AccountsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.puuid,
+      referencedTable: $db.accounts,
+      getReferencedColumn: (t) => t.puuid,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AccountsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.accounts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$MatchDocumentsTableTableManager
+    extends
+        RootTableManager<
+          _$GodSenseDatabase,
+          $MatchDocumentsTable,
+          MatchDocument,
+          $$MatchDocumentsTableFilterComposer,
+          $$MatchDocumentsTableOrderingComposer,
+          $$MatchDocumentsTableAnnotationComposer,
+          $$MatchDocumentsTableCreateCompanionBuilder,
+          $$MatchDocumentsTableUpdateCompanionBuilder,
+          (MatchDocument, $$MatchDocumentsTableReferences),
+          MatchDocument,
+          PrefetchHooks Function({bool puuid})
+        > {
+  $$MatchDocumentsTableTableManager(
+    _$GodSenseDatabase db,
+    $MatchDocumentsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$MatchDocumentsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$MatchDocumentsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$MatchDocumentsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> platformId = const Value.absent(),
+                Value<int> gameId = const Value.absent(),
+                Value<String> puuid = const Value.absent(),
+                Value<String> summaryJson = const Value.absent(),
+                Value<String?> detailsJson = const Value.absent(),
+                Value<String?> timelineJson = const Value.absent(),
+                Value<int> syncedAtUs = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => MatchDocumentsCompanion(
+                platformId: platformId,
+                gameId: gameId,
+                puuid: puuid,
+                summaryJson: summaryJson,
+                detailsJson: detailsJson,
+                timelineJson: timelineJson,
+                syncedAtUs: syncedAtUs,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String platformId,
+                required int gameId,
+                required String puuid,
+                required String summaryJson,
+                Value<String?> detailsJson = const Value.absent(),
+                Value<String?> timelineJson = const Value.absent(),
+                required int syncedAtUs,
+                Value<int> rowid = const Value.absent(),
+              }) => MatchDocumentsCompanion.insert(
+                platformId: platformId,
+                gameId: gameId,
+                puuid: puuid,
+                summaryJson: summaryJson,
+                detailsJson: detailsJson,
+                timelineJson: timelineJson,
+                syncedAtUs: syncedAtUs,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$MatchDocumentsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({puuid = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (puuid) {
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.puuid,
+                        referencedTable: $$MatchDocumentsTableReferences
+                            ._puuidTable(db),
+                        referencedColumn: $$MatchDocumentsTableReferences
+                            ._puuidTable(db)
+                            .puuid,
+                      ) as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$MatchDocumentsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$GodSenseDatabase,
+      $MatchDocumentsTable,
+      MatchDocument,
+      $$MatchDocumentsTableFilterComposer,
+      $$MatchDocumentsTableOrderingComposer,
+      $$MatchDocumentsTableAnnotationComposer,
+      $$MatchDocumentsTableCreateCompanionBuilder,
+      $$MatchDocumentsTableUpdateCompanionBuilder,
+      (MatchDocument, $$MatchDocumentsTableReferences),
+      MatchDocument,
+      PrefetchHooks Function({bool puuid})
+    >;
+typedef $$RankedSnapshotsTableCreateCompanionBuilder =
+    RankedSnapshotsCompanion Function({
+      Value<int> id,
+      required String puuid,
+      required int observedAtUs,
+      required String payloadJson,
+      required String semanticHash,
+    });
+typedef $$RankedSnapshotsTableUpdateCompanionBuilder =
+    RankedSnapshotsCompanion Function({
+      Value<int> id,
+      Value<String> puuid,
+      Value<int> observedAtUs,
+      Value<String> payloadJson,
+      Value<String> semanticHash,
+    });
+
+final class $$RankedSnapshotsTableReferences
+    extends
+        BaseReferences<
+          _$GodSenseDatabase,
+          $RankedSnapshotsTable,
+          RankedSnapshot
+        > {
+  $$RankedSnapshotsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $AccountsTable _puuidTable(_$GodSenseDatabase db) =>
+      db.accounts.createAlias('ranked_snapshots__puuid__accounts__puuid');
+
+  $$AccountsTableProcessedTableManager get puuid {
+    final $_column = $_itemColumn<String>('puuid')!;
+
+    final manager = $$AccountsTableTableManager(
+      $_db,
+      $_db.accounts,
+    ).filter((f) => f.puuid.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_puuidTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$RankedSnapshotsTableFilterComposer
+    extends Composer<_$GodSenseDatabase, $RankedSnapshotsTable> {
+  $$RankedSnapshotsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get observedAtUs => $composableBuilder(
+    column: $table.observedAtUs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get payloadJson => $composableBuilder(
+    column: $table.payloadJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get semanticHash => $composableBuilder(
+    column: $table.semanticHash,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$AccountsTableFilterComposer get puuid {
+    final $$AccountsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.puuid,
+      referencedTable: $db.accounts,
+      getReferencedColumn: (t) => t.puuid,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AccountsTableFilterComposer(
+            $db: $db,
+            $table: $db.accounts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$RankedSnapshotsTableOrderingComposer
+    extends Composer<_$GodSenseDatabase, $RankedSnapshotsTable> {
+  $$RankedSnapshotsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get observedAtUs => $composableBuilder(
+    column: $table.observedAtUs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get payloadJson => $composableBuilder(
+    column: $table.payloadJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get semanticHash => $composableBuilder(
+    column: $table.semanticHash,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$AccountsTableOrderingComposer get puuid {
+    final $$AccountsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.puuid,
+      referencedTable: $db.accounts,
+      getReferencedColumn: (t) => t.puuid,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AccountsTableOrderingComposer(
+            $db: $db,
+            $table: $db.accounts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$RankedSnapshotsTableAnnotationComposer
+    extends Composer<_$GodSenseDatabase, $RankedSnapshotsTable> {
+  $$RankedSnapshotsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<int> get observedAtUs => $composableBuilder(
+    column: $table.observedAtUs,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get payloadJson => $composableBuilder(
+    column: $table.payloadJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get semanticHash => $composableBuilder(
+    column: $table.semanticHash,
+    builder: (column) => column,
+  );
+
+  $$AccountsTableAnnotationComposer get puuid {
+    final $$AccountsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.puuid,
+      referencedTable: $db.accounts,
+      getReferencedColumn: (t) => t.puuid,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AccountsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.accounts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$RankedSnapshotsTableTableManager
+    extends
+        RootTableManager<
+          _$GodSenseDatabase,
+          $RankedSnapshotsTable,
+          RankedSnapshot,
+          $$RankedSnapshotsTableFilterComposer,
+          $$RankedSnapshotsTableOrderingComposer,
+          $$RankedSnapshotsTableAnnotationComposer,
+          $$RankedSnapshotsTableCreateCompanionBuilder,
+          $$RankedSnapshotsTableUpdateCompanionBuilder,
+          (RankedSnapshot, $$RankedSnapshotsTableReferences),
+          RankedSnapshot,
+          PrefetchHooks Function({bool puuid})
+        > {
+  $$RankedSnapshotsTableTableManager(
+    _$GodSenseDatabase db,
+    $RankedSnapshotsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$RankedSnapshotsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$RankedSnapshotsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$RankedSnapshotsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> puuid = const Value.absent(),
+                Value<int> observedAtUs = const Value.absent(),
+                Value<String> payloadJson = const Value.absent(),
+                Value<String> semanticHash = const Value.absent(),
+              }) => RankedSnapshotsCompanion(
+                id: id,
+                puuid: puuid,
+                observedAtUs: observedAtUs,
+                payloadJson: payloadJson,
+                semanticHash: semanticHash,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required String puuid,
+                required int observedAtUs,
+                required String payloadJson,
+                required String semanticHash,
+              }) => RankedSnapshotsCompanion.insert(
+                id: id,
+                puuid: puuid,
+                observedAtUs: observedAtUs,
+                payloadJson: payloadJson,
+                semanticHash: semanticHash,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$RankedSnapshotsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({puuid = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (puuid) {
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.puuid,
+                        referencedTable: $$RankedSnapshotsTableReferences
+                            ._puuidTable(db),
+                        referencedColumn: $$RankedSnapshotsTableReferences
+                            ._puuidTable(db)
+                            .puuid,
+                      ) as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$RankedSnapshotsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$GodSenseDatabase,
+      $RankedSnapshotsTable,
+      RankedSnapshot,
+      $$RankedSnapshotsTableFilterComposer,
+      $$RankedSnapshotsTableOrderingComposer,
+      $$RankedSnapshotsTableAnnotationComposer,
+      $$RankedSnapshotsTableCreateCompanionBuilder,
+      $$RankedSnapshotsTableUpdateCompanionBuilder,
+      (RankedSnapshot, $$RankedSnapshotsTableReferences),
+      RankedSnapshot,
       PrefetchHooks Function({bool puuid})
     >;
 typedef $$CaptureEpochsTableCreateCompanionBuilder =
@@ -8974,6 +10734,10 @@ class $GodSenseDatabaseManager {
       $$MatchesTableTableManager(_db, _db.matches);
   $$AccountMatchesTableTableManager get accountMatches =>
       $$AccountMatchesTableTableManager(_db, _db.accountMatches);
+  $$MatchDocumentsTableTableManager get matchDocuments =>
+      $$MatchDocumentsTableTableManager(_db, _db.matchDocuments);
+  $$RankedSnapshotsTableTableManager get rankedSnapshots =>
+      $$RankedSnapshotsTableTableManager(_db, _db.rankedSnapshots);
   $$CaptureEpochsTableTableManager get captureEpochs =>
       $$CaptureEpochsTableTableManager(_db, _db.captureEpochs);
   $$SourceRecordsTableTableManager get sourceRecords =>

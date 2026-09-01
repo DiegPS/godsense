@@ -9,7 +9,7 @@ void main() {
   tearDown(() => database.close());
 
   test(
-    'opens schema v2 with foreign keys and required identity indexes',
+    'opens schema v3 with foreign keys and required identity indexes',
     () async {
       final userVersion = await database
           .customSelect('PRAGMA user_version')
@@ -23,7 +23,7 @@ void main() {
           )
           .get();
 
-      expect(userVersion.read<int>('user_version'), 2);
+      expect(userVersion.read<int>('user_version'), 3);
       expect(foreignKeys.read<int>('foreign_keys'), 1);
       expect(
         indexes.map((row) => row.read<String>('name')),
@@ -68,7 +68,7 @@ void main() {
   });
 
   test(
-    'migrates the phase 2A schema from v1 to v2 without data loss',
+    'migrates the phase 2A schema from v1 through v3 without data loss',
     () async {
       await database.close();
       database = GodSenseDatabase(
@@ -110,8 +110,15 @@ void main() {
       expect(
         (await database.customSelect('PRAGMA user_version').getSingle())
             .read<int>('user_version'),
-        2,
+        3,
       );
+      final scoutTables = await database
+          .customSelect(
+            "SELECT name FROM sqlite_master WHERE type = 'table' "
+            "AND name IN ('match_documents', 'ranked_snapshots')",
+          )
+          .get();
+      expect(scoutTables, hasLength(2));
     },
   );
 }
