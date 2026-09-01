@@ -1,4 +1,5 @@
 import '../domain/tactical/tactical_models.dart';
+import 'champion_composition_analyzer.dart';
 
 class NativeTacticalEngine {
   NativeTacticalEngine({DateTime Function()? now}) : _now = now ?? DateTime.now;
@@ -158,13 +159,17 @@ class NativeTacticalEngine {
     final matchup = localChampion.isEmpty || opponent == null
         ? null
         : _matchup(localChampion, opponent);
-    final comp = _teamComposition(allies, enemies);
+    const composition = ChampionCompositionAnalyzer();
+    final comp = composition.analyze(allies, enemies);
     final builds = _map(normalizedLobby['builds']);
     return {
       'matchup': ?matchup,
       if (builds.isNotEmpty) 'builds': builds,
       'team_comp': comp,
-      'comp_analysis': {'ally': _profile(allies), 'enemy': _profile(enemies)},
+      'comp_analysis': {
+        'ally': composition.profile(allies),
+        'enemy': composition.profile(enemies),
+      },
       'knowledge': {
         'producer': 'native-tactical-engine',
         'producer_version': '1',
@@ -758,56 +763,6 @@ Map<String, dynamic> _matchup(String champion, String enemy) => {
   'confidence': 0.55,
   'source': 'deterministic_general_rule',
 };
-
-Map<String, dynamic> _teamComposition(
-  List<Map<String, dynamic>> allies,
-  List<Map<String, dynamic>> enemies,
-) {
-  final ally = _profile(allies);
-  final known = ally?['known'] as int? ?? 0;
-  return {
-    'identity': known == 5
-        ? 'Composición equilibrada por roles'
-        : 'Composición pendiente ($known/5)',
-    'guidelines': const [
-      'Agrupa después de empujar las líneas laterales.',
-      'No inicies sin identificar la amenaza principal.',
-    ],
-    'teamfight_positioning':
-        'Frente y retaguardia deben mantener distancia de apoyo.',
-    'teamfight_hints': const [
-      'Guarda control para la primera amenaza que alcance a tus carries.',
-      'Evita perseguir fuera de visión tras ganar espacio.',
-    ],
-    'ally_profile': ally,
-    'enemy_profile': _profile(enemies),
-  };
-}
-
-Map<String, dynamic>? _profile(List<Map<String, dynamic>> team) {
-  final known = team.where((player) => _champion(player).isNotEmpty).length;
-  if (known == 0) return null;
-  final roles = team
-      .map((player) => player['position']?.toString().toUpperCase() ?? '')
-      .where((role) => role.isNotEmpty)
-      .toSet();
-  return {
-    'axes': {
-      'engage': _axis(roles, {'JUNGLE', 'UTILITY', 'SUPPORT', 'TOP'}),
-      'pick': _axis(roles, {'JUNGLE', 'MIDDLE', 'MID'}),
-      'poke': _axis(roles, {'MIDDLE', 'MID', 'BOTTOM', 'BOT'}),
-      'split': _axis(roles, {'TOP', 'MIDDLE', 'MID'}),
-      'peel': _axis(roles, {'UTILITY', 'SUPPORT', 'JUNGLE'}),
-    },
-    'known': known,
-    'total': team.length,
-    'archetype': roles.length >= 4 ? 'balanced' : 'incomplete',
-    'confidence': known / 5,
-  };
-}
-
-int _axis(Set<String> roles, Set<String> contributing) =>
-    (roles.intersection(contributing).length * 2).clamp(0, 10);
 
 String _champion(Map<String, dynamic>? player) =>
     player?['champion_name']?.toString().trim() ?? '';

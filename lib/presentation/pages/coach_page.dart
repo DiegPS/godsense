@@ -830,7 +830,11 @@ class _CompositionComparison extends StatelessWidget {
             spacing: 6,
             children: axes.entries
                 .map(
-                  (entry) => Chip(label: Text('${entry.key}: ${entry.value}')),
+                  (entry) => Chip(
+                    label: Text(
+                      '${_compositionAxisLabel(entry.key)}: ${entry.value}/${profile['axis_max'] ?? 3}',
+                    ),
+                  ),
                 )
                 .toList(),
           ),
@@ -840,3 +844,12 @@ class _CompositionComparison extends StatelessWidget {
     );
   }
 }
+
+String _compositionAxisLabel(String key) => switch (key) {
+  'damage' => 'Daño',
+  'durability' => 'Resistencia',
+  'crowdControl' => 'Control',
+  'mobility' => 'Movilidad',
+  'utility' => 'Utilidad',
+  _ => key,
+};

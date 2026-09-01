@@ -67,7 +67,8 @@ void main() {
     expect((result['matchup'] as Map)['source'], 'deterministic_general_rule');
     expect((result['knowledge'] as Map)['builds_withheld'], isTrue);
     expect(result.containsKey('builds'), isFalse);
-    expect((result['team_comp'] as Map)['ally_profile'], isNotNull);
+    expect((result['team_comp'] as Map)['ally_profile'], isNull);
+    expect((result['team_comp'] as Map)['identity'], 'Composición pendiente');
   });
 
   test('publishes a loaded Riot build to every tactical consumer', () {

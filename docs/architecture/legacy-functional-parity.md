@@ -37,9 +37,9 @@ are the only deliberate product exclusions requested by the product owner.
 | Scout playstyle and signature champions | **Matched** | Eight unit-labelled local metrics, evidence-based badges and top-three champion aggregation |
 | Live opponent abilities | **Matched** | Patch-resolved Data Dragon passive and Q/W/E/R details enrich every live player; partial fetch failures do not suppress the remaining roster |
 | Live opponent ranked profile | **Matched** | Background Riot-ID resolution and PUUID-bound ranked snapshots; loading/unavailable/unranked states are distinct |
-| Pick suggestions in Champion Select | **Missing** | Old local coach returned a fixed Ahri placeholder; GodSense needs a defensible local policy |
+| Pick suggestions in Champion Select | **Matched locally** | Actual pickable IDs, bans/picks filtering and personal champion mastery; explicitly labelled comfort picks, not invented counters |
 | Matchup-specific knowledge | **Missing trusted source** | Generic rules exist and are labelled 0.55 confidence; no licensed/versioned matchup corpus yet |
-| Team-composition champion semantics | **Partial** | Current profile is role-based, not champion-kit based |
+| Team-composition champion semantics | **Matched locally** | Uses actual LCU champion playstyle axes, classes and damage type; derived guidance is not represented as matchup win-rate evidence |
 | First-run guide/help | **Matched** | One-time guide with native navigation to Vision/voice settings; can be reopened from Help |
 | Application update delivery | **Missing distribution contract** | Build works, but no GodSense release feed/installer contract exists yet |
 | Settings, support artifact and diagnostics | **Matched** | Voice, PTT, overlay, language/cadence plus local secret-free support artifacts |
