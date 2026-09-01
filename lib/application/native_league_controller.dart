@@ -4,8 +4,11 @@ import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../domain/league/lcu_capabilities.dart';
 import '../infrastructure/league/league_clients.dart';
+import 'account_context_coordinator.dart';
 import 'live_game_processor.dart';
+import 'native_league_foundation.dart';
 
 class NativeLeagueState {
   const NativeLeagueState({
@@ -22,6 +25,8 @@ class NativeLeagueState {
     this.lastError,
     this.operationInProgress = false,
     this.lastOperationResult = const {},
+    this.accountContext,
+    this.lcuCapabilities,
   });
 
   final bool lcuConnected;
@@ -37,6 +42,8 @@ class NativeLeagueState {
   final String? lastError;
   final bool operationInProgress;
   final Map<String, dynamic> lastOperationResult;
+  final AccountContextState? accountContext;
+  final LcuCapabilities? lcuCapabilities;
 
   bool get inGame => liveGame != null && liveGame!['_game_ended'] != true;
 
@@ -57,6 +64,8 @@ class NativeLeagueState {
     bool clearError = false,
     bool? operationInProgress,
     Map<String, dynamic>? lastOperationResult,
+    AccountContextState? accountContext,
+    LcuCapabilities? lcuCapabilities,
   }) {
     return NativeLeagueState(
       lcuConnected: lcuConnected ?? this.lcuConnected,
@@ -74,6 +83,8 @@ class NativeLeagueState {
       lastError: clearError ? null : lastError ?? this.lastError,
       operationInProgress: operationInProgress ?? this.operationInProgress,
       lastOperationResult: lastOperationResult ?? this.lastOperationResult,
+      accountContext: accountContext ?? this.accountContext,
+      lcuCapabilities: lcuCapabilities ?? this.lcuCapabilities,
     );
   }
 }
@@ -90,6 +101,7 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
     LcuClient? lcu,
     LiveClientApi? live,
     LiveGameProcessor? processor,
+    this.foundation,
   }) : _lcu = lcu ?? LcuClient(),
        _live = live ?? LiveClientApi(),
        _processor = processor ?? LiveGameProcessor(),
@@ -98,6 +110,7 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
   final LcuClient _lcu;
   final LiveClientApi _live;
   final LiveGameProcessor _processor;
+  NativeLeagueFoundation? foundation;
   Timer? _timer;
   bool _polling = false;
   final Map<int, String> _championNames = {};
@@ -126,6 +139,7 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
       var lcuConnected = false;
       var phase = 'NO_LCU';
       var lobby = const <String, dynamic>{};
+      Object? champSelectSession;
       final credentials = _lcu.discover();
       if (credentials != null) {
         try {
@@ -140,6 +154,7 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
               _localSummonerId = (summoner['summonerId'] as num?)?.toInt();
             }
             final session = await _lcu.get('/lol-champ-select/v1/session');
+            champSelectSession = session;
             if (session is Map) lobby = await _normalizeLobby(session);
           }
           if (phase == 'InProgress' && _currentGameId == null) {
@@ -157,6 +172,20 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
           lcuConnected = false;
           phase = 'NO_LCU';
         }
+      }
+      NativeLeagueFoundationState? foundationState;
+      try {
+        foundationState =
+            await (foundation ??= NativeLeagueFoundation(
+              client: _lcu,
+            )).observeLcu(
+              connected: lcuConnected,
+              gameflowPhase: phase,
+              champSelectSession: champSelectSession,
+              gameId: int.tryParse(_currentGameId ?? ''),
+            );
+      } catch (_) {
+        // Persistence and account enrichment must never interrupt live data.
       }
       final liveStopwatch = Stopwatch()..start();
       final liveData = await _live.allGameData();
@@ -183,6 +212,8 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
           timeline: processed.timeline,
           sessionId: processed.sessionId,
           clearError: true,
+          accountContext: foundationState?.account,
+          lcuCapabilities: foundationState?.capabilities,
         );
         return;
       }
@@ -201,6 +232,8 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
           liveApiConnected: false,
           liveApiLatencyMilliseconds: liveLatency,
           consecutiveLiveFailures: _consecutiveLiveFailures,
+          accountContext: foundationState?.account,
+          lcuCapabilities: foundationState?.capabilities,
         );
         return;
       }
@@ -218,6 +251,8 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
         consecutiveLiveFailures: _consecutiveLiveFailures,
         timeline: _processor.currentTimeline(),
         clearError: true,
+        accountContext: foundationState?.account,
+        lcuCapabilities: foundationState?.capabilities,
       );
     } catch (error) {
       state = state.copyWith(lastError: error.toString());
@@ -491,6 +526,7 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
     _timer?.cancel();
     _lcu.dispose();
     _live.dispose();
+    unawaited(foundation?.dispose());
     super.dispose();
   }
 }
