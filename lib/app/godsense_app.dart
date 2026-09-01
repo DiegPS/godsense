@@ -21,6 +21,7 @@ import '../domain/league/item_recommendation.dart';
 import '../domain/league/rune_recommendation.dart';
 import '../domain/vision/vision_observation.dart';
 import '../presentation/native_speech_settings_card.dart';
+import '../presentation/shared/live_rank_badge.dart';
 
 part '../presentation/shell/godsense_shell.dart';
 part 'godsense_theme.dart';

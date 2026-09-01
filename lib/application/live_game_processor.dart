@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:math' as math;
 
+import 'live_ranked_profile_loader.dart';
+
 class LiveGameProcessingResult {
   const LiveGameProcessingResult({
     required this.snapshot,
@@ -28,6 +30,7 @@ class LiveGameProcessor {
     Map<String, dynamic> raw, {
     required Map<int, Map<String, dynamic>> itemCatalog,
     Map<String, List<Map<String, dynamic>>> championAbilities = const {},
+    Map<String, Map<String, dynamic>> rankedProfiles = const {},
     String? gameId,
     DateTime? observedAt,
   }) {
@@ -125,6 +128,8 @@ class LiveGameProcessor {
             .toList(growable: false),
         'runes': value['runes'] ?? const {},
         'abilities': championAbilities[_championKey(championName)] ?? const [],
+        'ranked_profile':
+            rankedProfiles[livePlayerRiotId(value)?.displayName.toLowerCase()],
         'position': null,
         'map_location': null,
         'is_mia': false,

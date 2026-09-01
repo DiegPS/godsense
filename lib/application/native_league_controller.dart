@@ -24,6 +24,7 @@ import '../infrastructure/league/riot_item_recommendation_source.dart';
 import '../infrastructure/league/riot_item_recommendation_transport.dart';
 import 'account_context_coordinator.dart';
 import 'live_game_processor.dart';
+import 'live_ranked_profile_loader.dart';
 import 'native_league_foundation.dart';
 
 class NativeLeagueState {
@@ -241,6 +242,10 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
   DateTime? _lastItemCatalogAttempt;
   DateTime? _lastChampionAbilitiesAttempt;
   String? _championAbilitiesPatch;
+  final Map<String, Map<String, dynamic>> _liveRankedProfiles = {};
+  String? _rankedRosterKey;
+  bool _rankedProfilesLoading = false;
+  DateTime? _lastRankedProfilesAttempt;
   int _consecutiveLiveFailures = 0;
   String? _currentGameId;
   String? _runeRequestKey;
@@ -399,6 +404,7 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
       }
       if (liveData != null) {
         _ensureChampionAbilitiesLoaded(liveData);
+        if (lcuConnected) _ensureRankedProfilesLoaded(liveData);
       }
       if (liveData != null) {
         _consecutiveLiveFailures = 0;
@@ -406,6 +412,7 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
           liveData,
           itemCatalog: _itemCatalog,
           championAbilities: _championAbilities,
+          rankedProfiles: _liveRankedProfiles,
           gameId: _currentGameId,
         );
         state = state.copyWith(
@@ -941,6 +948,54 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
         // Asset enrichment is optional; retry without interrupting live state.
       } finally {
         _championAbilitiesLoading = false;
+      }
+    }());
+  }
+
+  void _ensureRankedProfilesLoaded(Map<String, dynamic> liveData) {
+    final players = _mapList(liveData['allPlayers']);
+    final identities =
+        players
+            .map(livePlayerRiotId)
+            .nonNulls
+            .map((id) => id.displayName.toLowerCase())
+            .toList()
+          ..sort();
+    final key = '${_currentGameId ?? ''}|${identities.join('|')}';
+    if (_rankedRosterKey != key) {
+      _rankedRosterKey = key;
+      _liveRankedProfiles.clear();
+      _lastRankedProfilesAttempt = null;
+    }
+    if (_rankedProfilesLoading || identities.isEmpty) return;
+    final now = DateTime.now();
+    if (_lastRankedProfilesAttempt != null &&
+        now.difference(_lastRankedProfilesAttempt!) <
+            const Duration(minutes: 2)) {
+      return;
+    }
+    _lastRankedProfilesAttempt = now;
+    _rankedProfilesLoading = true;
+    for (final identity in identities) {
+      _liveRankedProfiles.putIfAbsent(identity, () => {'status': 'loading'});
+    }
+    unawaited(() async {
+      try {
+        final loader = LiveRankedProfileLoader(
+          resolve: ({required gameName, required tagLine}) =>
+              (foundation ??= NativeLeagueFoundation(
+                client: _lcu,
+              )).resolveAndSyncScout(
+                gameName: gameName,
+                tagLine: tagLine,
+                includeHistory: false,
+              ),
+          loadRanked: loadLocalRanked,
+        );
+        final profiles = await loader.load(players);
+        if (_rankedRosterKey == key) _liveRankedProfiles.addAll(profiles);
+      } finally {
+        _rankedProfilesLoading = false;
       }
     }());
   }

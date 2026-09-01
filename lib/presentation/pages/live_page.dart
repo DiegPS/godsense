@@ -371,6 +371,11 @@ class _MatchupPlayer extends StatelessWidget {
           style: Theme.of(context).textTheme.titleLarge,
         ),
         Text('${player['summoner_name'] ?? ''}#${player['tag_line'] ?? ''}'),
+        LiveRankBadge(
+          profile: player['ranked_profile'] is Map
+              ? Map<String, dynamic>.from(player['ranked_profile'] as Map)
+              : null,
+        ),
         Text(
           'Nv. ${player['level'] ?? 0} · ${kda.join('/')} · ${player['cs'] ?? 0} CS',
         ),

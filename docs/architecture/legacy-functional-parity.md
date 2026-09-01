@@ -30,12 +30,13 @@ are the only deliberate product exclusions requested by the product owner.
 | Speech-to-text | **Exceeded** | Local Sherpa STT; old local coach had no working transcription |
 | Text-to-speech and voice choice | **Exceeded** | Local Sherpa TTS, copied production models and native playback |
 | Immediate macro directives | **Matched** | Death, exact objective, team-gold and lane-state policies with provenance |
-| Voice questions | **Matched locally** | Jungle, objective, build, game state, lane and matchup intents; no cloud call |
+| Voice questions | **Partial** | Native STT plus factual intents work; open-ended generative coaching is not equivalent to the old OpenCode model |
+| Generative coaching model | **Missing** | Legacy directives called OpenCode `opencode/mimo-v2.5-free`; GodSense currently uses deterministic rules, not an embedded LLM |
 | Scout Riot-ID lookup | **Matched** | Arbitrary Riot ID through LCU, account-scoped SQLite cache |
 | Scout rank and recent matches | **Matched** | Ranked snapshot, 30 matches and full scoreboard detail |
 | Scout playstyle and signature champions | **Matched** | Eight unit-labelled local metrics, evidence-based badges and top-three champion aggregation |
 | Live opponent abilities | **Matched** | Patch-resolved Data Dragon passive and Q/W/E/R details enrich every live player; partial fetch failures do not suppress the remaining roster |
-| Live opponent ranked profile | **Missing** | Must connect the existing LCU Scout resolver to the active roster |
+| Live opponent ranked profile | **Matched** | Background Riot-ID resolution and PUUID-bound ranked snapshots; loading/unavailable/unranked states are distinct |
 | Pick suggestions in Champion Select | **Missing** | Old local coach returned a fixed Ahri placeholder; GodSense needs a defensible local policy |
 | Matchup-specific knowledge | **Missing trusted source** | Generic rules exist and are labelled 0.55 confidence; no licensed/versioned matchup corpus yet |
 | Team-composition champion semantics | **Partial** | Current profile is role-based, not champion-kit based |
