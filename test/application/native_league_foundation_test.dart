@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:godsense/application/account_context_coordinator.dart';
 import 'package:godsense/application/native_league_foundation.dart';
 import 'package:godsense/domain/league/lcu_capabilities.dart';
+import 'package:godsense/domain/league/game_session.dart';
 import 'package:godsense/infrastructure/league/lcu_probe_transport.dart';
 import 'package:godsense/infrastructure/persistence/godsense_database.dart';
 
@@ -124,6 +125,56 @@ void main() {
     expect(liveRecords.every((record) => record.gameId == 123), isTrue);
     expect(await database.select(database.domainEntries).get(), hasLength(1));
   });
+
+  test(
+    'keeps one session generation from champ select through postgame',
+    () async {
+      var state = await foundation.observeLcu(
+        connected: true,
+        gameflowPhase: 'ChampSelect',
+        champSelectSession: {'localPlayerCellId': 1},
+      );
+      final generation = state.gameSession.current!.generation.value;
+      expect(state.gameSession.current?.phase, GameSessionPhase.champSelect);
+
+      state = await foundation.observeLcu(
+        connected: true,
+        gameflowPhase: 'InProgress',
+        gameId: 456,
+      );
+      await foundation.observeLiveClient(
+        gameId: 456,
+        allGameData: {
+          'gameData': {'gameTime': 30},
+          'events': {'Events': <Object?>[]},
+        },
+      );
+      expect(state.gameSession.current?.generation.value, generation);
+      expect(foundation.state.gameSession.current?.match?.gameId, 456);
+
+      await foundation.observeLcu(
+        connected: true,
+        gameflowPhase: 'WaitingForStats',
+        gameId: 456,
+      );
+      await foundation.observeLiveClient(allGameData: null, gameId: 456);
+
+      expect(foundation.state.gameSession.current, isNull);
+      expect(
+        foundation.state.gameSession.lastCompleted?.generation.value,
+        generation,
+      );
+      expect(
+        foundation.state.account.context?.account.puuid.value,
+        'player-puuid',
+      );
+      final sessionRecords =
+          (await database.select(database.sourceRecords).get()).where(
+            (record) => record.gameGeneration == generation,
+          );
+      expect(sessionRecords, isNotEmpty);
+    },
+  );
 }
 
 class _FakeLeagueClient implements LcuReadTransport {

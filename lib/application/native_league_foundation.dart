@@ -3,6 +3,7 @@ import 'dart:io';
 
 import '../domain/identity/league_identity.dart';
 import '../domain/journal/journal_models.dart';
+import '../domain/league/game_session.dart';
 import '../domain/league/lcu_capabilities.dart';
 import '../domain/league/local_scout.dart';
 import '../infrastructure/league/lcu_capability_probe.dart';
@@ -15,6 +16,7 @@ import '../infrastructure/persistence/godsense_database.dart'
     hide AccountContextState;
 import '../infrastructure/persistence/journal_payload_codec.dart';
 import 'account_context_coordinator.dart';
+import 'game_session_coordinator.dart';
 import 'live_client_journal_adapter.dart';
 import 'local_scout_sync_service.dart';
 
@@ -22,6 +24,7 @@ class NativeLeagueFoundationState {
   const NativeLeagueFoundationState({
     required this.account,
     required this.capabilities,
+    required this.gameSession,
     this.lastScoutSync,
     this.lastError,
   });
@@ -38,11 +41,13 @@ class NativeLeagueFoundationState {
             detail: 'Native League foundation has not initialized.',
           ),
       ]),
+      gameSession: const GameSessionState(),
     );
   }
 
   final AccountContextState account;
   final LcuCapabilities capabilities;
+  final GameSessionState gameSession;
   final LocalScoutSyncResult? lastScoutSync;
   final String? lastError;
 }
@@ -73,6 +78,9 @@ class NativeLeagueFoundation {
   LcuCapabilityProbe? _capabilityProbe;
   LiveClientJournalAdapter? _liveClientJournal;
   LocalScoutSyncService? _scoutSync;
+  late final GameSessionCoordinator _sessions = GameSessionCoordinator(
+    now: _now,
+  );
   Future<void>? _scoutSyncRunning;
   Future<void>? _initializing;
   DateTime? _lastAccountSync;
@@ -82,8 +90,6 @@ class NativeLeagueFoundation {
   String? _lastCapabilityContext;
   int _recordCounter = 0;
   int _transportGeneration = 0;
-  int _gameGeneration = 0;
-  int? _lastGameId;
   CaptureEpochId? _activeCaptureEpochId;
   bool _wasConnected = false;
   bool _disposed = false;
@@ -98,19 +104,35 @@ class NativeLeagueFoundation {
       await _ensureInitialized();
       if (_disposed) return;
       final account = _accounts!.state.context?.account;
+      final gameData = allGameData?['gameData'];
+      final gameTime = gameData is Map
+          ? (gameData['gameTime'] as num?)?.toDouble()
+          : null;
+      final session = _sessions.observeLiveClient(
+        available: allGameData != null,
+        accountPuuid: account?.puuid,
+        platformId: account?.platformId,
+        gameId: gameId,
+        gameTimeSeconds: gameTime,
+      );
+      final current = session.current;
       await _liveClientJournal!.ingest(
         allGameData: allGameData,
-        match: gameId == null || account == null
-            ? null
-            : MatchKey(platformId: account.platformId, gameId: gameId),
-        gameGeneration: gameId == null
-            ? null
-            : GameSessionGeneration(_gameGeneration),
+        match: current?.match,
+        gameGeneration: current?.generation,
+      );
+      _state = NativeLeagueFoundationState(
+        account: _state.account,
+        capabilities: _state.capabilities,
+        gameSession: session,
+        lastScoutSync: _state.lastScoutSync,
+        lastError: _state.lastError,
       );
     } catch (error) {
       _state = NativeLeagueFoundationState(
         account: _state.account,
         capabilities: _state.capabilities,
+        gameSession: _sessions.state,
         lastError: error.toString(),
         lastScoutSync: _state.lastScoutSync,
       );
@@ -140,6 +162,7 @@ class NativeLeagueFoundation {
         return _state = NativeLeagueFoundationState(
           account: account,
           capabilities: _state.capabilities,
+          gameSession: _sessions.state,
           lastScoutSync: _state.lastScoutSync,
         );
       }
@@ -151,10 +174,19 @@ class NativeLeagueFoundation {
         );
         _wasConnected = true;
       }
-      if (gameId != null && gameId != _lastGameId) {
-        _gameGeneration++;
-        _lastGameId = gameId;
+      if (_lastAccountSync == null ||
+          now.difference(_lastAccountSync!) >= const Duration(seconds: 5)) {
+        await _accounts!.synchronize();
+        _lastAccountSync = now;
       }
+      final account = _accounts!.state.context?.account;
+      final session = _sessions.observeLcu(
+        connected: true,
+        gameflowPhase: gameflowPhase,
+        accountPuuid: account?.puuid,
+        platformId: account?.platformId,
+        gameId: gameId,
+      );
 
       await _appendSnapshot(
         channel: 'gameflow',
@@ -174,11 +206,6 @@ class NativeLeagueFoundation {
         );
       }
 
-      if (_lastAccountSync == null ||
-          now.difference(_lastAccountSync!) >= const Duration(seconds: 5)) {
-        await _accounts!.synchronize();
-        _lastAccountSync = now;
-      }
       final context = _accounts!.state.context;
       final capabilityContext = LcuProbeContext(
         puuid: context?.account.puuid.value,
@@ -205,12 +232,14 @@ class NativeLeagueFoundation {
       return _state = NativeLeagueFoundationState(
         account: _accounts!.state,
         capabilities: _state.capabilities,
+        gameSession: session,
         lastScoutSync: _state.lastScoutSync,
       );
     } catch (error) {
       return _state = NativeLeagueFoundationState(
         account: _state.account,
         capabilities: _state.capabilities,
+        gameSession: _sessions.state,
         lastScoutSync: _state.lastScoutSync,
         lastError: error.toString(),
       );
@@ -251,6 +280,7 @@ class NativeLeagueFoundation {
     _state = NativeLeagueFoundationState(
       account: _accounts!.state,
       capabilities: _state.capabilities,
+      gameSession: _sessions.state,
       lastScoutSync: _state.lastScoutSync,
     );
   }
@@ -266,6 +296,7 @@ class NativeLeagueFoundation {
     _state = NativeLeagueFoundationState(
       account: _accounts!.state,
       capabilities: capabilities,
+      gameSession: _sessions.state,
       lastScoutSync: _state.lastScoutSync,
     );
     _scheduleScoutSync(now);
@@ -305,6 +336,7 @@ class NativeLeagueFoundation {
       _state = NativeLeagueFoundationState(
         account: _state.account,
         capabilities: _state.capabilities,
+        gameSession: _sessions.state,
         lastScoutSync: result,
         lastError: _state.lastError,
       );
@@ -313,6 +345,7 @@ class NativeLeagueFoundation {
       _state = NativeLeagueFoundationState(
         account: _state.account,
         capabilities: _state.capabilities,
+        gameSession: _sessions.state,
         lastScoutSync: _state.lastScoutSync,
         lastError: error.toString(),
       );
@@ -337,10 +370,10 @@ class NativeLeagueFoundation {
         source: SourceEnvelope(
           namespace: SourceNamespace(producer: 'lcu', channel: channel),
           transportGeneration: TransportGeneration(_transportGeneration),
-          gameGeneration: gameId == null
-              ? null
-              : GameSessionGeneration(_gameGeneration),
-          match: gameId == null || account == null
+          gameGeneration: _sessions.state.current?.generation,
+          match: gameId == null
+              ? _sessions.state.current?.match
+              : account == null
               ? null
               : MatchKey(platformId: account.platformId, gameId: gameId),
           receivedAt: receivedAt,

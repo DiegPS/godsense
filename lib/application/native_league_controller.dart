@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../domain/identity/league_identity.dart';
+import '../domain/league/game_session.dart';
 import '../domain/league/lcu_capabilities.dart';
 import '../infrastructure/data_dragon/data_dragon_catalog_service.dart';
 import '../infrastructure/league/league_clients.dart';
@@ -27,6 +28,7 @@ class NativeLeagueState {
     this.lastOperationResult = const {},
     this.accountContext,
     this.lcuCapabilities,
+    this.gameSession = const GameSessionState(),
   });
 
   final bool lcuConnected;
@@ -44,6 +46,7 @@ class NativeLeagueState {
   final Map<String, dynamic> lastOperationResult;
   final AccountContextState? accountContext;
   final LcuCapabilities? lcuCapabilities;
+  final GameSessionState gameSession;
 
   bool get inGame => liveGame != null && liveGame!['_game_ended'] != true;
 
@@ -66,6 +69,7 @@ class NativeLeagueState {
     Map<String, dynamic>? lastOperationResult,
     AccountContextState? accountContext,
     LcuCapabilities? lcuCapabilities,
+    GameSessionState? gameSession,
   }) {
     return NativeLeagueState(
       lcuConnected: lcuConnected ?? this.lcuConnected,
@@ -85,6 +89,7 @@ class NativeLeagueState {
       lastOperationResult: lastOperationResult ?? this.lastOperationResult,
       accountContext: accountContext ?? this.accountContext,
       lcuCapabilities: lcuCapabilities ?? this.lcuCapabilities,
+      gameSession: gameSession ?? this.gameSession,
     );
   }
 }
@@ -198,6 +203,7 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
         allGameData: liveData,
         gameId: int.tryParse(_currentGameId ?? ''),
       );
+      foundationState = foundation?.state ?? foundationState;
       if (liveData != null && _itemCatalog.isEmpty) {
         _ensureItemCatalogLoaded();
       }
@@ -222,6 +228,7 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
           clearError: true,
           accountContext: foundationState?.account,
           lcuCapabilities: foundationState?.capabilities,
+          gameSession: foundationState?.gameSession,
         );
         return;
       }
@@ -242,6 +249,7 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
           consecutiveLiveFailures: _consecutiveLiveFailures,
           accountContext: foundationState?.account,
           lcuCapabilities: foundationState?.capabilities,
+          gameSession: foundationState?.gameSession,
         );
         return;
       }
@@ -261,6 +269,7 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
         clearError: true,
         accountContext: foundationState?.account,
         lcuCapabilities: foundationState?.capabilities,
+        gameSession: foundationState?.gameSession,
       );
     } catch (error) {
       state = state.copyWith(lastError: error.toString());
