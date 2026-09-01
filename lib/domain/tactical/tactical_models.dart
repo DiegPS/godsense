@@ -1,5 +1,21 @@
 enum FactSource { lcu, liveClient, vision, user, derived }
 
+class TacticalSighting {
+  const TacticalSighting({
+    required this.champion,
+    required this.location,
+    required this.observedAt,
+    required this.confidence,
+    this.role,
+  });
+
+  final String champion;
+  final String location;
+  final DateTime observedAt;
+  final double confidence;
+  final String? role;
+}
+
 class TacticalEvidence {
   const TacticalEvidence({
     required this.factType,

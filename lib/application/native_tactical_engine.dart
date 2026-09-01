@@ -5,6 +5,110 @@ class NativeTacticalEngine {
 
   final DateTime Function() _now;
 
+  TacticalAdvice answer({
+    required String question,
+    Map<String, dynamic>? game,
+    List<TacticalSighting> sightings = const [],
+  }) {
+    final now = _now().toUtc();
+    final normalized = _normalize(question);
+    final gameTime = (game?['game_time'] as num?)?.toDouble();
+    final userEvidence = _evidence(
+      'voice_question',
+      FactSource.user,
+      now,
+      gameTime,
+    );
+
+    if (_containsAny(normalized, const ['jungla', 'jungler'])) {
+      final recent = [...sightings]
+        ..sort((left, right) => right.observedAt.compareTo(left.observedAt));
+      final sighting = recent.firstOrNull;
+      if (sighting == null) {
+        return TacticalAdvice(
+          id: 'voice_jungler_unknown',
+          title: 'Jungla sin localizar',
+          hints: const [
+            'Juega hacia tu visión disponible.',
+            'No cruces el río sin prioridad.',
+          ],
+          rationale: 'No existe un avistamiento local fiable del jungla.',
+          ttsText:
+              'No tengo un avistamiento fiable del jungla. Juega con cautela.',
+          priority: 85,
+          evidence: [userEvidence],
+        );
+      }
+      final age = now.difference(sighting.observedAt.toUtc());
+      final seconds = age.isNegative ? 0 : age.inSeconds;
+      final stale = seconds > 30;
+      return TacticalAdvice(
+        id: 'voice_jungler_location',
+        title: stale ? 'Último avistamiento del jungla' : 'Jungla localizado',
+        hints: [
+          stale
+              ? 'La posición ya es antigua; úsala sólo como contexto.'
+              : 'Ajusta tu presión según el lado del mapa donde fue visto.',
+        ],
+        rationale:
+            '${sighting.champion} fue observado en ${sighting.location} hace $seconds segundos.',
+        ttsText:
+            '${sighting.champion} fue visto en ${sighting.location} hace $seconds segundos${stale ? '. La información puede estar desactualizada.' : '.'}',
+        priority: stale ? 70 : 95,
+        evidence: [
+          userEvidence,
+          TacticalEvidence(
+            factType: 'enemy_jungler_sighting',
+            source: FactSource.vision,
+            observedAt: sighting.observedAt,
+            confidence: sighting.confidence.clamp(0, 1),
+            gameTimeSeconds: gameTime,
+          ),
+        ],
+      );
+    }
+
+    final current = directives(game);
+    if (_containsAny(normalized, const [
+      'dragon',
+      'baron',
+      'heraldo',
+      'objetivo',
+    ])) {
+      final objective = current
+          .where((item) => item.id.startsWith('prepare_'))
+          .firstOrNull;
+      if (objective == null) {
+        return TacticalAdvice(
+          id: 'voice_objective_unknown',
+          title: 'Sin objetivo inminente confirmado',
+          hints: const ['Mantén visión y prioridad antes de moverte.'],
+          rationale:
+              'No hay un temporizador de objetivo dentro de 75 segundos.',
+          ttsText: 'No tengo un objetivo inminente confirmado. Mantén prioridad y visión.',
+          priority: 65,
+          evidence: [userEvidence],
+        );
+      }
+      return _withQuestionEvidence(objective, userEvidence);
+    }
+
+    if (current.isEmpty) {
+      return TacticalAdvice(
+        id: 'voice_no_live_game',
+        title: 'Sin partida activa',
+        hints: const [
+          'Inicia una partida para recibir contexto en tiempo real.',
+        ],
+        rationale: 'Live Client no aporta una partida activa.',
+        ttsText: 'No tengo una partida activa para responder con contexto.',
+        priority: 20,
+        evidence: [userEvidence],
+      );
+    }
+    return _withQuestionEvidence(current.first, userEvidence);
+  }
+
   Map<String, dynamic> analyze({
     Map<String, dynamic>? lobby,
     Map<String, dynamic>? game,
@@ -162,6 +266,19 @@ class NativeTacticalEngine {
     );
   }
 
+  TacticalAdvice _withQuestionEvidence(
+    TacticalAdvice advice,
+    TacticalEvidence question,
+  ) => TacticalAdvice(
+    id: 'voice_${advice.id}',
+    title: advice.title,
+    hints: advice.hints,
+    rationale: advice.rationale,
+    ttsText: advice.ttsText,
+    priority: advice.priority,
+    evidence: [question, ...advice.evidence],
+  );
+
   TacticalAdvice? _objectiveDirective(
     Map<String, dynamic> objectives,
     DateTime now,
@@ -196,6 +313,17 @@ class NativeTacticalEngine {
     );
   }
 }
+
+bool _containsAny(String value, List<String> terms) =>
+    terms.any(value.contains);
+
+String _normalize(String value) => value
+    .toLowerCase()
+    .replaceAll(RegExp('[áàäâ]'), 'a')
+    .replaceAll(RegExp('[éèëê]'), 'e')
+    .replaceAll(RegExp('[íìïî]'), 'i')
+    .replaceAll(RegExp('[óòöô]'), 'o')
+    .replaceAll(RegExp('[úùüû]'), 'u');
 
 TacticalEvidence _evidence(
   String fact,

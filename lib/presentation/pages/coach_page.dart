@@ -14,6 +14,7 @@ class _CoachPageState extends ConsumerState<CoachPage> {
   Widget build(BuildContext context) {
     final backend = ref.watch(companionControllerProvider);
     final nativeLeague = ref.watch(nativeLeagueProvider);
+    final voiceCoach = ref.watch(nativeVoiceCoachProvider);
     final game = ref.watch(effectiveGameProvider);
     final lobby = ref.watch(effectiveLobbyProvider);
     final matchup = backend.coaching['matchup'];
@@ -154,6 +155,32 @@ class _CoachPageState extends ConsumerState<CoachPage> {
           spacing: 16,
           runSpacing: 16,
           children: [
+            _CoachPanel(
+              title: 'Coach de voz local',
+              icon: Icons.mic_none,
+              child: voiceCoach.processing
+                  ? const LinearProgressIndicator()
+                  : voiceCoach.advice == null
+                  ? const Text(
+                      'Mantén pulsada la tecla configurada y formula una pregunta.',
+                    )
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('“${voiceCoach.question}”'),
+                        const SizedBox(height: 8),
+                        Text(voiceCoach.advice!.ttsText),
+                        const SizedBox(height: 8),
+                        Text(
+                          voiceCoach.advice!.evidence
+                              .map((item) => item.source.name)
+                              .toSet()
+                              .join(' · '),
+                          style: Theme.of(context).textTheme.labelSmall,
+                        ),
+                      ],
+                    ),
+            ),
             _CoachPanel(
               title: 'Amenazas de Gank',
               icon: Icons.warning_amber,

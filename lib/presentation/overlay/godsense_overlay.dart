@@ -30,6 +30,7 @@ class _GodSenseOverlayState extends ConsumerState<GodSenseOverlay> {
     final backend = ref.watch(companionControllerProvider);
     final nativeVision = ref.watch(nativeVisionProvider);
     final nativeSpeech = ref.watch(nativeSpeechProvider);
+    final nativeVoiceCoach = ref.watch(nativeVoiceCoachProvider);
     final calibration = ref.watch(nativeCalibrationProvider).calibration;
     final game = ref.watch(effectiveGameProvider);
     final goldDifference = (game?.raw['team_gold_diff'] as num?)?.toInt();
@@ -302,6 +303,10 @@ class _GodSenseOverlayState extends ConsumerState<GodSenseOverlay> {
                   subtitle: Text(
                     nativeSpeech.pushToTalkPressed
                         ? 'Sherpa-ONNX · suelta la tecla para enviar'
+                        : nativeVoiceCoach.processing
+                        ? 'Analizando hechos locales…'
+                        : nativeVoiceCoach.advice != null
+                        ? nativeVoiceCoach.advice!.ttsText
                         : nativeSpeech.transcript.isNotEmpty
                         ? 'Transcripción offline completada'
                         : voice == null

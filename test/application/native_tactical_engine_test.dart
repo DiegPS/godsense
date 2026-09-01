@@ -87,6 +87,57 @@ void main() {
   test('returns no directive after the game has ended', () {
     expect(engine.directives({..._game(), '_game_ended': true}), isEmpty);
   });
+
+  test('answers jungler location from vision with explicit provenance', () {
+    final answer = engine.answer(
+      question: '¿Dónde está el jungla?',
+      game: _game(),
+      sightings: [
+        TacticalSighting(
+          champion: 'Vi',
+          location: 'Río superior',
+          observedAt: observedAt.subtract(const Duration(seconds: 8)),
+          confidence: 0.93,
+          role: 'JUNGLE',
+        ),
+      ],
+    );
+
+    expect(answer.id, 'voice_jungler_location');
+    expect(answer.ttsText, contains('Río superior'));
+    expect(
+      answer.evidence.map((item) => item.source),
+      containsAll([FactSource.user, FactSource.vision]),
+    );
+    expect(answer.evidence.last.confidence, 0.93);
+  });
+
+  test('does not invent a jungler position without vision evidence', () {
+    final answer = engine.answer(
+      question: '¿Dónde está el jungla?',
+      game: _game(),
+    );
+
+    expect(answer.id, 'voice_jungler_unknown');
+    expect(answer.ttsText, contains('No tengo un avistamiento fiable'));
+    expect(answer.evidence.single.source, FactSource.user);
+  });
+
+  test('answers objective questions from the measured timer', () {
+    final answer = engine.answer(
+      question: '¿Qué hacemos con el dragón?',
+      game: _game(
+        objectives: {
+          'dragon': {'respawn_in': 25},
+        },
+      ),
+    );
+
+    expect(answer.id, 'voice_prepare_dragon');
+    expect(answer.ttsText, contains('25 segundos'));
+    expect(answer.evidence.first.source, FactSource.user);
+    expect(answer.evidence.last.source, FactSource.derived);
+  });
 }
 
 Map<String, dynamic> _game({

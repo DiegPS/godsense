@@ -59,6 +59,7 @@ class GodSenseHome extends ConsumerWidget {
     final overlayLayout = ref.watch(overlayLayoutProvider);
     ref.watch(nativeCalibrationProvider);
     ref.watch(nativeSpeechProvider);
+    ref.watch(nativeVoiceCoachProvider);
 
     ref.listen(companionControllerProvider, (previous, next) {
       final alert = next.alerts.firstOrNull;
