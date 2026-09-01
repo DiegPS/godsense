@@ -70,29 +70,43 @@ void main() {
 
   test('projects native tactical analysis and directives in process', () async {
     final engine = NativeTacticalEngine(now: () => DateTime.utc(2026));
+    Map<String, dynamic>? game;
     final gateway = NativeCompanionGateway(
       lobbySnapshot: () => {
         'snapshot': {
           'my_team': [
-            {'champion_name': 'Ahri', 'is_local': true},
+            {'champion_name': 'Ahri', 'is_local': true, 'position': 'MIDDLE'},
           ],
           'their_team': [
-            {'champion_name': 'Vex'},
+            {'champion_name': 'Vex', 'position': 'MIDDLE'},
           ],
         },
       },
-      gameSnapshot: () => {
-        'game_time': 60.0,
-        'team_gold_diff': -1200,
-        'active_player': {'is_dead': false},
-        'derived': {'objectives': <String, Object?>{}},
-      },
+      gameSnapshot: () => game,
       tacticalAnalysis: engine.analyze,
       tacticalDirectives: engine.directives,
     );
 
     await gateway.generateLobbyBrief('Vex');
 
+    expect((await gateway.coaching())['matchup'], isNotNull);
+    const active = {
+      'champion_name': 'Ahri',
+      'summoner_name': 'Local',
+      'tag_line': 'LAN',
+      'role': 'MIDDLE',
+      'is_dead': false,
+    };
+    game = {
+      'game_time': 60.0,
+      'team_gold_diff': -1200,
+      'active_player': active,
+      'allies': [active],
+      'enemies': [
+        {'champion_name': 'Vex', 'role': 'MIDDLE'},
+      ],
+      'derived': {'objectives': <String, Object?>{}},
+    };
     expect((await gateway.coaching())['matchup'], isNotNull);
     expect((await gateway.directives()).single['id'], 'recover_resources');
     await gateway.closeAlerts();
