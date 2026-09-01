@@ -3,22 +3,45 @@ import 'dart:async';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../domain/companion_gateway.dart';
+import '../../domain/tactical/tactical_models.dart';
+
+typedef TacticalAnalysisCallback = Map<String, dynamic> Function({
+  Map<String, dynamic>? lobby,
+  Map<String, dynamic>? game,
+  String? selectedEnemy,
+});
+
+typedef TacticalDirectivesCallback = List<TacticalAdvice> Function(
+  Map<String, dynamic>? game,
+);
 
 class NativeCompanionGateway implements CompanionGateway {
-  NativeCompanionGateway({Future<SharedPreferences> Function()? preferences})
-    : _preferences = preferences ?? SharedPreferences.getInstance;
+  NativeCompanionGateway({
+    Future<SharedPreferences> Function()? preferences,
+    Map<String, dynamic>? Function()? lobbySnapshot,
+    Map<String, dynamic>? Function()? gameSnapshot,
+    this._tacticalAnalysis,
+    this._tacticalDirectives,
+  }) : _preferences = preferences ?? SharedPreferences.getInstance,
+       _lobbySnapshot = lobbySnapshot ?? (() => null),
+       _gameSnapshot = gameSnapshot ?? (() => null);
 
   final Future<SharedPreferences> Function() _preferences;
+  final Map<String, dynamic>? Function() _lobbySnapshot;
+  final Map<String, dynamic>? Function() _gameSnapshot;
+  final TacticalAnalysisCallback? _tacticalAnalysis;
+  final TacticalDirectivesCallback? _tacticalDirectives;
   final StreamController<Map<String, dynamic>> _alerts =
       StreamController<Map<String, dynamic>>.broadcast();
 
   static const _settingsKey = 'native_companion_settings_v1';
   Map<String, dynamic>? _settingsCache;
+  String? _selectedEnemy;
 
   @override
   Future<Map<String, dynamic>> health() async => {
     'status': 'ok',
-    'game_detected': false,
+    'game_detected': _gameSnapshot() != null,
     'degraded': false,
     'runtime': 'in_process',
     'components': {
@@ -28,7 +51,13 @@ class NativeCompanionGateway implements CompanionGateway {
   };
 
   @override
-  Future<Map<String, dynamic>> coaching() async => const {};
+  Future<Map<String, dynamic>> coaching() async =>
+      _tacticalAnalysis?.call(
+        lobby: _lobbySnapshot(),
+        game: _gameSnapshot(),
+        selectedEnemy: _selectedEnemy,
+      ) ??
+      const {};
 
   @override
   Future<Map<String, dynamic>> coachingStatus() async => const {
@@ -37,7 +66,10 @@ class NativeCompanionGateway implements CompanionGateway {
   };
 
   @override
-  Future<List<Map<String, dynamic>>> directives() async => const [];
+  Future<List<Map<String, dynamic>>> directives() async =>
+      (_tacticalDirectives?.call(_gameSnapshot()) ?? const <TacticalAdvice>[])
+          .map((item) => item.toJson())
+          .toList(growable: false);
 
   @override
   Future<Map<String, dynamic>> players() async => const {};
@@ -48,15 +80,17 @@ class NativeCompanionGateway implements CompanionGateway {
   };
 
   @override
-  Future<Map<String, dynamic>> lobbyState() async => const {
-    'phase': 'NO_LCU',
-    'brief_ready': false,
-    'snapshot': {
-      'my_team': <Object?>[],
-      'their_team': <Object?>[],
-      'all_locked': false,
-    },
-  };
+  Future<Map<String, dynamic>> lobbyState() async =>
+      _lobbySnapshot() ??
+      const {
+        'phase': 'NO_LCU',
+        'brief_ready': false,
+        'snapshot': {
+          'my_team': <Object?>[],
+          'their_team': <Object?>[],
+          'all_locked': false,
+        },
+      };
 
   @override
   Future<Map<String, dynamic>> lobbyHealth() async => const {
@@ -65,11 +99,14 @@ class NativeCompanionGateway implements CompanionGateway {
   };
 
   @override
-  Future<Map<String, dynamic>> generateLobbyBrief(String candidate) async => {
-    'accepted': false,
-    'candidate': candidate,
-    'reason': 'Native tactical engine has no matchup knowledge for this pick.',
-  };
+  Future<Map<String, dynamic>> generateLobbyBrief(String candidate) async {
+    _selectedEnemy = candidate.trim().isEmpty ? null : candidate.trim();
+    return {
+      'accepted': _selectedEnemy != null,
+      'candidate': _selectedEnemy,
+      'coaching': await coaching(),
+    };
+  }
 
   @override
   Future<Map<String, dynamic>> settings() async => {

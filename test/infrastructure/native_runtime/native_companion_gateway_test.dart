@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:godsense/infrastructure/native_runtime/native_companion_gateway.dart';
+import 'package:godsense/application/native_tactical_engine.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -57,6 +58,36 @@ void main() {
 
     expect((await gateway.createSupportBundle())['contains_secrets'], isFalse);
     expect((await gateway.reportSupport(note: 'note'))['uploaded'], isFalse);
+    await gateway.closeAlerts();
+  });
+
+  test('projects native tactical analysis and directives in process', () async {
+    final engine = NativeTacticalEngine(now: () => DateTime.utc(2026));
+    final gateway = NativeCompanionGateway(
+      lobbySnapshot: () => {
+        'snapshot': {
+          'my_team': [
+            {'champion_name': 'Ahri', 'is_local': true},
+          ],
+          'their_team': [
+            {'champion_name': 'Vex'},
+          ],
+        },
+      },
+      gameSnapshot: () => {
+        'game_time': 60.0,
+        'team_gold_diff': -1200,
+        'active_player': {'is_dead': false},
+        'derived': {'objectives': <String, Object?>{}},
+      },
+      tacticalAnalysis: engine.analyze,
+      tacticalDirectives: engine.directives,
+    );
+
+    await gateway.generateLobbyBrief('Vex');
+
+    expect((await gateway.coaching())['matchup'], isNotNull);
+    expect((await gateway.directives()).single['id'], 'recover_resources');
     await gateway.closeAlerts();
   });
 }

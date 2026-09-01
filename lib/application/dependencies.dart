@@ -4,10 +4,25 @@ import '../domain/companion_gateway.dart';
 import '../domain/companion_models.dart';
 import '../infrastructure/native_runtime/native_companion_gateway.dart';
 import 'companion_controller.dart';
+import 'native_league_controller.dart';
+import 'native_tactical_engine.dart';
 
-final companionGatewayProvider = Provider<CompanionGateway>(
-  (_) => NativeCompanionGateway(),
+final nativeTacticalEngineProvider = Provider<NativeTacticalEngine>(
+  (_) => NativeTacticalEngine(),
 );
+
+final companionGatewayProvider = Provider<CompanionGateway>((ref) {
+  final engine = ref.watch(nativeTacticalEngineProvider);
+  return NativeCompanionGateway(
+    lobbySnapshot: () {
+      final lobby = ref.read(nativeLeagueProvider).lobby;
+      return lobby.isEmpty ? null : lobby;
+    },
+    gameSnapshot: () => ref.read(nativeLeagueProvider).liveGame,
+    tacticalAnalysis: engine.analyze,
+    tacticalDirectives: engine.directives,
+  );
+});
 
 final companionRuntimeProvider = Provider<CompanionRuntime>(
   (_) => const InProcessCompanionRuntime(),
