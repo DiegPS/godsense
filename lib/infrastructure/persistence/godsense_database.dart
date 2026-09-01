@@ -12,6 +12,11 @@ class Accounts extends Table {
   TextColumn get platformId => text()();
   TextColumn get gameName => text().nullable()();
   TextColumn get tagLine => text().nullable()();
+  IntColumn get summonerId => integer().nullable()();
+  IntColumn get summonerLevel => integer().nullable()();
+  IntColumn get profileIconId => integer().nullable()();
+  TextColumn get lastClientVersion => text().nullable()();
+  TextColumn get lastPatchKey => text().nullable()();
   IntColumn get firstSeenAtUs => integer()();
   IntColumn get lastSeenAtUs => integer()();
   IntColumn get recordSchemaVersion =>
@@ -19,6 +24,21 @@ class Accounts extends Table {
 
   @override
   Set<Column<Object>> get primaryKey => {puuid};
+}
+
+class AccountContextStates extends Table {
+  IntColumn get singletonId => integer().withDefault(const Constant(1))();
+  TextColumn get currentPuuid =>
+      text().nullable().references(Accounts, #puuid)();
+  IntColumn get accountGeneration => integer()();
+  IntColumn get syncRevision => integer()();
+  IntColumn get updatedAtUs => integer()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {singletonId};
+
+  @override
+  List<String> get customConstraints => ['CHECK (singleton_id = 1)'];
 }
 
 class Matches extends Table {
@@ -140,6 +160,7 @@ class SnapshotCursors extends Table {
 @DriftDatabase(
   tables: [
     Accounts,
+    AccountContextStates,
     Matches,
     AccountMatches,
     CaptureEpochs,
@@ -155,7 +176,7 @@ class GodSenseDatabase extends _$GodSenseDatabase {
   GodSenseDatabase.inMemory() : super(NativeDatabase.memory());
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -184,6 +205,16 @@ class GodSenseDatabase extends _$GodSenseDatabase {
         CREATE INDEX domain_entries_source_record
         ON domain_entries(source_record_id)
       ''');
+    },
+    onUpgrade: (migrator, from, to) async {
+      if (from < 2) {
+        await migrator.addColumn(accounts, accounts.summonerId);
+        await migrator.addColumn(accounts, accounts.summonerLevel);
+        await migrator.addColumn(accounts, accounts.profileIconId);
+        await migrator.addColumn(accounts, accounts.lastClientVersion);
+        await migrator.addColumn(accounts, accounts.lastPatchKey);
+        await migrator.createTable(accountContextStates);
+      }
     },
     beforeOpen: (details) async {
       await customStatement('PRAGMA foreign_keys = ON');

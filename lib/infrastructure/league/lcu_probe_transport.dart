@@ -30,3 +30,7 @@ class LcuProbeResponse {
 abstract interface class LcuProbeTransport {
   Future<LcuProbeResponse> getDetailed(String path);
 }
+
+abstract interface class LcuReadTransport implements LcuProbeTransport {
+  Future<Object?> get(String path);
+}

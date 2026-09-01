@@ -50,6 +50,62 @@ class $AccountsTable extends Accounts with TableInfo<$AccountsTable, Account> {
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _summonerIdMeta = const VerificationMeta(
+    'summonerId',
+  );
+  @override
+  late final GeneratedColumn<int> summonerId = GeneratedColumn<int>(
+    'summoner_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _summonerLevelMeta = const VerificationMeta(
+    'summonerLevel',
+  );
+  @override
+  late final GeneratedColumn<int> summonerLevel = GeneratedColumn<int>(
+    'summoner_level',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _profileIconIdMeta = const VerificationMeta(
+    'profileIconId',
+  );
+  @override
+  late final GeneratedColumn<int> profileIconId = GeneratedColumn<int>(
+    'profile_icon_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _lastClientVersionMeta = const VerificationMeta(
+    'lastClientVersion',
+  );
+  @override
+  late final GeneratedColumn<String> lastClientVersion =
+      GeneratedColumn<String>(
+        'last_client_version',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _lastPatchKeyMeta = const VerificationMeta(
+    'lastPatchKey',
+  );
+  @override
+  late final GeneratedColumn<String> lastPatchKey = GeneratedColumn<String>(
+    'last_patch_key',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _firstSeenAtUsMeta = const VerificationMeta(
     'firstSeenAtUs',
   );
@@ -89,6 +145,11 @@ class $AccountsTable extends Accounts with TableInfo<$AccountsTable, Account> {
     platformId,
     gameName,
     tagLine,
+    summonerId,
+    summonerLevel,
+    profileIconId,
+    lastClientVersion,
+    lastPatchKey,
     firstSeenAtUs,
     lastSeenAtUs,
     recordSchemaVersion,
@@ -131,6 +192,48 @@ class $AccountsTable extends Accounts with TableInfo<$AccountsTable, Account> {
       context.handle(
         _tagLineMeta,
         tagLine.isAcceptableOrUnknown(data['tag_line']!, _tagLineMeta),
+      );
+    }
+    if (data.containsKey('summoner_id')) {
+      context.handle(
+        _summonerIdMeta,
+        summonerId.isAcceptableOrUnknown(data['summoner_id']!, _summonerIdMeta),
+      );
+    }
+    if (data.containsKey('summoner_level')) {
+      context.handle(
+        _summonerLevelMeta,
+        summonerLevel.isAcceptableOrUnknown(
+          data['summoner_level']!,
+          _summonerLevelMeta,
+        ),
+      );
+    }
+    if (data.containsKey('profile_icon_id')) {
+      context.handle(
+        _profileIconIdMeta,
+        profileIconId.isAcceptableOrUnknown(
+          data['profile_icon_id']!,
+          _profileIconIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_client_version')) {
+      context.handle(
+        _lastClientVersionMeta,
+        lastClientVersion.isAcceptableOrUnknown(
+          data['last_client_version']!,
+          _lastClientVersionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_patch_key')) {
+      context.handle(
+        _lastPatchKeyMeta,
+        lastPatchKey.isAcceptableOrUnknown(
+          data['last_patch_key']!,
+          _lastPatchKeyMeta,
+        ),
       );
     }
     if (data.containsKey('first_seen_at_us')) {
@@ -189,6 +292,26 @@ class $AccountsTable extends Accounts with TableInfo<$AccountsTable, Account> {
         DriftSqlType.string,
         data['${effectivePrefix}tag_line'],
       ),
+      summonerId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}summoner_id'],
+      ),
+      summonerLevel: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}summoner_level'],
+      ),
+      profileIconId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}profile_icon_id'],
+      ),
+      lastClientVersion: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}last_client_version'],
+      ),
+      lastPatchKey: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}last_patch_key'],
+      ),
       firstSeenAtUs: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}first_seen_at_us'],
@@ -215,6 +338,11 @@ class Account extends DataClass implements Insertable<Account> {
   final String platformId;
   final String? gameName;
   final String? tagLine;
+  final int? summonerId;
+  final int? summonerLevel;
+  final int? profileIconId;
+  final String? lastClientVersion;
+  final String? lastPatchKey;
   final int firstSeenAtUs;
   final int lastSeenAtUs;
   final int recordSchemaVersion;
@@ -223,6 +351,11 @@ class Account extends DataClass implements Insertable<Account> {
     required this.platformId,
     this.gameName,
     this.tagLine,
+    this.summonerId,
+    this.summonerLevel,
+    this.profileIconId,
+    this.lastClientVersion,
+    this.lastPatchKey,
     required this.firstSeenAtUs,
     required this.lastSeenAtUs,
     required this.recordSchemaVersion,
@@ -237,6 +370,21 @@ class Account extends DataClass implements Insertable<Account> {
     }
     if (!nullToAbsent || tagLine != null) {
       map['tag_line'] = Variable<String>(tagLine);
+    }
+    if (!nullToAbsent || summonerId != null) {
+      map['summoner_id'] = Variable<int>(summonerId);
+    }
+    if (!nullToAbsent || summonerLevel != null) {
+      map['summoner_level'] = Variable<int>(summonerLevel);
+    }
+    if (!nullToAbsent || profileIconId != null) {
+      map['profile_icon_id'] = Variable<int>(profileIconId);
+    }
+    if (!nullToAbsent || lastClientVersion != null) {
+      map['last_client_version'] = Variable<String>(lastClientVersion);
+    }
+    if (!nullToAbsent || lastPatchKey != null) {
+      map['last_patch_key'] = Variable<String>(lastPatchKey);
     }
     map['first_seen_at_us'] = Variable<int>(firstSeenAtUs);
     map['last_seen_at_us'] = Variable<int>(lastSeenAtUs);
@@ -254,6 +402,21 @@ class Account extends DataClass implements Insertable<Account> {
       tagLine: tagLine == null && nullToAbsent
           ? const Value.absent()
           : Value(tagLine),
+      summonerId: summonerId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(summonerId),
+      summonerLevel: summonerLevel == null && nullToAbsent
+          ? const Value.absent()
+          : Value(summonerLevel),
+      profileIconId: profileIconId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(profileIconId),
+      lastClientVersion: lastClientVersion == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastClientVersion),
+      lastPatchKey: lastPatchKey == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastPatchKey),
       firstSeenAtUs: Value(firstSeenAtUs),
       lastSeenAtUs: Value(lastSeenAtUs),
       recordSchemaVersion: Value(recordSchemaVersion),
@@ -270,6 +433,13 @@ class Account extends DataClass implements Insertable<Account> {
       platformId: serializer.fromJson<String>(json['platformId']),
       gameName: serializer.fromJson<String?>(json['gameName']),
       tagLine: serializer.fromJson<String?>(json['tagLine']),
+      summonerId: serializer.fromJson<int?>(json['summonerId']),
+      summonerLevel: serializer.fromJson<int?>(json['summonerLevel']),
+      profileIconId: serializer.fromJson<int?>(json['profileIconId']),
+      lastClientVersion: serializer.fromJson<String?>(
+        json['lastClientVersion'],
+      ),
+      lastPatchKey: serializer.fromJson<String?>(json['lastPatchKey']),
       firstSeenAtUs: serializer.fromJson<int>(json['firstSeenAtUs']),
       lastSeenAtUs: serializer.fromJson<int>(json['lastSeenAtUs']),
       recordSchemaVersion: serializer.fromJson<int>(
@@ -285,6 +455,11 @@ class Account extends DataClass implements Insertable<Account> {
       'platformId': serializer.toJson<String>(platformId),
       'gameName': serializer.toJson<String?>(gameName),
       'tagLine': serializer.toJson<String?>(tagLine),
+      'summonerId': serializer.toJson<int?>(summonerId),
+      'summonerLevel': serializer.toJson<int?>(summonerLevel),
+      'profileIconId': serializer.toJson<int?>(profileIconId),
+      'lastClientVersion': serializer.toJson<String?>(lastClientVersion),
+      'lastPatchKey': serializer.toJson<String?>(lastPatchKey),
       'firstSeenAtUs': serializer.toJson<int>(firstSeenAtUs),
       'lastSeenAtUs': serializer.toJson<int>(lastSeenAtUs),
       'recordSchemaVersion': serializer.toJson<int>(recordSchemaVersion),
@@ -296,6 +471,11 @@ class Account extends DataClass implements Insertable<Account> {
     String? platformId,
     Value<String?> gameName = const Value.absent(),
     Value<String?> tagLine = const Value.absent(),
+    Value<int?> summonerId = const Value.absent(),
+    Value<int?> summonerLevel = const Value.absent(),
+    Value<int?> profileIconId = const Value.absent(),
+    Value<String?> lastClientVersion = const Value.absent(),
+    Value<String?> lastPatchKey = const Value.absent(),
     int? firstSeenAtUs,
     int? lastSeenAtUs,
     int? recordSchemaVersion,
@@ -304,6 +484,17 @@ class Account extends DataClass implements Insertable<Account> {
     platformId: platformId ?? this.platformId,
     gameName: gameName.present ? gameName.value : this.gameName,
     tagLine: tagLine.present ? tagLine.value : this.tagLine,
+    summonerId: summonerId.present ? summonerId.value : this.summonerId,
+    summonerLevel: summonerLevel.present
+        ? summonerLevel.value
+        : this.summonerLevel,
+    profileIconId: profileIconId.present
+        ? profileIconId.value
+        : this.profileIconId,
+    lastClientVersion: lastClientVersion.present
+        ? lastClientVersion.value
+        : this.lastClientVersion,
+    lastPatchKey: lastPatchKey.present ? lastPatchKey.value : this.lastPatchKey,
     firstSeenAtUs: firstSeenAtUs ?? this.firstSeenAtUs,
     lastSeenAtUs: lastSeenAtUs ?? this.lastSeenAtUs,
     recordSchemaVersion: recordSchemaVersion ?? this.recordSchemaVersion,
@@ -316,6 +507,21 @@ class Account extends DataClass implements Insertable<Account> {
           : this.platformId,
       gameName: data.gameName.present ? data.gameName.value : this.gameName,
       tagLine: data.tagLine.present ? data.tagLine.value : this.tagLine,
+      summonerId: data.summonerId.present
+          ? data.summonerId.value
+          : this.summonerId,
+      summonerLevel: data.summonerLevel.present
+          ? data.summonerLevel.value
+          : this.summonerLevel,
+      profileIconId: data.profileIconId.present
+          ? data.profileIconId.value
+          : this.profileIconId,
+      lastClientVersion: data.lastClientVersion.present
+          ? data.lastClientVersion.value
+          : this.lastClientVersion,
+      lastPatchKey: data.lastPatchKey.present
+          ? data.lastPatchKey.value
+          : this.lastPatchKey,
       firstSeenAtUs: data.firstSeenAtUs.present
           ? data.firstSeenAtUs.value
           : this.firstSeenAtUs,
@@ -335,6 +541,11 @@ class Account extends DataClass implements Insertable<Account> {
           ..write('platformId: $platformId, ')
           ..write('gameName: $gameName, ')
           ..write('tagLine: $tagLine, ')
+          ..write('summonerId: $summonerId, ')
+          ..write('summonerLevel: $summonerLevel, ')
+          ..write('profileIconId: $profileIconId, ')
+          ..write('lastClientVersion: $lastClientVersion, ')
+          ..write('lastPatchKey: $lastPatchKey, ')
           ..write('firstSeenAtUs: $firstSeenAtUs, ')
           ..write('lastSeenAtUs: $lastSeenAtUs, ')
           ..write('recordSchemaVersion: $recordSchemaVersion')
@@ -348,6 +559,11 @@ class Account extends DataClass implements Insertable<Account> {
     platformId,
     gameName,
     tagLine,
+    summonerId,
+    summonerLevel,
+    profileIconId,
+    lastClientVersion,
+    lastPatchKey,
     firstSeenAtUs,
     lastSeenAtUs,
     recordSchemaVersion,
@@ -360,6 +576,11 @@ class Account extends DataClass implements Insertable<Account> {
           other.platformId == this.platformId &&
           other.gameName == this.gameName &&
           other.tagLine == this.tagLine &&
+          other.summonerId == this.summonerId &&
+          other.summonerLevel == this.summonerLevel &&
+          other.profileIconId == this.profileIconId &&
+          other.lastClientVersion == this.lastClientVersion &&
+          other.lastPatchKey == this.lastPatchKey &&
           other.firstSeenAtUs == this.firstSeenAtUs &&
           other.lastSeenAtUs == this.lastSeenAtUs &&
           other.recordSchemaVersion == this.recordSchemaVersion);
@@ -370,6 +591,11 @@ class AccountsCompanion extends UpdateCompanion<Account> {
   final Value<String> platformId;
   final Value<String?> gameName;
   final Value<String?> tagLine;
+  final Value<int?> summonerId;
+  final Value<int?> summonerLevel;
+  final Value<int?> profileIconId;
+  final Value<String?> lastClientVersion;
+  final Value<String?> lastPatchKey;
   final Value<int> firstSeenAtUs;
   final Value<int> lastSeenAtUs;
   final Value<int> recordSchemaVersion;
@@ -379,6 +605,11 @@ class AccountsCompanion extends UpdateCompanion<Account> {
     this.platformId = const Value.absent(),
     this.gameName = const Value.absent(),
     this.tagLine = const Value.absent(),
+    this.summonerId = const Value.absent(),
+    this.summonerLevel = const Value.absent(),
+    this.profileIconId = const Value.absent(),
+    this.lastClientVersion = const Value.absent(),
+    this.lastPatchKey = const Value.absent(),
     this.firstSeenAtUs = const Value.absent(),
     this.lastSeenAtUs = const Value.absent(),
     this.recordSchemaVersion = const Value.absent(),
@@ -389,6 +620,11 @@ class AccountsCompanion extends UpdateCompanion<Account> {
     required String platformId,
     this.gameName = const Value.absent(),
     this.tagLine = const Value.absent(),
+    this.summonerId = const Value.absent(),
+    this.summonerLevel = const Value.absent(),
+    this.profileIconId = const Value.absent(),
+    this.lastClientVersion = const Value.absent(),
+    this.lastPatchKey = const Value.absent(),
     required int firstSeenAtUs,
     required int lastSeenAtUs,
     this.recordSchemaVersion = const Value.absent(),
@@ -402,6 +638,11 @@ class AccountsCompanion extends UpdateCompanion<Account> {
     Expression<String>? platformId,
     Expression<String>? gameName,
     Expression<String>? tagLine,
+    Expression<int>? summonerId,
+    Expression<int>? summonerLevel,
+    Expression<int>? profileIconId,
+    Expression<String>? lastClientVersion,
+    Expression<String>? lastPatchKey,
     Expression<int>? firstSeenAtUs,
     Expression<int>? lastSeenAtUs,
     Expression<int>? recordSchemaVersion,
@@ -412,6 +653,11 @@ class AccountsCompanion extends UpdateCompanion<Account> {
       if (platformId != null) 'platform_id': platformId,
       if (gameName != null) 'game_name': gameName,
       if (tagLine != null) 'tag_line': tagLine,
+      if (summonerId != null) 'summoner_id': summonerId,
+      if (summonerLevel != null) 'summoner_level': summonerLevel,
+      if (profileIconId != null) 'profile_icon_id': profileIconId,
+      if (lastClientVersion != null) 'last_client_version': lastClientVersion,
+      if (lastPatchKey != null) 'last_patch_key': lastPatchKey,
       if (firstSeenAtUs != null) 'first_seen_at_us': firstSeenAtUs,
       if (lastSeenAtUs != null) 'last_seen_at_us': lastSeenAtUs,
       if (recordSchemaVersion != null)
@@ -425,6 +671,11 @@ class AccountsCompanion extends UpdateCompanion<Account> {
     Value<String>? platformId,
     Value<String?>? gameName,
     Value<String?>? tagLine,
+    Value<int?>? summonerId,
+    Value<int?>? summonerLevel,
+    Value<int?>? profileIconId,
+    Value<String?>? lastClientVersion,
+    Value<String?>? lastPatchKey,
     Value<int>? firstSeenAtUs,
     Value<int>? lastSeenAtUs,
     Value<int>? recordSchemaVersion,
@@ -435,6 +686,11 @@ class AccountsCompanion extends UpdateCompanion<Account> {
       platformId: platformId ?? this.platformId,
       gameName: gameName ?? this.gameName,
       tagLine: tagLine ?? this.tagLine,
+      summonerId: summonerId ?? this.summonerId,
+      summonerLevel: summonerLevel ?? this.summonerLevel,
+      profileIconId: profileIconId ?? this.profileIconId,
+      lastClientVersion: lastClientVersion ?? this.lastClientVersion,
+      lastPatchKey: lastPatchKey ?? this.lastPatchKey,
       firstSeenAtUs: firstSeenAtUs ?? this.firstSeenAtUs,
       lastSeenAtUs: lastSeenAtUs ?? this.lastSeenAtUs,
       recordSchemaVersion: recordSchemaVersion ?? this.recordSchemaVersion,
@@ -456,6 +712,21 @@ class AccountsCompanion extends UpdateCompanion<Account> {
     }
     if (tagLine.present) {
       map['tag_line'] = Variable<String>(tagLine.value);
+    }
+    if (summonerId.present) {
+      map['summoner_id'] = Variable<int>(summonerId.value);
+    }
+    if (summonerLevel.present) {
+      map['summoner_level'] = Variable<int>(summonerLevel.value);
+    }
+    if (profileIconId.present) {
+      map['profile_icon_id'] = Variable<int>(profileIconId.value);
+    }
+    if (lastClientVersion.present) {
+      map['last_client_version'] = Variable<String>(lastClientVersion.value);
+    }
+    if (lastPatchKey.present) {
+      map['last_patch_key'] = Variable<String>(lastPatchKey.value);
     }
     if (firstSeenAtUs.present) {
       map['first_seen_at_us'] = Variable<int>(firstSeenAtUs.value);
@@ -479,10 +750,406 @@ class AccountsCompanion extends UpdateCompanion<Account> {
           ..write('platformId: $platformId, ')
           ..write('gameName: $gameName, ')
           ..write('tagLine: $tagLine, ')
+          ..write('summonerId: $summonerId, ')
+          ..write('summonerLevel: $summonerLevel, ')
+          ..write('profileIconId: $profileIconId, ')
+          ..write('lastClientVersion: $lastClientVersion, ')
+          ..write('lastPatchKey: $lastPatchKey, ')
           ..write('firstSeenAtUs: $firstSeenAtUs, ')
           ..write('lastSeenAtUs: $lastSeenAtUs, ')
           ..write('recordSchemaVersion: $recordSchemaVersion, ')
           ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $AccountContextStatesTable extends AccountContextStates
+    with TableInfo<$AccountContextStatesTable, AccountContextState> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $AccountContextStatesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _singletonIdMeta = const VerificationMeta(
+    'singletonId',
+  );
+  @override
+  late final GeneratedColumn<int> singletonId = GeneratedColumn<int>(
+    'singleton_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(1),
+  );
+  static const VerificationMeta _currentPuuidMeta = const VerificationMeta(
+    'currentPuuid',
+  );
+  @override
+  late final GeneratedColumn<String> currentPuuid = GeneratedColumn<String>(
+    'current_puuid',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES accounts (puuid)',
+    ),
+  );
+  static const VerificationMeta _accountGenerationMeta = const VerificationMeta(
+    'accountGeneration',
+  );
+  @override
+  late final GeneratedColumn<int> accountGeneration = GeneratedColumn<int>(
+    'account_generation',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _syncRevisionMeta = const VerificationMeta(
+    'syncRevision',
+  );
+  @override
+  late final GeneratedColumn<int> syncRevision = GeneratedColumn<int>(
+    'sync_revision',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtUsMeta = const VerificationMeta(
+    'updatedAtUs',
+  );
+  @override
+  late final GeneratedColumn<int> updatedAtUs = GeneratedColumn<int>(
+    'updated_at_us',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    singletonId,
+    currentPuuid,
+    accountGeneration,
+    syncRevision,
+    updatedAtUs,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'account_context_states';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<AccountContextState> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('singleton_id')) {
+      context.handle(
+        _singletonIdMeta,
+        singletonId.isAcceptableOrUnknown(
+          data['singleton_id']!,
+          _singletonIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('current_puuid')) {
+      context.handle(
+        _currentPuuidMeta,
+        currentPuuid.isAcceptableOrUnknown(
+          data['current_puuid']!,
+          _currentPuuidMeta,
+        ),
+      );
+    }
+    if (data.containsKey('account_generation')) {
+      context.handle(
+        _accountGenerationMeta,
+        accountGeneration.isAcceptableOrUnknown(
+          data['account_generation']!,
+          _accountGenerationMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_accountGenerationMeta);
+    }
+    if (data.containsKey('sync_revision')) {
+      context.handle(
+        _syncRevisionMeta,
+        syncRevision.isAcceptableOrUnknown(
+          data['sync_revision']!,
+          _syncRevisionMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_syncRevisionMeta);
+    }
+    if (data.containsKey('updated_at_us')) {
+      context.handle(
+        _updatedAtUsMeta,
+        updatedAtUs.isAcceptableOrUnknown(
+          data['updated_at_us']!,
+          _updatedAtUsMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtUsMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {singletonId};
+  @override
+  AccountContextState map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return AccountContextState(
+      singletonId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}singleton_id'],
+      )!,
+      currentPuuid: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}current_puuid'],
+      ),
+      accountGeneration: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}account_generation'],
+      )!,
+      syncRevision: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}sync_revision'],
+      )!,
+      updatedAtUs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}updated_at_us'],
+      )!,
+    );
+  }
+
+  @override
+  $AccountContextStatesTable createAlias(String alias) {
+    return $AccountContextStatesTable(attachedDatabase, alias);
+  }
+}
+
+class AccountContextState extends DataClass
+    implements Insertable<AccountContextState> {
+  final int singletonId;
+  final String? currentPuuid;
+  final int accountGeneration;
+  final int syncRevision;
+  final int updatedAtUs;
+  const AccountContextState({
+    required this.singletonId,
+    this.currentPuuid,
+    required this.accountGeneration,
+    required this.syncRevision,
+    required this.updatedAtUs,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['singleton_id'] = Variable<int>(singletonId);
+    if (!nullToAbsent || currentPuuid != null) {
+      map['current_puuid'] = Variable<String>(currentPuuid);
+    }
+    map['account_generation'] = Variable<int>(accountGeneration);
+    map['sync_revision'] = Variable<int>(syncRevision);
+    map['updated_at_us'] = Variable<int>(updatedAtUs);
+    return map;
+  }
+
+  AccountContextStatesCompanion toCompanion(bool nullToAbsent) {
+    return AccountContextStatesCompanion(
+      singletonId: Value(singletonId),
+      currentPuuid: currentPuuid == null && nullToAbsent
+          ? const Value.absent()
+          : Value(currentPuuid),
+      accountGeneration: Value(accountGeneration),
+      syncRevision: Value(syncRevision),
+      updatedAtUs: Value(updatedAtUs),
+    );
+  }
+
+  factory AccountContextState.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return AccountContextState(
+      singletonId: serializer.fromJson<int>(json['singletonId']),
+      currentPuuid: serializer.fromJson<String?>(json['currentPuuid']),
+      accountGeneration: serializer.fromJson<int>(json['accountGeneration']),
+      syncRevision: serializer.fromJson<int>(json['syncRevision']),
+      updatedAtUs: serializer.fromJson<int>(json['updatedAtUs']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'singletonId': serializer.toJson<int>(singletonId),
+      'currentPuuid': serializer.toJson<String?>(currentPuuid),
+      'accountGeneration': serializer.toJson<int>(accountGeneration),
+      'syncRevision': serializer.toJson<int>(syncRevision),
+      'updatedAtUs': serializer.toJson<int>(updatedAtUs),
+    };
+  }
+
+  AccountContextState copyWith({
+    int? singletonId,
+    Value<String?> currentPuuid = const Value.absent(),
+    int? accountGeneration,
+    int? syncRevision,
+    int? updatedAtUs,
+  }) => AccountContextState(
+    singletonId: singletonId ?? this.singletonId,
+    currentPuuid: currentPuuid.present ? currentPuuid.value : this.currentPuuid,
+    accountGeneration: accountGeneration ?? this.accountGeneration,
+    syncRevision: syncRevision ?? this.syncRevision,
+    updatedAtUs: updatedAtUs ?? this.updatedAtUs,
+  );
+  AccountContextState copyWithCompanion(AccountContextStatesCompanion data) {
+    return AccountContextState(
+      singletonId: data.singletonId.present
+          ? data.singletonId.value
+          : this.singletonId,
+      currentPuuid: data.currentPuuid.present
+          ? data.currentPuuid.value
+          : this.currentPuuid,
+      accountGeneration: data.accountGeneration.present
+          ? data.accountGeneration.value
+          : this.accountGeneration,
+      syncRevision: data.syncRevision.present
+          ? data.syncRevision.value
+          : this.syncRevision,
+      updatedAtUs: data.updatedAtUs.present
+          ? data.updatedAtUs.value
+          : this.updatedAtUs,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AccountContextState(')
+          ..write('singletonId: $singletonId, ')
+          ..write('currentPuuid: $currentPuuid, ')
+          ..write('accountGeneration: $accountGeneration, ')
+          ..write('syncRevision: $syncRevision, ')
+          ..write('updatedAtUs: $updatedAtUs')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    singletonId,
+    currentPuuid,
+    accountGeneration,
+    syncRevision,
+    updatedAtUs,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is AccountContextState &&
+          other.singletonId == this.singletonId &&
+          other.currentPuuid == this.currentPuuid &&
+          other.accountGeneration == this.accountGeneration &&
+          other.syncRevision == this.syncRevision &&
+          other.updatedAtUs == this.updatedAtUs);
+}
+
+class AccountContextStatesCompanion
+    extends UpdateCompanion<AccountContextState> {
+  final Value<int> singletonId;
+  final Value<String?> currentPuuid;
+  final Value<int> accountGeneration;
+  final Value<int> syncRevision;
+  final Value<int> updatedAtUs;
+  const AccountContextStatesCompanion({
+    this.singletonId = const Value.absent(),
+    this.currentPuuid = const Value.absent(),
+    this.accountGeneration = const Value.absent(),
+    this.syncRevision = const Value.absent(),
+    this.updatedAtUs = const Value.absent(),
+  });
+  AccountContextStatesCompanion.insert({
+    this.singletonId = const Value.absent(),
+    this.currentPuuid = const Value.absent(),
+    required int accountGeneration,
+    required int syncRevision,
+    required int updatedAtUs,
+  }) : accountGeneration = Value(accountGeneration),
+       syncRevision = Value(syncRevision),
+       updatedAtUs = Value(updatedAtUs);
+  static Insertable<AccountContextState> custom({
+    Expression<int>? singletonId,
+    Expression<String>? currentPuuid,
+    Expression<int>? accountGeneration,
+    Expression<int>? syncRevision,
+    Expression<int>? updatedAtUs,
+  }) {
+    return RawValuesInsertable({
+      if (singletonId != null) 'singleton_id': singletonId,
+      if (currentPuuid != null) 'current_puuid': currentPuuid,
+      if (accountGeneration != null) 'account_generation': accountGeneration,
+      if (syncRevision != null) 'sync_revision': syncRevision,
+      if (updatedAtUs != null) 'updated_at_us': updatedAtUs,
+    });
+  }
+
+  AccountContextStatesCompanion copyWith({
+    Value<int>? singletonId,
+    Value<String?>? currentPuuid,
+    Value<int>? accountGeneration,
+    Value<int>? syncRevision,
+    Value<int>? updatedAtUs,
+  }) {
+    return AccountContextStatesCompanion(
+      singletonId: singletonId ?? this.singletonId,
+      currentPuuid: currentPuuid ?? this.currentPuuid,
+      accountGeneration: accountGeneration ?? this.accountGeneration,
+      syncRevision: syncRevision ?? this.syncRevision,
+      updatedAtUs: updatedAtUs ?? this.updatedAtUs,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (singletonId.present) {
+      map['singleton_id'] = Variable<int>(singletonId.value);
+    }
+    if (currentPuuid.present) {
+      map['current_puuid'] = Variable<String>(currentPuuid.value);
+    }
+    if (accountGeneration.present) {
+      map['account_generation'] = Variable<int>(accountGeneration.value);
+    }
+    if (syncRevision.present) {
+      map['sync_revision'] = Variable<int>(syncRevision.value);
+    }
+    if (updatedAtUs.present) {
+      map['updated_at_us'] = Variable<int>(updatedAtUs.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AccountContextStatesCompanion(')
+          ..write('singletonId: $singletonId, ')
+          ..write('currentPuuid: $currentPuuid, ')
+          ..write('accountGeneration: $accountGeneration, ')
+          ..write('syncRevision: $syncRevision, ')
+          ..write('updatedAtUs: $updatedAtUs')
           ..write(')'))
         .toString();
   }
@@ -4308,6 +4975,8 @@ abstract class _$GodSenseDatabase extends GeneratedDatabase {
   _$GodSenseDatabase(QueryExecutor e) : super(e);
   $GodSenseDatabaseManager get managers => $GodSenseDatabaseManager(this);
   late final $AccountsTable accounts = $AccountsTable(this);
+  late final $AccountContextStatesTable accountContextStates =
+      $AccountContextStatesTable(this);
   late final $MatchesTable matches = $MatchesTable(this);
   late final $AccountMatchesTable accountMatches = $AccountMatchesTable(this);
   late final $CaptureEpochsTable captureEpochs = $CaptureEpochsTable(this);
@@ -4323,6 +4992,7 @@ abstract class _$GodSenseDatabase extends GeneratedDatabase {
   @override
   List<DatabaseSchemaEntity> get allSchemaEntities => [
     accounts,
+    accountContextStates,
     matches,
     accountMatches,
     captureEpochs,
@@ -4338,6 +5008,11 @@ typedef $$AccountsTableCreateCompanionBuilder = AccountsCompanion Function({
   required String platformId,
   Value<String?> gameName,
   Value<String?> tagLine,
+  Value<int?> summonerId,
+  Value<int?> summonerLevel,
+  Value<int?> profileIconId,
+  Value<String?> lastClientVersion,
+  Value<String?> lastPatchKey,
   required int firstSeenAtUs,
   required int lastSeenAtUs,
   Value<int> recordSchemaVersion,
@@ -4348,6 +5023,11 @@ typedef $$AccountsTableUpdateCompanionBuilder = AccountsCompanion Function({
   Value<String> platformId,
   Value<String?> gameName,
   Value<String?> tagLine,
+  Value<int?> summonerId,
+  Value<int?> summonerLevel,
+  Value<int?> profileIconId,
+  Value<String?> lastClientVersion,
+  Value<String?> lastPatchKey,
   Value<int> firstSeenAtUs,
   Value<int> lastSeenAtUs,
   Value<int> recordSchemaVersion,
@@ -4357,6 +5037,34 @@ typedef $$AccountsTableUpdateCompanionBuilder = AccountsCompanion Function({
 final class $$AccountsTableReferences
     extends BaseReferences<_$GodSenseDatabase, $AccountsTable, Account> {
   $$AccountsTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static MultiTypedResultKey<
+    $AccountContextStatesTable,
+    List<AccountContextState>
+  >
+  _accountContextStatesRefsTable(_$GodSenseDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.accountContextStates,
+        aliasName: 'accounts__puuid__account_context_states__current_puuid',
+      );
+
+  $$AccountContextStatesTableProcessedTableManager
+  get accountContextStatesRefs {
+    final manager =
+        $$AccountContextStatesTableTableManager(
+          $_db,
+          $_db.accountContextStates,
+        ).filter(
+          (f) => f.currentPuuid.puuid.sqlEquals($_itemColumn<String>('puuid')!),
+        );
+
+    final cache = $_typedResult.readTableOrNull(
+      _accountContextStatesRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
 
   static MultiTypedResultKey<$AccountMatchesTable, List<AccountMatche>>
   _accountMatchesRefsTable(_$GodSenseDatabase db) =>
@@ -4407,6 +5115,31 @@ class $$AccountsTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<int> get summonerId => $composableBuilder(
+    column: $table.summonerId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get summonerLevel => $composableBuilder(
+    column: $table.summonerLevel,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get profileIconId => $composableBuilder(
+    column: $table.profileIconId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get lastClientVersion => $composableBuilder(
+    column: $table.lastClientVersion,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get lastPatchKey => $composableBuilder(
+    column: $table.lastPatchKey,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<int> get firstSeenAtUs => $composableBuilder(
     column: $table.firstSeenAtUs,
     builder: (column) => ColumnFilters(column),
@@ -4421,6 +5154,31 @@ class $$AccountsTableFilterComposer
     column: $table.recordSchemaVersion,
     builder: (column) => ColumnFilters(column),
   );
+
+  Expression<bool> accountContextStatesRefs(
+    Expression<bool> Function($$AccountContextStatesTableFilterComposer f) f,
+  ) {
+    final $$AccountContextStatesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.puuid,
+      referencedTable: $db.accountContextStates,
+      getReferencedColumn: (t) => t.currentPuuid,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AccountContextStatesTableFilterComposer(
+            $db: $db,
+            $table: $db.accountContextStates,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 
   Expression<bool> accountMatchesRefs(
     Expression<bool> Function($$AccountMatchesTableFilterComposer f) f,
@@ -4477,6 +5235,31 @@ class $$AccountsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get summonerId => $composableBuilder(
+    column: $table.summonerId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get summonerLevel => $composableBuilder(
+    column: $table.summonerLevel,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get profileIconId => $composableBuilder(
+    column: $table.profileIconId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get lastClientVersion => $composableBuilder(
+    column: $table.lastClientVersion,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get lastPatchKey => $composableBuilder(
+    column: $table.lastPatchKey,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get firstSeenAtUs => $composableBuilder(
     column: $table.firstSeenAtUs,
     builder: (column) => ColumnOrderings(column),
@@ -4516,6 +5299,31 @@ class $$AccountsTableAnnotationComposer
   GeneratedColumn<String> get tagLine =>
       $composableBuilder(column: $table.tagLine, builder: (column) => column);
 
+  GeneratedColumn<int> get summonerId => $composableBuilder(
+    column: $table.summonerId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get summonerLevel => $composableBuilder(
+    column: $table.summonerLevel,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get profileIconId => $composableBuilder(
+    column: $table.profileIconId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get lastClientVersion => $composableBuilder(
+    column: $table.lastClientVersion,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get lastPatchKey => $composableBuilder(
+    column: $table.lastPatchKey,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<int> get firstSeenAtUs => $composableBuilder(
     column: $table.firstSeenAtUs,
     builder: (column) => column,
@@ -4530,6 +5338,32 @@ class $$AccountsTableAnnotationComposer
     column: $table.recordSchemaVersion,
     builder: (column) => column,
   );
+
+  Expression<T> accountContextStatesRefs<T extends Object>(
+    Expression<T> Function($$AccountContextStatesTableAnnotationComposer a) f,
+  ) {
+    final $$AccountContextStatesTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.puuid,
+          referencedTable: $db.accountContextStates,
+          getReferencedColumn: (t) => t.currentPuuid,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$AccountContextStatesTableAnnotationComposer(
+                $db: $db,
+                $table: $db.accountContextStates,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
 
   Expression<T> accountMatchesRefs<T extends Object>(
     Expression<T> Function($$AccountMatchesTableAnnotationComposer a) f,
@@ -4570,7 +5404,10 @@ class $$AccountsTableTableManager
           $$AccountsTableUpdateCompanionBuilder,
           (Account, $$AccountsTableReferences),
           Account,
-          PrefetchHooks Function({bool accountMatchesRefs})
+          PrefetchHooks Function({
+            bool accountContextStatesRefs,
+            bool accountMatchesRefs,
+          })
         > {
   $$AccountsTableTableManager(_$GodSenseDatabase db, $AccountsTable table)
     : super(
@@ -4589,6 +5426,11 @@ class $$AccountsTableTableManager
                 Value<String> platformId = const Value.absent(),
                 Value<String?> gameName = const Value.absent(),
                 Value<String?> tagLine = const Value.absent(),
+                Value<int?> summonerId = const Value.absent(),
+                Value<int?> summonerLevel = const Value.absent(),
+                Value<int?> profileIconId = const Value.absent(),
+                Value<String?> lastClientVersion = const Value.absent(),
+                Value<String?> lastPatchKey = const Value.absent(),
                 Value<int> firstSeenAtUs = const Value.absent(),
                 Value<int> lastSeenAtUs = const Value.absent(),
                 Value<int> recordSchemaVersion = const Value.absent(),
@@ -4598,6 +5440,11 @@ class $$AccountsTableTableManager
                 platformId: platformId,
                 gameName: gameName,
                 tagLine: tagLine,
+                summonerId: summonerId,
+                summonerLevel: summonerLevel,
+                profileIconId: profileIconId,
+                lastClientVersion: lastClientVersion,
+                lastPatchKey: lastPatchKey,
                 firstSeenAtUs: firstSeenAtUs,
                 lastSeenAtUs: lastSeenAtUs,
                 recordSchemaVersion: recordSchemaVersion,
@@ -4609,6 +5456,11 @@ class $$AccountsTableTableManager
                 required String platformId,
                 Value<String?> gameName = const Value.absent(),
                 Value<String?> tagLine = const Value.absent(),
+                Value<int?> summonerId = const Value.absent(),
+                Value<int?> summonerLevel = const Value.absent(),
+                Value<int?> profileIconId = const Value.absent(),
+                Value<String?> lastClientVersion = const Value.absent(),
+                Value<String?> lastPatchKey = const Value.absent(),
                 required int firstSeenAtUs,
                 required int lastSeenAtUs,
                 Value<int> recordSchemaVersion = const Value.absent(),
@@ -4618,6 +5470,11 @@ class $$AccountsTableTableManager
                 platformId: platformId,
                 gameName: gameName,
                 tagLine: tagLine,
+                summonerId: summonerId,
+                summonerLevel: summonerLevel,
+                profileIconId: profileIconId,
+                lastClientVersion: lastClientVersion,
+                lastPatchKey: lastPatchKey,
                 firstSeenAtUs: firstSeenAtUs,
                 lastSeenAtUs: lastSeenAtUs,
                 recordSchemaVersion: recordSchemaVersion,
@@ -4631,37 +5488,63 @@ class $$AccountsTableTableManager
                 ),
               )
               .toList(),
-          prefetchHooksCallback: ({accountMatchesRefs = false}) {
-            return PrefetchHooks(
-              db: db,
-              explicitlyWatchedTables: [
-                if (accountMatchesRefs) db.accountMatches,
-              ],
-              addJoins: null,
-              getPrefetchedDataCallback: (items) async {
-                return [
-                  if (accountMatchesRefs)
-                    await $_getPrefetchedData<
-                      Account,
-                      $AccountsTable,
-                      AccountMatche
-                    >(
-                      currentTable: table,
-                      referencedTable: $$AccountsTableReferences
-                          ._accountMatchesRefsTable(db),
-                      managerFromTypedResult: (p0) => $$AccountsTableReferences(
-                        db,
-                        table,
-                        p0,
-                      ).accountMatchesRefs,
-                      referencedItemsForCurrentItem: (item, referencedItems) =>
-                          referencedItems.where((e) => e.puuid == item.puuid),
-                      typedResults: items,
-                    ),
-                ];
+          prefetchHooksCallback:
+              ({accountContextStatesRefs = false, accountMatchesRefs = false}) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [
+                    if (accountContextStatesRefs) db.accountContextStates,
+                    if (accountMatchesRefs) db.accountMatches,
+                  ],
+                  addJoins: null,
+                  getPrefetchedDataCallback: (items) async {
+                    return [
+                      if (accountContextStatesRefs)
+                        await $_getPrefetchedData<
+                          Account,
+                          $AccountsTable,
+                          AccountContextState
+                        >(
+                          currentTable: table,
+                          referencedTable: $$AccountsTableReferences
+                              ._accountContextStatesRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$AccountsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).accountContextStatesRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.currentPuuid == item.puuid,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (accountMatchesRefs)
+                        await $_getPrefetchedData<
+                          Account,
+                          $AccountsTable,
+                          AccountMatche
+                        >(
+                          currentTable: table,
+                          referencedTable: $$AccountsTableReferences
+                              ._accountMatchesRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$AccountsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).accountMatchesRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.puuid == item.puuid,
+                              ),
+                          typedResults: items,
+                        ),
+                    ];
+                  },
+                );
               },
-            );
-          },
         ),
       );
 }
@@ -4678,7 +5561,344 @@ typedef $$AccountsTableProcessedTableManager =
       $$AccountsTableUpdateCompanionBuilder,
       (Account, $$AccountsTableReferences),
       Account,
-      PrefetchHooks Function({bool accountMatchesRefs})
+      PrefetchHooks Function({
+        bool accountContextStatesRefs,
+        bool accountMatchesRefs,
+      })
+    >;
+typedef $$AccountContextStatesTableCreateCompanionBuilder =
+    AccountContextStatesCompanion Function({
+      Value<int> singletonId,
+      Value<String?> currentPuuid,
+      required int accountGeneration,
+      required int syncRevision,
+      required int updatedAtUs,
+    });
+typedef $$AccountContextStatesTableUpdateCompanionBuilder =
+    AccountContextStatesCompanion Function({
+      Value<int> singletonId,
+      Value<String?> currentPuuid,
+      Value<int> accountGeneration,
+      Value<int> syncRevision,
+      Value<int> updatedAtUs,
+    });
+
+final class $$AccountContextStatesTableReferences
+    extends
+        BaseReferences<
+          _$GodSenseDatabase,
+          $AccountContextStatesTable,
+          AccountContextState
+        > {
+  $$AccountContextStatesTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $AccountsTable _currentPuuidTable(_$GodSenseDatabase db) => db.accounts
+      .createAlias('account_context_states__current_puuid__accounts__puuid');
+
+  $$AccountsTableProcessedTableManager? get currentPuuid {
+    final $_column = $_itemColumn<String>('current_puuid');
+    if ($_column == null) return null;
+    final manager = $$AccountsTableTableManager(
+      $_db,
+      $_db.accounts,
+    ).filter((f) => f.puuid.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_currentPuuidTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$AccountContextStatesTableFilterComposer
+    extends Composer<_$GodSenseDatabase, $AccountContextStatesTable> {
+  $$AccountContextStatesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get singletonId => $composableBuilder(
+    column: $table.singletonId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get accountGeneration => $composableBuilder(
+    column: $table.accountGeneration,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get syncRevision => $composableBuilder(
+    column: $table.syncRevision,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get updatedAtUs => $composableBuilder(
+    column: $table.updatedAtUs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$AccountsTableFilterComposer get currentPuuid {
+    final $$AccountsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.currentPuuid,
+      referencedTable: $db.accounts,
+      getReferencedColumn: (t) => t.puuid,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AccountsTableFilterComposer(
+            $db: $db,
+            $table: $db.accounts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$AccountContextStatesTableOrderingComposer
+    extends Composer<_$GodSenseDatabase, $AccountContextStatesTable> {
+  $$AccountContextStatesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get singletonId => $composableBuilder(
+    column: $table.singletonId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get accountGeneration => $composableBuilder(
+    column: $table.accountGeneration,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get syncRevision => $composableBuilder(
+    column: $table.syncRevision,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get updatedAtUs => $composableBuilder(
+    column: $table.updatedAtUs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$AccountsTableOrderingComposer get currentPuuid {
+    final $$AccountsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.currentPuuid,
+      referencedTable: $db.accounts,
+      getReferencedColumn: (t) => t.puuid,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AccountsTableOrderingComposer(
+            $db: $db,
+            $table: $db.accounts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$AccountContextStatesTableAnnotationComposer
+    extends Composer<_$GodSenseDatabase, $AccountContextStatesTable> {
+  $$AccountContextStatesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get singletonId => $composableBuilder(
+    column: $table.singletonId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get accountGeneration => $composableBuilder(
+    column: $table.accountGeneration,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get syncRevision => $composableBuilder(
+    column: $table.syncRevision,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get updatedAtUs => $composableBuilder(
+    column: $table.updatedAtUs,
+    builder: (column) => column,
+  );
+
+  $$AccountsTableAnnotationComposer get currentPuuid {
+    final $$AccountsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.currentPuuid,
+      referencedTable: $db.accounts,
+      getReferencedColumn: (t) => t.puuid,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AccountsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.accounts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$AccountContextStatesTableTableManager
+    extends
+        RootTableManager<
+          _$GodSenseDatabase,
+          $AccountContextStatesTable,
+          AccountContextState,
+          $$AccountContextStatesTableFilterComposer,
+          $$AccountContextStatesTableOrderingComposer,
+          $$AccountContextStatesTableAnnotationComposer,
+          $$AccountContextStatesTableCreateCompanionBuilder,
+          $$AccountContextStatesTableUpdateCompanionBuilder,
+          (AccountContextState, $$AccountContextStatesTableReferences),
+          AccountContextState,
+          PrefetchHooks Function({bool currentPuuid})
+        > {
+  $$AccountContextStatesTableTableManager(
+    _$GodSenseDatabase db,
+    $AccountContextStatesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$AccountContextStatesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$AccountContextStatesTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$AccountContextStatesTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<int> singletonId = const Value.absent(),
+                Value<String?> currentPuuid = const Value.absent(),
+                Value<int> accountGeneration = const Value.absent(),
+                Value<int> syncRevision = const Value.absent(),
+                Value<int> updatedAtUs = const Value.absent(),
+              }) => AccountContextStatesCompanion(
+                singletonId: singletonId,
+                currentPuuid: currentPuuid,
+                accountGeneration: accountGeneration,
+                syncRevision: syncRevision,
+                updatedAtUs: updatedAtUs,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> singletonId = const Value.absent(),
+                Value<String?> currentPuuid = const Value.absent(),
+                required int accountGeneration,
+                required int syncRevision,
+                required int updatedAtUs,
+              }) => AccountContextStatesCompanion.insert(
+                singletonId: singletonId,
+                currentPuuid: currentPuuid,
+                accountGeneration: accountGeneration,
+                syncRevision: syncRevision,
+                updatedAtUs: updatedAtUs,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$AccountContextStatesTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({currentPuuid = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (currentPuuid) {
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.currentPuuid,
+                        referencedTable: $$AccountContextStatesTableReferences
+                            ._currentPuuidTable(db),
+                        referencedColumn: $$AccountContextStatesTableReferences
+                            ._currentPuuidTable(db)
+                            .puuid,
+                      ) as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$AccountContextStatesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$GodSenseDatabase,
+      $AccountContextStatesTable,
+      AccountContextState,
+      $$AccountContextStatesTableFilterComposer,
+      $$AccountContextStatesTableOrderingComposer,
+      $$AccountContextStatesTableAnnotationComposer,
+      $$AccountContextStatesTableCreateCompanionBuilder,
+      $$AccountContextStatesTableUpdateCompanionBuilder,
+      (AccountContextState, $$AccountContextStatesTableReferences),
+      AccountContextState,
+      PrefetchHooks Function({bool currentPuuid})
     >;
 typedef $$MatchesTableCreateCompanionBuilder = MatchesCompanion Function({
   required String platformId,
@@ -7748,6 +8968,8 @@ class $GodSenseDatabaseManager {
   $GodSenseDatabaseManager(this._db);
   $$AccountsTableTableManager get accounts =>
       $$AccountsTableTableManager(_db, _db.accounts);
+  $$AccountContextStatesTableTableManager get accountContextStates =>
+      $$AccountContextStatesTableTableManager(_db, _db.accountContextStates);
   $$MatchesTableTableManager get matches =>
       $$MatchesTableTableManager(_db, _db.matches);
   $$AccountMatchesTableTableManager get accountMatches =>

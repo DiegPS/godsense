@@ -17,7 +17,7 @@ class LcuCredentials {
   final String lockfilePath;
 }
 
-class LcuClient implements LcuProbeTransport {
+class LcuClient implements LcuReadTransport {
   LcuClient({HttpClient? httpClient, this.credentialsProvider})
     : _httpClient =
           httpClient ??
@@ -61,6 +61,7 @@ class LcuClient implements LcuProbeTransport {
     return null;
   }
 
+  @override
   Future<Object?> get(String path) => _request('GET', path);
   Future<Object?> post(String path, Object? body) =>
       _request('POST', path, body: body);
