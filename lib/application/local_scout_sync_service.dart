@@ -25,6 +25,8 @@ class LocalScoutSyncService {
     required Puuid puuid,
     required PlatformId platformId,
     required LcuCapabilities capabilities,
+    Puuid? currentAccountPuuid,
+    bool includeHistory = true,
   }) async {
     var rankedStored = false;
     var matchesStored = 0;
@@ -34,10 +36,11 @@ class LocalScoutSyncService {
 
     if (capabilities.canLoadRanked) {
       final ranked = await _firstSuccess([
-        if (capabilities[LcuCapabilityId.rankedCurrent].isAvailable)
-          '/lol-ranked/v1/current-ranked-stats',
         if (capabilities[LcuCapabilityId.rankedByPuuid].isAvailable)
           '/lol-ranked/v1/ranked-stats/${puuid.value}',
+        if (puuid == currentAccountPuuid &&
+            capabilities[LcuCapabilityId.rankedCurrent].isAvailable)
+          '/lol-ranked/v1/current-ranked-stats',
       ]);
       if (ranked != null) {
         const codec = JournalPayloadCodec();
@@ -53,7 +56,8 @@ class LocalScoutSyncService {
       }
     }
 
-    if (!capabilities[LcuCapabilityId.matchHistoryList].isAvailable) {
+    if (!includeHistory ||
+        !capabilities[LcuCapabilityId.matchHistoryList].isAvailable) {
       return LocalScoutSyncResult(
         matchesSeen: 0,
         matchesStored: 0,

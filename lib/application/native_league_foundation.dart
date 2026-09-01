@@ -123,6 +123,7 @@ class NativeLeagueFoundation {
   Future<LeagueAccountProfile> resolveAndSyncScout({
     required String gameName,
     required String tagLine,
+    bool includeHistory = true,
   }) async {
     await _ensureInitialized();
     final normalizedName = gameName.trim();
@@ -167,6 +168,8 @@ class NativeLeagueFoundation {
       puuid: account.puuid,
       platformId: account.platformId,
       capabilities: _state.capabilities,
+      currentAccountPuuid: connected?.puuid,
+      includeHistory: includeHistory,
     );
     return account;
   }
@@ -439,6 +442,7 @@ class NativeLeagueFoundation {
         puuid: puuid,
         platformId: platformId,
         capabilities: _state.capabilities,
+        currentAccountPuuid: _accounts?.state.context?.account.puuid,
       );
       if (_disposed || _accounts?.state.context?.account.puuid != puuid) return;
       _state = NativeLeagueFoundationState(

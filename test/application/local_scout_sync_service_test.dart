@@ -63,6 +63,7 @@ void main() {
       puuid: Puuid('player'),
       platformId: PlatformId('LA1'),
       capabilities: _capabilities(history: true, ranked: true),
+      currentAccountPuuid: Puuid('player'),
     );
 
     expect(result.matchesSeen, 2);
@@ -89,6 +90,7 @@ void main() {
         puuid: Puuid('player'),
         platformId: PlatformId('LA1'),
         capabilities: _capabilities(history: false, ranked: true),
+        currentAccountPuuid: Puuid('player'),
       );
 
       expect(result.rankedStored, isTrue);
@@ -120,6 +122,28 @@ void main() {
     expect(await database.select(database.matches).get(), hasLength(1));
     expect(await database.select(database.matchDocuments).get(), hasLength(1));
   });
+
+  test(
+    'never assigns the connected account rank to a different PUUID',
+    () async {
+      transport.responses['/lol-ranked/v1/current-ranked-stats'] = _ok({
+        'tier': 'CHALLENGER',
+      });
+
+      final result = await service.synchronize(
+        puuid: Puuid('player'),
+        currentAccountPuuid: Puuid('another-player'),
+        platformId: PlatformId('LA1'),
+        capabilities: _capabilities(ranked: true),
+      );
+
+      expect(result.rankedStored, isFalse);
+      expect(
+        transport.paths,
+        isNot(contains('/lol-ranked/v1/current-ranked-stats')),
+      );
+    },
+  );
 }
 
 LcuCapabilities _capabilities({bool history = false, bool ranked = false}) {
