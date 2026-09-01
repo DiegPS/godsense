@@ -5,14 +5,10 @@ class VisionPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final source = ref.watch(trackerSourceProvider);
-    final backend = ref.watch(companionControllerProvider);
     final game = ref.watch(effectiveGameProvider);
-    final cv = backend.health?.components['cv'];
     final calibrationState = ref.watch(nativeCalibrationProvider);
     final calibration = calibrationState.calibration;
     final native = ref.watch(nativeVisionProvider);
-    final pythonDiagnostics = ref.watch(pythonVisionDiagnosticsProvider);
     final corpus = ref.watch(cvCorpusComparatorProvider);
     final positionedEnemies = game?.enemies
         .where((enemy) => enemy['position'] is Map)
@@ -27,51 +23,26 @@ class VisionPage extends ConsumerWidget {
         ),
         const SizedBox(height: 8),
         const Text(
-          'Use the same interface to compare the current Python tracker with the DartCV implementation.',
-        ),
-        const SizedBox(height: 20),
-        SegmentedButton<TrackerSource>(
-          segments: const [
-            ButtonSegment(
-              value: TrackerSource.python,
-              icon: Icon(Icons.cloud_outlined),
-              label: Text('Python backend'),
-            ),
-            ButtonSegment(
-              value: TrackerSource.dartCv,
-              icon: Icon(Icons.memory),
-              label: Text('DartCV native'),
-            ),
-          ],
-          selected: {source},
-          onSelectionChanged: (selection) {
-            ref.read(trackerSourceProvider.notifier).state = selection.first;
-          },
+          'Captura Win32 y visión DartCV ejecutadas íntegramente en proceso.',
         ),
         const SizedBox(height: 20),
         Card(
           child: ListTile(
             leading: const Icon(Icons.circle_outlined),
-            title: Text(
-              source == TrackerSource.python
-                  ? 'Python tracker selected'
-                  : 'DartCV tracker selected',
-            ),
+            title: const Text('DartCV tracker nativo'),
             subtitle: Text(
-              source == TrackerSource.python
-                  ? 'Status: ${cv?.alive == true ? 'running' : cv?.error ?? 'idle'} · Target: 6 FPS'
-                  : 'Status: ${native.running
-                            ? 'running'
-                            : native.processing
-                            ? 'capturing'
-                            : 'idle'} · '
-                        '${native.fps.toStringAsFixed(1)} FPS · '
-                        'CV ${native.averageCvMilliseconds.toStringAsFixed(1)} ms avg / '
-                        '${native.p95CvMilliseconds.toStringAsFixed(1)} ms p95 · '
-                        'GDI ${native.averageCaptureMilliseconds.toStringAsFixed(1)} ms',
+              'Status: ${native.running
+                  ? 'running'
+                  : native.processing
+                  ? 'capturing'
+                  : 'idle'} · '
+              '${native.fps.toStringAsFixed(1)} FPS · '
+              'CV ${native.averageCvMilliseconds.toStringAsFixed(1)} ms avg / '
+              '${native.p95CvMilliseconds.toStringAsFixed(1)} ms p95 · '
+              'GDI ${native.averageCaptureMilliseconds.toStringAsFixed(1)} ms',
             ),
             trailing: Text(
-              'Legacy ${positionedEnemies ?? 0} · Native ${native.frame?.detections.length ?? 0}',
+              'Live ${positionedEnemies ?? 0} · CV ${native.frame?.detections.length ?? 0}',
             ),
           ),
         ),
@@ -171,35 +142,6 @@ class VisionPage extends ConsumerWidget {
             ),
           ),
         ),
-        const SizedBox(height: 12),
-        Card(
-          child: ExpansionTile(
-            initiallyExpanded: true,
-            leading: Icon(
-              pythonDiagnostics.connected
-                  ? Icons.check_circle
-                  : Icons.error_outline,
-              color: pythonDiagnostics.connected ? Colors.green : Colors.orange,
-            ),
-            title: const Text('Python TrackerEngine diagnóstico'),
-            subtitle: Text(
-              pythonDiagnostics.connected
-                  ? '${pythonDiagnostics.status} · '
-                        '${pythonDiagnostics.metrics['fps'] ?? 0} FPS · '
-                        '${pythonDiagnostics.detections.length} detecciones'
-                  : 'API 8430 desconectada. Inicia -CvDashboard.',
-            ),
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: _TrackerMetricsComparison(
-                  native: native,
-                  python: pythonDiagnostics,
-                ),
-              ),
-            ],
-          ),
-        ),
         const SizedBox(height: 16),
         Card(
           child: Padding(
@@ -249,30 +191,6 @@ class VisionPage extends ConsumerWidget {
             _VisionPreview(
               title: 'Candidatos detectados',
               bytes: native.frame?.annotatedPng,
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        Text(
-          'Previews Python exacto',
-          style: Theme.of(context).textTheme.titleLarge,
-        ),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 12,
-          runSpacing: 12,
-          children: [
-            _VisionPreview(
-              title: 'Python frame',
-              bytes: pythonDiagnostics.framePng,
-            ),
-            _VisionPreview(
-              title: 'Python máscara',
-              bytes: pythonDiagnostics.maskPng,
-            ),
-            _VisionPreview(
-              title: 'Python anotado',
-              bytes: pythonDiagnostics.annotatedPng,
             ),
           ],
         ),
@@ -424,120 +342,5 @@ class _VisionPreview extends StatelessWidget {
         ),
       ),
     );
-  }
-}
-
-class _TrackerMetricsComparison extends StatelessWidget {
-  const _TrackerMetricsComparison({required this.native, required this.python});
-
-  final NativeVisionState native;
-  final PythonVisionDiagnosticsState python;
-
-  @override
-  Widget build(BuildContext context) {
-    final metrics = python.metrics;
-    String pythonValue(String key) {
-      final value = metrics[key];
-      if (value is num) return '${value.toStringAsFixed(2)} ms';
-      return '—';
-    }
-
-    final rows = [
-      (
-        'Captura',
-        '${native.averageCaptureMilliseconds.toStringAsFixed(2)} ms',
-        pythonValue('capture_ms'),
-      ),
-      (
-        'Detector',
-        _nativeStage(native, 'mask', 'artifact_filter', 'ring_sweep'),
-        pythonValue('detect_ms'),
-      ),
-      (
-        'Clasificación',
-        _nativeStage(native, 'classification'),
-        pythonValue('score_ms'),
-      ),
-      (
-        'Total actual',
-        '${(native.averageCaptureMilliseconds + native.averageCvMilliseconds).toStringAsFixed(2)} ms',
-        pythonValue('total_ms'),
-      ),
-      (
-        'Promedio CV',
-        '${native.averageCvMilliseconds.toStringAsFixed(2)} ms',
-        pythonValue('average_ms'),
-      ),
-      (
-        'P95 CV',
-        '${native.p95CvMilliseconds.toStringAsFixed(2)} ms',
-        pythonValue('p95_ms'),
-      ),
-      ('FPS', native.fps.toStringAsFixed(2), '${metrics['fps'] ?? '—'}'),
-      (
-        'Duty (1 core)',
-        '${((native.averageCaptureMilliseconds + native.averageCvMilliseconds) * native.fps / 10).toStringAsFixed(2)}%',
-        metrics['duty_percent'] is num
-            ? '${(metrics['duty_percent'] as num).toStringAsFixed(2)}%'
-            : '—',
-      ),
-      (
-        'CPU proceso',
-        'Incluido en Flutter',
-        metrics['cpu_percent'] is num
-            ? '${(metrics['cpu_percent'] as num).toStringAsFixed(2)}%'
-            : '—',
-      ),
-      (
-        'Working set',
-        _formatBytes(native.workingSetBytes),
-        metrics['working_set_bytes'] is num
-            ? _formatBytes((metrics['working_set_bytes'] as num).toInt())
-            : '—',
-      ),
-    ];
-    return Table(
-      columnWidths: const {
-        0: FlexColumnWidth(1.4),
-        1: FlexColumnWidth(),
-        2: FlexColumnWidth(),
-      },
-      children: [
-        const TableRow(
-          children: [
-            Padding(padding: EdgeInsets.all(6), child: Text('Métrica')),
-            Padding(padding: EdgeInsets.all(6), child: Text('DartCV')),
-            Padding(padding: EdgeInsets.all(6), child: Text('Python exacto')),
-          ],
-        ),
-        for (final row in rows)
-          TableRow(
-            children: [
-              Padding(padding: const EdgeInsets.all(6), child: Text(row.$1)),
-              Padding(padding: const EdgeInsets.all(6), child: Text(row.$2)),
-              Padding(padding: const EdgeInsets.all(6), child: Text(row.$3)),
-            ],
-          ),
-      ],
-    );
-  }
-
-  String _formatBytes(int bytes) {
-    if (bytes <= 0) return '—';
-    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MiB';
-  }
-
-  String _nativeStage(
-    NativeVisionState state,
-    String first, [
-    String? second,
-    String? third,
-  ]) {
-    final stages = state.frame?.stageMicroseconds ?? const {};
-    final microseconds =
-        (stages[first] ?? 0) +
-        (second == null ? 0 : stages[second] ?? 0) +
-        (third == null ? 0 : stages[third] ?? 0);
-    return '${(microseconds / 1000).toStringAsFixed(2)} ms';
   }
 }

@@ -140,18 +140,6 @@ class GodSenseHome extends ConsumerWidget {
             iconSize: calibration?.trackingIconSize ?? 28,
           );
     });
-    ref.listen(trackerSourceProvider, (previous, next) {
-      final calibration = ref.read(nativeCalibrationProvider).calibration;
-      ref
-          .read(nativeVisionProvider.notifier)
-          .configure(
-            enabled:
-                forceNativeVision ||
-                ref.read(effectiveGameProvider)?.gameEnded == false,
-            bounds: calibration?.trackingBounds,
-            iconSize: calibration?.trackingIconSize ?? 28,
-          );
-    });
     final isDesktop = MediaQuery.sizeOf(context).width >= 900;
 
     final content = switch (selectedPage) {

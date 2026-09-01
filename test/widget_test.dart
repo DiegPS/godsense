@@ -3,11 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:godsense/application/companion_controller.dart';
 import 'package:godsense/application/dependencies.dart';
-import 'package:godsense/infrastructure/legacy/legacy_companion_gateway.dart';
-import 'package:godsense/infrastructure/local_coach/local_coach_gateway.dart';
+import 'package:godsense/infrastructure/native_runtime/native_companion_gateway.dart';
 import 'package:godsense/main.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  setUp(() => SharedPreferences.setMockInitialValues({}));
+
   testWidgets('shows the GodSense overview', (tester) async {
     await tester.pumpWidget(_testApp());
 
@@ -31,20 +33,14 @@ void main() {
     );
   });
 
-  testWidgets(
-    'defaults to native vision and keeps Python diagnostics optional',
-    (tester) async {
-      await tester.pumpWidget(_testApp());
+  testWidgets('uses only the native DartCV vision runtime', (tester) async {
+    await tester.pumpWidget(_testApp());
 
-      await tester.tap(find.byIcon(Icons.visibility_outlined));
-      await tester.pumpAndSettle();
-      expect(find.text('DartCV tracker selected'), findsOneWidget);
-
-      await tester.tap(find.text('Python backend'));
-      await tester.pumpAndSettle();
-      expect(find.text('Python tracker selected'), findsOneWidget);
-    },
-  );
+    await tester.tap(find.byIcon(Icons.visibility_outlined));
+    await tester.pumpAndSettle();
+    expect(find.text('DartCV tracker nativo'), findsOneWidget);
+    expect(find.text('Python backend'), findsNothing);
+  });
 
   testWidgets('exposes native Sherpa Push-to-Talk and voice models', (
     tester,
@@ -70,10 +66,10 @@ Widget _testApp() {
     overrides: [
       companionControllerProvider.overrideWith(
         (_) => CompanionController(
-          LegacyCompanionGateway(),
-          runtime: LegacyCompanionRuntime(),
-          coach: LocalCoachGateway(),
-          coachRuntime: LocalCoachRuntime(),
+          NativeCompanionGateway(),
+          runtime: const InProcessCompanionRuntime(),
+          coach: const NativeCoachHealthGateway(),
+          coachRuntime: const InProcessCompanionRuntime(),
         ),
       ),
     ],

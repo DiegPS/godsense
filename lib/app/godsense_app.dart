@@ -15,7 +15,6 @@ import '../application/native_speech_controller.dart';
 import '../application/native_vision_controller.dart';
 import '../application/overlay_layout_controller.dart';
 import '../application/overlay_parity_logger.dart';
-import '../application/python_vision_diagnostics_controller.dart';
 import '../domain/companion_models.dart';
 import '../presentation/native_speech_settings_card.dart';
 
@@ -33,9 +32,6 @@ part '../presentation/window/overlay_window_manager.dart';
 part '../presentation/shared/presentation_shared.dart';
 
 final selectedPageProvider = StateProvider<int>((ref) => 0);
-final trackerSourceProvider = StateProvider<TrackerSource>(
-  (ref) => TrackerSource.dartCv,
-);
 final overlayEnabledProvider = StateProvider<bool>((ref) => true);
 final overlayOpenProvider = StateProvider<bool>((ref) => false);
 
@@ -44,8 +40,6 @@ final overlayWindowManager = OverlayWindowManager(appProviderContainer);
 final overlayParityLogger = OverlayParityLogger();
 final forceNativeVision =
     Platform.environment['GODSENSE_NATIVE_VISION_ALWAYS'] == '1';
-
-enum TrackerSource { python, dartCv }
 
 final effectiveGameProvider = Provider<GameSnapshot?>((ref) {
   final native = ref.watch(nativeLeagueProvider);
