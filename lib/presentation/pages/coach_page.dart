@@ -214,6 +214,25 @@ class _CoachPageState extends ConsumerState<CoachPage> {
                   : _BuildsView(builds: builds),
             ),
             _CoachPanel(
+              title: 'Runas del cliente de League',
+              icon: Icons.auto_fix_high_outlined,
+              child: nativeLeague.runeRecommendationsLoading
+                  ? const LinearProgressIndicator()
+                  : nativeLeague.runeRecommendations == null
+                  ? Text(
+                      nativeLeague.runeRecommendationsError ??
+                          'Selecciona un campeón y una posición para cargar '
+                              'las recomendaciones actuales.',
+                    )
+                  : _RuneRecommendationsView(
+                      bundle: nativeLeague.runeRecommendations!,
+                      importing: nativeLeague.operationInProgress,
+                      onImport: (variant) => ref
+                          .read(nativeLeagueProvider.notifier)
+                          .importRuneRecommendation(variant),
+                    ),
+            ),
+            _CoachPanel(
               title: 'Tu Enfrentamiento',
               icon: Icons.compare_arrows,
               child: Row(
@@ -511,6 +530,67 @@ class _BuildsView extends StatelessWidget {
     );
   }
 }
+
+class _RuneRecommendationsView extends StatelessWidget {
+  const _RuneRecommendationsView({
+    required this.bundle,
+    required this.importing,
+    required this.onImport,
+  });
+
+  final RuneRecommendationBundle bundle;
+  final bool importing;
+  final ValueChanged<RuneRecommendationVariant> onImport;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '${bundle.position.lcuValue} · mapa ${bundle.mapId}'
+          '${bundle.patch == null ? '' : ' · parche ${bundle.patch!.value}'}',
+          style: Theme.of(context).textTheme.labelMedium,
+        ),
+        const SizedBox(height: 8),
+        for (var index = 0; index < bundle.variants.length; index++)
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text(
+              'Opción ${index + 1} · Keystone '
+              '${bundle.variants[index].keystoneId}',
+            ),
+            subtitle: Text(
+              [
+                _recommendationAttribute(
+                  bundle.variants[index].primaryAttribute,
+                ),
+                _recommendationAttribute(
+                  bundle.variants[index].secondaryAttribute,
+                ),
+                'Hechizos ${bundle.variants[index].summonerSpellIds.join(' + ')}',
+              ].where((value) => value.isNotEmpty).join(' · '),
+            ),
+            trailing: IconButton(
+              tooltip: 'Importar esta página de runas',
+              onPressed: importing
+                  ? null
+                  : () => onImport(bundle.variants[index]),
+              icon: const Icon(Icons.download_outlined),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+String _recommendationAttribute(String value) => switch (value) {
+  'kCooldown' => 'Enfriamiento',
+  'kMana' => 'Maná',
+  'kHealing' => 'Curación',
+  'kDamage' => 'Daño',
+  _ => value,
+};
 
 class _PickAdviceView extends StatelessWidget {
   const _PickAdviceView({required this.advice});

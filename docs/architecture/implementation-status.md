@@ -17,6 +17,7 @@
 | Game lifetime | Champ Select through Post Game shares one logical generation | Coordinator and foundation tests |
 | LCU compatibility | Granular capability results; known endpoint probing only | Probe tests |
 | LCU reactivity | `OnJsonApiEvent` accelerates REST reconciliation; polling remains fallback | WebSocket protocol tests |
+| Rune recommendations | Native LCU alternatives by champion, role, and map, including summoner spells and explicit import | Live LCU 16.17 probe and source contract tests |
 | Live Client | Native polling, current projection, complete event journal, logical game time | Adapter and projection parity tests |
 | Scout | Account-scoped ranked and match cache available offline | SQLite, controller, and widget tests |
 | Data Dragon | Resource contracts, patch resolution, validation, and content-addressed cache | Resolver tests |
@@ -29,7 +30,7 @@
 
 ## Current measured baseline
 
-The complete suite currently has 144 passing tests and 11 explicitly skipped
+The complete suite currently has 148 passing tests and 11 explicitly skipped
 native smoke tests. The skipped tests require model-path environment variables;
 model discovery from the copied Airstream cache is covered separately.
 
@@ -52,9 +53,10 @@ champion or patch knowledge base. Its fallback returns fixed Electrocute/AP
 runes and generic matchup/teamfight prose independent of the actual champion.
 Copying that behavior would produce confident but false recommendations.
 
-GodSense therefore withholds automatic builds and runes when no patch-exact
-knowledge artifact is available. This is a correctness feature, not a missing
-fallback.
+GodSense now reads the League Client's native rune recommendations and exposes
+all returned alternatives with their exact recommendation IDs. It still
+withholds build recommendations when no patch-exact item artifact is available.
+This is a correctness feature, not a fabricated fallback.
 
 ## Gates that require a real League installation/session
 
@@ -72,7 +74,9 @@ Before a release candidate, run an on-machine acceptance session covering:
 
 ## Next product decision: patch-exact tactical knowledge
 
-Builds, runes, and matchup-specific advice need a trusted, versioned input.
+Builds and matchup-specific advice need a trusted, versioned input. Runes use
+the installed League Client recommender and retain the exact client version,
+patch, champion, position, map, and recommendation IDs.
 The next implementation must choose and license a source, then store:
 
 - champion, role, opponent, queue, and rank context;

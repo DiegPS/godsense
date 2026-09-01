@@ -33,13 +33,14 @@ class LcuClient implements LcuReadTransport {
     final provider = credentialsProvider;
     if (provider != null) return _credentials = provider();
     final explicit = Platform.environment['GODSENSE_LCU_LOCKFILE'];
-    final candidates = [
-      explicit,
-      r'C:\Riot Games\League of Legends\lockfile',
-      r'C:\Program Files\Riot Games\League of Legends\lockfile',
-      if (Platform.environment['PROGRAMDATA'] != null)
-        '${Platform.environment['PROGRAMDATA']}\\Riot Games\\League of Legends\\lockfile',
-    ];
+    final candidates = explicit != null && explicit.trim().isNotEmpty
+        ? <String?>[explicit]
+        : <String?>[
+            r'C:\Riot Games\League of Legends\lockfile',
+            r'C:\Program Files\Riot Games\League of Legends\lockfile',
+            if (Platform.environment['PROGRAMDATA'] != null)
+              '${Platform.environment['PROGRAMDATA']}\\Riot Games\\League of Legends\\lockfile',
+          ];
     for (final path in candidates) {
       if (path == null) continue;
       final file = File(path);

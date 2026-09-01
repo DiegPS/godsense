@@ -51,6 +51,7 @@ class LcuCapabilityProbe {
         checkedAt,
         context.clientVersion,
       ),
+      await _probeRuneRecommendations(checkedAt, context.clientVersion),
     ];
 
     if (context.gameflowPhase == 'ChampSelect') {
@@ -185,6 +186,15 @@ class LcuCapabilityProbe {
       );
     }
 
+    return _fromFailure(id, response, checkedAt, clientVersion);
+  }
+
+  LcuCapability _fromFailure(
+    LcuCapabilityId id,
+    LcuProbeResponse response,
+    DateTime checkedAt,
+    String? clientVersion,
+  ) {
     final status = switch (response.failureKind) {
       LcuProbeFailureKind.disconnected ||
       LcuProbeFailureKind.timeout ||
@@ -216,6 +226,49 @@ class LcuCapabilityProbe {
       clientVersion: clientVersion,
       httpStatus: response.statusCode,
       detail: response.error,
+    );
+  }
+
+  Future<LcuCapability> _probeRuneRecommendations(
+    DateTime checkedAt,
+    String? clientVersion,
+  ) async {
+    const id = LcuCapabilityId.runeRecommendationsRead;
+    final response = await transport.getDetailed(
+      '/lol-perks/v1/recommended-pages/champion/103/'
+      'position/MIDDLE/map/11',
+    );
+    if (!response.isSuccess) {
+      return _fromFailure(id, response, checkedAt, clientVersion);
+    }
+    final body = response.body;
+    final valid =
+        body is List &&
+        body.whereType<Map>().any(
+          (item) =>
+              item['recommendationChampionId'] == 103 &&
+              item['position']?.toString().toUpperCase() == 'MIDDLE' &&
+              item['perks'] is List &&
+              (item['perks'] as List).length == 9,
+        );
+    if (!valid) {
+      return LcuCapability(
+        id: id,
+        status: LcuCapabilityStatus.unknown,
+        reason: LcuCapabilityReason.incompatibleResponse,
+        checkedAt: checkedAt,
+        clientVersion: clientVersion,
+        httpStatus: response.statusCode,
+        detail: 'Rune recommender returned no compatible recommendation.',
+      );
+    }
+    return LcuCapability(
+      id: id,
+      status: LcuCapabilityStatus.available,
+      reason: LcuCapabilityReason.verified,
+      checkedAt: checkedAt,
+      clientVersion: clientVersion,
+      httpStatus: response.statusCode,
     );
   }
 

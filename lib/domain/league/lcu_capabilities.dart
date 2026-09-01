@@ -8,6 +8,7 @@ enum LcuCapabilityId {
   rankedCurrent,
   rankedByPuuid,
   patchVersion,
+  runeRecommendationsRead,
   runeWriting,
   itemSetWriting,
 }
@@ -101,6 +102,9 @@ class LcuCapabilities {
   bool get canLoadRanked =>
       this[LcuCapabilityId.rankedCurrent].isAvailable ||
       this[LcuCapabilityId.rankedByPuuid].isAvailable;
+
+  bool get canRecommendRunes =>
+      this[LcuCapabilityId.runeRecommendationsRead].isAvailable;
 
   LcuCapabilities replace(LcuCapability capability) =>
       LcuCapabilities([..._values.values, capability]);

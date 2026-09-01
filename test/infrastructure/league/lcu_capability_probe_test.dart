@@ -24,6 +24,10 @@ void main() {
         expect(capabilities[LcuCapabilityId.patchVersion].isAvailable, isTrue);
         expect(capabilities[LcuCapabilityId.rankedCurrent].isAvailable, isTrue);
         expect(
+          capabilities[LcuCapabilityId.runeRecommendationsRead].isAvailable,
+          isTrue,
+        );
+        expect(
           capabilities[LcuCapabilityId.champSelect].reason,
           LcuCapabilityReason.requiresContext,
         );
@@ -38,9 +42,11 @@ void main() {
             '/lol-gameflow/v1/gameflow-phase',
             '/lol-patch/v1/game-version',
             '/lol-ranked/v1/current-ranked-stats',
+            '/lol-perks/v1/recommended-pages/champion/103/'
+                'position/MIDDLE/map/11',
           ]),
         );
-        expect(transport.paths, hasLength(4));
+        expect(transport.paths, hasLength(5));
       },
     );
 
@@ -166,6 +172,18 @@ class _FakeTransport implements LcuProbeTransport {
   @override
   Future<LcuProbeResponse> getDetailed(String path) async {
     paths.add(path);
+    if (path.contains('/recommended-pages/champion/103/')) {
+      return const LcuProbeResponse.success(
+        body: [
+          {
+            'recommendationChampionId': 103,
+            'position': 'MIDDLE',
+            'perks': [1, 2, 3, 4, 5, 6, 7, 8, 9],
+          },
+        ],
+        statusCode: 200,
+      );
+    }
     return responses[path] ??
         const LcuProbeResponse.success(
           body: <String, Object?>{},

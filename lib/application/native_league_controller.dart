@@ -6,11 +6,13 @@ import '../domain/identity/league_identity.dart';
 import '../domain/league/game_session.dart';
 import '../domain/league/lcu_capabilities.dart';
 import '../domain/league/local_scout.dart';
+import '../domain/league/rune_recommendation.dart';
 import '../domain/tactical/tactical_models.dart';
 import '../domain/vision/vision_observation.dart';
 import '../infrastructure/data_dragon/data_dragon_catalog_service.dart';
 import '../infrastructure/league/league_clients.dart';
 import '../infrastructure/league/lcu_event_stream.dart';
+import '../infrastructure/league/lcu_rune_recommendation_source.dart';
 import 'account_context_coordinator.dart';
 import 'live_game_processor.dart';
 import 'native_league_foundation.dart';
@@ -34,6 +36,9 @@ class NativeLeagueState {
     this.accountContext,
     this.lcuCapabilities,
     this.gameSession = const GameSessionState(),
+    this.runeRecommendations,
+    this.runeRecommendationsLoading = false,
+    this.runeRecommendationsError,
   });
 
   final bool lcuConnected;
@@ -53,6 +58,9 @@ class NativeLeagueState {
   final AccountContextState? accountContext;
   final LcuCapabilities? lcuCapabilities;
   final GameSessionState gameSession;
+  final RuneRecommendationBundle? runeRecommendations;
+  final bool runeRecommendationsLoading;
+  final String? runeRecommendationsError;
 
   bool get inGame => liveGame != null && liveGame!['_game_ended'] != true;
 
@@ -77,6 +85,11 @@ class NativeLeagueState {
     AccountContextState? accountContext,
     LcuCapabilities? lcuCapabilities,
     GameSessionState? gameSession,
+    RuneRecommendationBundle? runeRecommendations,
+    bool clearRuneRecommendations = false,
+    bool? runeRecommendationsLoading,
+    String? runeRecommendationsError,
+    bool clearRuneRecommendationsError = false,
   }) {
     return NativeLeagueState(
       lcuConnected: lcuConnected ?? this.lcuConnected,
@@ -98,6 +111,14 @@ class NativeLeagueState {
       accountContext: accountContext ?? this.accountContext,
       lcuCapabilities: lcuCapabilities ?? this.lcuCapabilities,
       gameSession: gameSession ?? this.gameSession,
+      runeRecommendations: clearRuneRecommendations
+          ? null
+          : runeRecommendations ?? this.runeRecommendations,
+      runeRecommendationsLoading:
+          runeRecommendationsLoading ?? this.runeRecommendationsLoading,
+      runeRecommendationsError: clearRuneRecommendationsError
+          ? null
+          : runeRecommendationsError ?? this.runeRecommendationsError,
     );
   }
 }
@@ -117,18 +138,22 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
     LiveGameProcessor? processor,
     this.dataDragonCatalog,
     this.foundation,
+    LcuRuneRecommendationSource? runeRecommendationSource,
   }) : _lcu = lcu ?? LcuClient(),
        _live = live ?? LiveClientApi(),
        _processor = processor ?? LiveGameProcessor(),
        super(const NativeLeagueState()) {
     _lcuEvents =
         lcuEvents ?? LcuEventStream(credentialsProvider: _lcu.discover);
+    _runeRecommendationSource =
+        runeRecommendationSource ?? LcuRuneRecommendationSource(client: _lcu);
   }
 
   final LcuClient _lcu;
   final LiveClientApi _live;
   final LiveGameProcessor _processor;
   late final LcuEventStream _lcuEvents;
+  late final LcuRuneRecommendationSource _runeRecommendationSource;
   DataDragonCatalogService? dataDragonCatalog;
   NativeLeagueFoundation? foundation;
   Timer? _timer;
@@ -143,6 +168,7 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
   DateTime? _lastItemCatalogAttempt;
   int _consecutiveLiveFailures = 0;
   String? _currentGameId;
+  String? _runeRequestKey;
 
   int? get localSummonerId => _localSummonerId;
 
@@ -218,7 +244,10 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
             }
             final session = await _lcu.get('/lol-champ-select/v1/session');
             champSelectSession = session;
-            if (session is Map) lobby = await _normalizeLobby(session);
+            if (session is Map) {
+              lobby = await _normalizeLobby(session);
+              _ensureRuneRecommendationsLoaded(lobby);
+            }
           }
           if (phase == 'InProgress' && _currentGameId == null) {
             final session = await _lcu.get('/lol-gameflow/v1/session');
@@ -525,6 +554,64 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
     }
   }
 
+  Future<void> loadRuneRecommendations({
+    required int championId,
+    required LeaguePosition position,
+    int mapId = 11,
+  }) async {
+    state = state.copyWith(
+      runeRecommendationsLoading: true,
+      clearRuneRecommendationsError: true,
+    );
+    try {
+      final account = foundation?.state.account.context?.account;
+      final bundle = await _runeRecommendationSource.load(
+        championId: championId,
+        position: position,
+        mapId: mapId,
+        clientVersion: account?.clientVersion == null
+            ? null
+            : ClientVersion(account!.clientVersion!),
+        patch: account?.patchKey,
+      );
+      state = state.copyWith(
+        runeRecommendations: bundle,
+        runeRecommendationsLoading: false,
+        clearRuneRecommendationsError: true,
+      );
+    } catch (error) {
+      _runeRequestKey = null;
+      state = state.copyWith(
+        runeRecommendationsLoading: false,
+        runeRecommendationsError: error.toString(),
+      );
+    }
+  }
+
+  Future<void> importRuneRecommendation(
+    RuneRecommendationVariant recommendation,
+  ) => importRecommendedSetup({'runes': recommendation.toImportJson()});
+
+  void _ensureRuneRecommendationsLoaded(Map<String, dynamic> lobby) {
+    final snapshot = _stringMap(lobby['snapshot']);
+    final local = _mapList(snapshot['my_team'])
+        .where((player) => player['is_local'] == true);
+    if (local.isEmpty) return;
+    final championId = (local.first['champion_id'] as num?)?.toInt() ?? 0;
+    final position = LeaguePosition.tryParse(local.first['position']);
+    if (championId <= 0 || position == null) return;
+    final key = '$championId|${position.lcuValue}|11';
+    if (_runeRequestKey == key &&
+        (state.runeRecommendationsLoading ||
+            state.runeRecommendations?.championId == championId)) {
+      return;
+    }
+    _runeRequestKey = key;
+    unawaited(
+      loadRuneRecommendations(championId: championId, position: position),
+    );
+  }
+
   Future<void> _loadItemCatalog() async {
     try {
       final account = foundation?.state.account.context?.account;
@@ -578,6 +665,7 @@ const _reconciledLcuFamilies = <String>[
   '/lol-summoner/',
   '/lol-ranked/',
   '/lol-match-history/',
+  '/lol-perks/',
 ];
 
 Map<String, dynamic> _stringMap(Object? value) {
