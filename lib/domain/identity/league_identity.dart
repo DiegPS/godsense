@@ -17,6 +17,35 @@ extension type const PatchKey._(String value) {
   }
 }
 
+extension type const ClientVersion._(String value) {
+  factory ClientVersion(String value) =>
+      ClientVersion._(_required('client version', value));
+}
+
+extension type const DataDragonVersion._(String value) {
+  factory DataDragonVersion(String value) {
+    final normalized = value.trim();
+    if (!RegExp(r'^\d+\.\d+\.\d+$').hasMatch(normalized)) {
+      throw FormatException(
+        'Data Dragon version must use major.minor.build: $value',
+      );
+    }
+    return DataDragonVersion._(normalized);
+  }
+
+  PatchKey get patchKey => PatchKey(value.split('.').take(2).join('.'));
+}
+
+extension type const LeagueLocale._(String value) {
+  factory LeagueLocale(String value) {
+    final normalized = value.trim();
+    if (!RegExp(r'^[a-z]{2}_[A-Z]{2}$').hasMatch(normalized)) {
+      throw FormatException('League locale must use ll_CC: $value');
+    }
+    return LeagueLocale._(normalized);
+  }
+}
+
 class MatchKey {
   const MatchKey({required this.platformId, required this.gameId});
 

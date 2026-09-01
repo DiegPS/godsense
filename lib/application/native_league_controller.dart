@@ -1,10 +1,10 @@
 import 'dart:async';
-import 'dart:convert';
-import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../domain/identity/league_identity.dart';
 import '../domain/league/lcu_capabilities.dart';
+import '../infrastructure/data_dragon/data_dragon_catalog_service.dart';
 import '../infrastructure/league/league_clients.dart';
 import 'account_context_coordinator.dart';
 import 'live_game_processor.dart';
@@ -101,6 +101,7 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
     LcuClient? lcu,
     LiveClientApi? live,
     LiveGameProcessor? processor,
+    this.dataDragonCatalog,
     this.foundation,
   }) : _lcu = lcu ?? LcuClient(),
        _live = live ?? LiveClientApi(),
@@ -110,6 +111,7 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
   final LcuClient _lcu;
   final LiveClientApi _live;
   final LiveGameProcessor _processor;
+  DataDragonCatalogService? dataDragonCatalog;
   NativeLeagueFoundation? foundation;
   Timer? _timer;
   bool _polling = false;
@@ -459,56 +461,20 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
   }
 
   Future<void> _loadItemCatalog() async {
-    final client = HttpClient()..connectionTimeout = const Duration(seconds: 4);
     try {
-      final versionsRequest = await client.getUrl(
-        Uri.parse('https://ddragon.leagueoflegends.com/api/versions.json'),
+      final account = foundation?.state.account.context?.account;
+      final patch = account?.patchKey;
+      if (patch == null) return;
+      dataDragonCatalog ??= await DataDragonCatalogService.createDefault();
+      _itemCatalog = await dataDragonCatalog!.loadItems(
+        patch: patch,
+        platformId: account?.platformId ?? PlatformId('LA1'),
+        clientVersion: account?.clientVersion == null
+            ? null
+            : ClientVersion(account!.clientVersion!),
       );
-      final versionsResponse = await versionsRequest.close();
-      if (versionsResponse.statusCode != HttpStatus.ok) {
-        await versionsResponse.drain<void>();
-        return;
-      }
-      final versionBytes = await versionsResponse.fold<List<int>>(
-        <int>[],
-        (buffer, data) => buffer..addAll(data),
-      );
-      final versionsRaw = jsonDecode(
-        utf8.decode(versionBytes, allowMalformed: true),
-      );
-      if (versionsRaw is! List || versionsRaw.isEmpty) return;
-      final version = versionsRaw.first.toString();
-      final request = await client.getUrl(
-        Uri.parse(
-          'https://ddragon.leagueoflegends.com/cdn/$version/data/en_US/item.json',
-        ),
-      );
-      final response = await request.close();
-      if (response.statusCode != HttpStatus.ok) {
-        await response.drain<void>();
-        return;
-      }
-      final itemBytes = await response.fold<List<int>>(
-        <int>[],
-        (buffer, data) => buffer..addAll(data),
-      );
-      final decoded = jsonDecode(utf8.decode(itemBytes, allowMalformed: true));
-      final data = decoded is Map ? decoded['data'] : null;
-      if (data is Map) {
-        _itemCatalog = {
-          for (final entry in data.entries)
-            if (int.tryParse(entry.key.toString()) != null &&
-                entry.value is Map)
-              int.parse(entry.key.toString()): {
-                ...Map<String, dynamic>.from(entry.value as Map),
-                '_version': version,
-              },
-        };
-      }
     } catch (_) {
       _itemCatalog = const {};
-    } finally {
-      client.close(force: true);
     }
   }
 
