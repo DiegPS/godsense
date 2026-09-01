@@ -1,21 +1,13 @@
 abstract interface class CompanionGateway {
   Future<Map<String, dynamic>> health();
-  Future<Map<String, dynamic>?> gameState();
   Future<Map<String, dynamic>> coaching();
   Future<Map<String, dynamic>> coachingStatus();
   Future<List<Map<String, dynamic>>> directives();
   Future<Map<String, dynamic>> players();
-  Future<Map<String, dynamic>> timeline({int lastN = 3600});
   Future<Map<String, dynamic>> config();
   Future<Map<String, dynamic>> lobbyState();
   Future<Map<String, dynamic>> lobbyHealth();
   Future<Map<String, dynamic>> generateLobbyBrief(String candidate);
-  Future<Map<String, dynamic>> calibration();
-  Future<Map<String, dynamic>> detectCalibration();
-  Future<Map<String, dynamic>> saveCalibration(
-    Map<String, dynamic> bounds, {
-    String source = 'auto',
-  });
   Future<Map<String, dynamic>> settings();
   Future<Map<String, dynamic>> updateSettings(Map<String, dynamic> patch);
   Future<Map<String, dynamic>> testVoice();

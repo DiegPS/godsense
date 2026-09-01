@@ -24,6 +24,7 @@ class CvCorpusComparisonState {
     this.scoreSamples = 0,
     this.sampleComparisons = const [],
     this.identityMismatches = const [],
+    this.boxMismatches = const [],
     this.error,
   });
 
@@ -42,6 +43,7 @@ class CvCorpusComparisonState {
   final int scoreSamples;
   final List<String> sampleComparisons;
   final List<String> identityMismatches;
+  final List<String> boxMismatches;
   final String? error;
 
   double get precision =>
@@ -104,6 +106,7 @@ class CvCorpusComparator extends StateNotifier<CvCorpusComparisonState> {
     var processedFrames = 0;
     final sampleComparisons = <String>[];
     final identityMismatches = <String>[];
+    final boxMismatches = <String>[];
 
     try {
       for (final metadataFile in files) {
@@ -169,6 +172,12 @@ class CvCorpusComparator extends StateNotifier<CvCorpusComparisonState> {
               (box[2] as num).toInt() == dart.x + dart.width &&
               (box[3] as num).toInt() == dart.y + dart.height) {
             exactBoxMatches++;
+          } else if (boxMismatches.length < 100) {
+            boxMismatches.add(
+              '${metadataFile.uri.pathSegments.last}: '
+              'python=$box dart=[${dart.x}, ${dart.y}, '
+              '${dart.x + dart.width}, ${dart.y + dart.height}]',
+            );
           }
           if (python['name'] == dart.championName) {
             identityMatches++;
@@ -177,7 +186,10 @@ class CvCorpusComparator extends StateNotifier<CvCorpusComparisonState> {
               '${metadataFile.uri.pathSegments.last}: '
               'python=${python['name'] ?? 'UNKNOWN'} '
               'dart=${dart.championName ?? 'UNKNOWN'} '
-              'box=$box conf=${dart.confidence.toStringAsFixed(3)}',
+              'pythonBox=$box '
+              'dartBox=[${dart.x}, ${dart.y}, '
+              '${dart.x + dart.width}, ${dart.y + dart.height}] '
+              'conf=${dart.confidence.toStringAsFixed(3)}',
             );
           }
           final expectedConfidence = (python['confidence'] as num?)?.toDouble();
@@ -237,6 +249,7 @@ class CvCorpusComparator extends StateNotifier<CvCorpusComparisonState> {
         scoreSamples: scoreSamples,
         sampleComparisons: sampleComparisons,
         identityMismatches: identityMismatches,
+        boxMismatches: boxMismatches,
       );
     } catch (error) {
       state = CvCorpusComparisonState(error: error.toString());

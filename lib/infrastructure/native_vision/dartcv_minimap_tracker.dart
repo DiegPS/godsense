@@ -93,6 +93,7 @@ class NativeVisionFrame {
 
 class DartCvMinimapTracker {
   final List<NativeChampionTarget> _targets = [];
+  final Float32List _float32Scratch = Float32List(1);
   cv.Mat? _kernel;
 
   void setTargets(Map<String, List<Uint8List>> icons, {required int iconSize}) {
@@ -196,8 +197,22 @@ class DartCvMinimapTracker {
     final highRed = cv.inRangebyScalar(hsv, lower2, upper2);
     final redMask = cv.bitwiseOR(lowRed, highRed);
     _kernel ??= cv.Mat.ones(3, 3, cv.MatType.CV_8UC1);
-    final dilated = cv.dilate(redMask, _kernel!, iterations: 1);
-    final closed = cv.morphologyEx(dilated, cv.MORPH_CLOSE, _kernel!);
+    // DartCV substitutes Scalar(0) when borderValue is omitted, whereas
+    // Python OpenCV uses morphologyDefaultBorderValue(). The distinction is
+    // observable for closing operations that touch an image boundary.
+    final morphologyBorder = cv.morphologyDefaultBorderValue();
+    final dilated = cv.dilate(
+      redMask,
+      _kernel!,
+      iterations: 1,
+      borderValue: morphologyBorder,
+    );
+    final closed = cv.morphologyEx(
+      dilated,
+      cv.MORPH_CLOSE,
+      _kernel!,
+      borderValue: morphologyBorder,
+    );
     mark('mask');
     final cleanMask = cv.Mat.zeros(
       capture.height,
@@ -221,24 +236,36 @@ class DartCvMinimapTracker {
       if (cv.contourArea(contour) <= 15) continue;
       final (center, radius) = cv.minEnclosingCircle(contour);
       testMask.setTo(zero);
-      final centerPoint = cv.Point(center.x.round(), center.y.round());
+      // Python/OpenCV uses int(cx), which truncates positive contour centers.
+      // Rounding here changes the artifact mask by one pixel on half-pixel
+      // centers and can add or remove ring-template hits.
+      final centerPoint = cv.Point(center.x.toInt(), center.y.toInt());
       cv.circle(
         testMask,
         centerPoint,
-        (radius * 0.4).round(),
+        (radius * 0.4).toInt(),
         white,
         thickness: cv.FILLED,
       );
       final intersection = cv.bitwiseAND(closed, testMask);
       final mean = cv.mean(intersection, mask: testMask);
       if (mean.val1 < 80) {
-        cv.drawContours(
-          cleanMask,
-          contours,
-          index,
-          white,
-          thickness: cv.FILLED,
-        );
+        // Python calls drawContours(cleanMask, [contour], -1, ...). Passing
+        // the complete contour vector with an index is normally equivalent,
+        // but differs by boundary pixels for contours clipped at the image
+        // edge in the DartCV wrapper.
+        final singleContour = cv.VecVecPoint.fromVecPoint(contour);
+        try {
+          cv.drawContours(
+            cleanMask,
+            singleContour,
+            -1,
+            white,
+            thickness: cv.FILLED,
+          );
+        } finally {
+          singleContour.dispose();
+        }
       }
       mean.dispose();
       intersection.dispose();
@@ -430,6 +457,7 @@ class DartCvMinimapTracker {
       cleanMask.dispose();
       closed.dispose();
       dilated.dispose();
+      morphologyBorder.dispose();
       redMask.dispose();
       highRed.dispose();
       lowRed.dispose();
@@ -618,7 +646,10 @@ class DartCvMinimapTracker {
       if (rootA != rootB) parent[rootB] = rootA;
     }
 
-    final delta = (eps * size).round();
+    // cv::SimilarRects compares integer coordinates against eps * size. With
+    // equal-sized rectangles, a 22.5 delta therefore accepts at most 22 px.
+    // cv::groupRectangles also uses cvRound (ties-to-even) for suppression.
+    final delta = _cvRoundNonNegative(eps * size);
     final cellSize = delta.clamp(1, size);
     final cells = <(int, int), List<int>>{};
     for (var index = 0; index < hits.length; index++) {
@@ -651,13 +682,13 @@ class DartCvMinimapTracker {
     }
     final clusters = sums.values
         .where((cluster) => cluster.count > groupThreshold)
-        .map(
-          (cluster) => (
-            x: (cluster.x / cluster.count).round(),
-            y: (cluster.y / cluster.count).round(),
+        .map((cluster) {
+          return (
+            x: _opencvAverage(cluster.x, cluster.count),
+            y: _opencvAverage(cluster.y, cluster.count),
             count: cluster.count,
-          ),
-        )
+          );
+        })
         .toList();
 
     final output = <cv.Rect>[];
@@ -689,6 +720,28 @@ class DartCvMinimapTracker {
       }
     }
     return output;
+  }
+
+  int _cvRoundNonNegative(double value) {
+    final lower = value.floor();
+    final fraction = value - lower;
+    if (fraction < 0.5) return lower;
+    if (fraction > 0.5) return lower + 1;
+    return lower.isEven ? lower : lower + 1;
+  }
+
+  int _opencvAverage(int sum, int count) {
+    // groupRectangles averages through a float (`1.f / count`) before
+    // saturate_cast<int>. Preserving those float32 rounding steps matters at
+    // half-pixel boundaries and avoids systematic one-pixel box drift.
+    final scale = _asFloat32(1 / count);
+    final product = _asFloat32(_asFloat32(sum.toDouble()) * scale);
+    return _cvRoundNonNegative(product);
+  }
+
+  double _asFloat32(double value) {
+    _float32Scratch[0] = value;
+    return _float32Scratch[0];
   }
 
   void dispose() {

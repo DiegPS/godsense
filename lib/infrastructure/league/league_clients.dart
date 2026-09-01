@@ -16,6 +16,14 @@ class LcuCredentials {
 }
 
 class LcuClient {
+  LcuClient({HttpClient? httpClient})
+    : _httpClient =
+          httpClient ??
+          (HttpClient()
+            ..badCertificateCallback = ((_, _, _) => true)
+            ..connectionTimeout = const Duration(seconds: 2));
+
+  final HttpClient _httpClient;
   LcuCredentials? _credentials;
 
   LcuCredentials? discover() {
@@ -58,55 +66,59 @@ class LcuClient {
   Future<Object?> _request(String method, String path, {Object? body}) async {
     final credentials = _credentials ?? discover();
     if (credentials == null) throw const SocketException('LCU not found');
-    final client = HttpClient()
-      ..badCertificateCallback = ((_, _, _) => true)
-      ..connectionTimeout = const Duration(seconds: 2);
-    try {
-      final uri = Uri.parse(
-        '${credentials.protocol}://127.0.0.1:${credentials.port}$path',
-      );
-      final request = await client.openUrl(method, uri);
-      request.headers
-        ..set(
-          HttpHeaders.authorizationHeader,
-          'Basic ${base64Encode(utf8.encode('riot:${credentials.password}'))}',
-        )
-        ..set(HttpHeaders.acceptHeader, 'application/json');
-      if (body != null) {
-        request.headers.contentType = ContentType.json;
-        request.write(jsonEncode(body));
-      }
-      final response = await request.close();
-      final text = utf8.decode(
-        await response.fold<List<int>>(
-          [],
-          (bytes, chunk) => bytes..addAll(chunk),
-        ),
-        allowMalformed: true,
-      );
-      if (response.statusCode == 404) return null;
-      if (response.statusCode < 200 || response.statusCode >= 300) {
-        throw HttpException('LCU $method $path: ${response.statusCode} $text');
-      }
-      if (text.isEmpty) return const <String, dynamic>{};
-      return jsonDecode(text);
-    } finally {
-      client.close(force: true);
+    final uri = Uri.parse(
+      '${credentials.protocol}://127.0.0.1:${credentials.port}$path',
+    );
+    final request = await _httpClient.openUrl(method, uri);
+    request.headers
+      ..set(
+        HttpHeaders.authorizationHeader,
+        'Basic ${base64Encode(utf8.encode('riot:${credentials.password}'))}',
+      )
+      ..set(HttpHeaders.acceptHeader, 'application/json');
+    if (body != null) {
+      request.headers.contentType = ContentType.json;
+      request.write(jsonEncode(body));
     }
+    final response = await request.close();
+    final text = utf8.decode(
+      await response.fold<List<int>>(
+        [],
+        (bytes, chunk) => bytes..addAll(chunk),
+      ),
+      allowMalformed: true,
+    );
+    if (response.statusCode == 404) return null;
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw HttpException('LCU $method $path: ${response.statusCode} $text');
+    }
+    if (text.isEmpty) return const <String, dynamic>{};
+    return jsonDecode(text);
   }
+
+  void dispose() => _httpClient.close(force: true);
 }
 
 class LiveClientApi {
+  LiveClientApi({HttpClient? httpClient})
+    : _httpClient =
+          httpClient ??
+          (HttpClient()
+            ..badCertificateCallback = ((_, _, _) => true)
+            ..connectionTimeout = const Duration(milliseconds: 700));
+
+  final HttpClient _httpClient;
+
   Future<Map<String, dynamic>?> allGameData() async {
-    final client = HttpClient()
-      ..badCertificateCallback = ((_, _, _) => true)
-      ..connectionTimeout = const Duration(milliseconds: 700);
     try {
-      final request = await client.getUrl(
+      final request = await _httpClient.getUrl(
         Uri.parse('https://127.0.0.1:2999/liveclientdata/allgamedata'),
       );
       final response = await request.close();
-      if (response.statusCode != 200) return null;
+      if (response.statusCode != 200) {
+        await response.drain<void>();
+        return null;
+      }
       final text = utf8.decode(
         await response.fold<List<int>>(
           [],
@@ -120,8 +132,8 @@ class LiveClientApi {
           : null;
     } catch (_) {
       return null;
-    } finally {
-      client.close(force: true);
     }
   }
+
+  void dispose() => _httpClient.close(force: true);
 }

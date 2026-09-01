@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../infrastructure/league/league_clients.dart';
+import 'live_game_processor.dart';
 
 class NativeLeagueState {
   const NativeLeagueState({
@@ -12,6 +13,12 @@ class NativeLeagueState {
     this.gameflowPhase = 'NO_LCU',
     this.lobby = const {},
     this.liveGame,
+    this.liveApiConnected = false,
+    this.liveApiLatencyMilliseconds = 0,
+    this.consecutiveLiveFailures = 0,
+    this.lastLiveUpdate,
+    this.timeline = const {},
+    this.sessionId,
     this.lastError,
     this.operationInProgress = false,
     this.lastOperationResult = const {},
@@ -21,11 +28,17 @@ class NativeLeagueState {
   final String gameflowPhase;
   final Map<String, dynamic> lobby;
   final Map<String, dynamic>? liveGame;
+  final bool liveApiConnected;
+  final double liveApiLatencyMilliseconds;
+  final int consecutiveLiveFailures;
+  final DateTime? lastLiveUpdate;
+  final Map<String, dynamic> timeline;
+  final String? sessionId;
   final String? lastError;
   final bool operationInProgress;
   final Map<String, dynamic> lastOperationResult;
 
-  bool get inGame => liveGame != null;
+  bool get inGame => liveGame != null && liveGame!['_game_ended'] != true;
 
   NativeLeagueState copyWith({
     bool? lcuConnected,
@@ -33,6 +46,13 @@ class NativeLeagueState {
     Map<String, dynamic>? lobby,
     Map<String, dynamic>? liveGame,
     bool clearLiveGame = false,
+    bool? liveApiConnected,
+    double? liveApiLatencyMilliseconds,
+    int? consecutiveLiveFailures,
+    DateTime? lastLiveUpdate,
+    Map<String, dynamic>? timeline,
+    String? sessionId,
+    bool clearSessionId = false,
     String? lastError,
     bool clearError = false,
     bool? operationInProgress,
@@ -43,6 +63,14 @@ class NativeLeagueState {
       gameflowPhase: gameflowPhase ?? this.gameflowPhase,
       lobby: lobby ?? this.lobby,
       liveGame: clearLiveGame ? null : liveGame ?? this.liveGame,
+      liveApiConnected: liveApiConnected ?? this.liveApiConnected,
+      liveApiLatencyMilliseconds:
+          liveApiLatencyMilliseconds ?? this.liveApiLatencyMilliseconds,
+      consecutiveLiveFailures:
+          consecutiveLiveFailures ?? this.consecutiveLiveFailures,
+      lastLiveUpdate: lastLiveUpdate ?? this.lastLiveUpdate,
+      timeline: timeline ?? this.timeline,
+      sessionId: clearSessionId ? null : sessionId ?? this.sessionId,
       lastError: clearError ? null : lastError ?? this.lastError,
       operationInProgress: operationInProgress ?? this.operationInProgress,
       lastOperationResult: lastOperationResult ?? this.lastOperationResult,
@@ -58,18 +86,27 @@ final nativeLeagueProvider =
     });
 
 class NativeLeagueController extends StateNotifier<NativeLeagueState> {
-  NativeLeagueController({LcuClient? lcu, LiveClientApi? live})
-    : _lcu = lcu ?? LcuClient(),
-      _live = live ?? LiveClientApi(),
-      super(const NativeLeagueState());
+  NativeLeagueController({
+    LcuClient? lcu,
+    LiveClientApi? live,
+    LiveGameProcessor? processor,
+  }) : _lcu = lcu ?? LcuClient(),
+       _live = live ?? LiveClientApi(),
+       _processor = processor ?? LiveGameProcessor(),
+       super(const NativeLeagueState());
 
   final LcuClient _lcu;
   final LiveClientApi _live;
+  final LiveGameProcessor _processor;
   Timer? _timer;
   bool _polling = false;
   final Map<int, String> _championNames = {};
   int? _localSummonerId;
   Map<int, Map<String, dynamic>> _itemCatalog = const {};
+  bool _itemCatalogLoading = false;
+  DateTime? _lastItemCatalogAttempt;
+  int _consecutiveLiveFailures = 0;
+  String? _currentGameId;
 
   int? get localSummonerId => _localSummonerId;
 
@@ -86,37 +123,100 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
     if (_polling) return;
     _polling = true;
     try {
+      var lcuConnected = false;
+      var phase = 'NO_LCU';
+      var lobby = const <String, dynamic>{};
       final credentials = _lcu.discover();
-      if (credentials == null) {
+      if (credentials != null) {
+        try {
+          final phaseRaw = await _lcu.get('/lol-gameflow/v1/gameflow-phase');
+          phase = phaseRaw?.toString() ?? 'None';
+          lcuConnected = true;
+          if (phase == 'ChampSelect') {
+            final summoner = await _lcu.get(
+              '/lol-summoner/v1/current-summoner',
+            );
+            if (summoner is Map) {
+              _localSummonerId = (summoner['summonerId'] as num?)?.toInt();
+            }
+            final session = await _lcu.get('/lol-champ-select/v1/session');
+            if (session is Map) lobby = await _normalizeLobby(session);
+          }
+          if (phase == 'InProgress' && _currentGameId == null) {
+            final session = await _lcu.get('/lol-gameflow/v1/session');
+            if (session is Map) {
+              final gameData = _stringMap(session['gameData']);
+              _currentGameId =
+                  gameData['gameId']?.toString() ??
+                  session['gameId']?.toString();
+            }
+          }
+        } catch (_) {
+          // Live Client remains useful while LCU is restarting or its
+          // credentials rotate, so an LCU failure must not abort this poll.
+          lcuConnected = false;
+          phase = 'NO_LCU';
+        }
+      }
+      final liveStopwatch = Stopwatch()..start();
+      final liveData = await _live.allGameData();
+      final liveLatency = liveStopwatch.elapsedMicroseconds / 1000;
+      if (liveData != null && _itemCatalog.isEmpty) {
+        _ensureItemCatalogLoaded();
+      }
+      if (liveData != null) {
+        _consecutiveLiveFailures = 0;
+        final processed = _processor.process(
+          liveData,
+          itemCatalog: _itemCatalog,
+          gameId: _currentGameId,
+        );
         state = state.copyWith(
-          lcuConnected: false,
-          gameflowPhase: 'NO_LCU',
-          lobby: const {},
-          clearLiveGame: true,
+          lcuConnected: lcuConnected,
+          gameflowPhase: phase,
+          lobby: lobby,
+          liveGame: processed.snapshot,
+          liveApiConnected: true,
+          liveApiLatencyMilliseconds: liveLatency,
+          consecutiveLiveFailures: 0,
+          lastLiveUpdate: DateTime.now(),
+          timeline: processed.timeline,
+          sessionId: processed.sessionId,
+          clearError: true,
         );
         return;
       }
-      final phaseRaw = await _lcu.get('/lol-gameflow/v1/gameflow-phase');
-      final phase = phaseRaw?.toString() ?? 'None';
-      Map<String, dynamic> lobby = const {};
-      if (phase == 'ChampSelect') {
-        final summoner = await _lcu.get('/lol-summoner/v1/current-summoner');
-        if (summoner is Map) {
-          _localSummonerId = (summoner['summonerId'] as num?)?.toInt();
-        }
-        final session = await _lcu.get('/lol-champ-select/v1/session');
-        if (session is Map) lobby = await _normalizeLobby(session);
+
+      _consecutiveLiveFailures++;
+      final gameMayStillBeRunning =
+          phase == 'InProgress' ||
+          _consecutiveLiveFailures < 3 ||
+          (!lcuConnected && _consecutiveLiveFailures < 20);
+      if ((state.inGame && gameMayStillBeRunning) ||
+          (!state.inGame && _consecutiveLiveFailures < 3)) {
+        state = state.copyWith(
+          lcuConnected: lcuConnected,
+          gameflowPhase: phase,
+          lobby: lobby,
+          liveApiConnected: false,
+          liveApiLatencyMilliseconds: liveLatency,
+          consecutiveLiveFailures: _consecutiveLiveFailures,
+        );
+        return;
       }
-      final liveData = await _live.allGameData();
-      if (liveData != null && _itemCatalog.isEmpty) {
-        await _loadItemCatalog();
-      }
+      final completed = state.inGame
+          ? _processor.completeLast()
+          : state.liveGame;
+      if (phase != 'InProgress') _currentGameId = null;
       state = state.copyWith(
-        lcuConnected: true,
+        lcuConnected: lcuConnected,
         gameflowPhase: phase,
         lobby: lobby,
-        liveGame: liveData == null ? null : _normalizeLive(liveData),
-        clearLiveGame: liveData == null,
+        liveGame: completed,
+        liveApiConnected: false,
+        liveApiLatencyMilliseconds: liveLatency,
+        consecutiveLiveFailures: _consecutiveLiveFailures,
+        timeline: _processor.currentTimeline(),
         clearError: true,
       );
     } catch (error) {
@@ -317,124 +417,6 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
     }
   }
 
-  Map<String, dynamic> _normalizeLive(Map<String, dynamic> raw) {
-    final gameData = _stringMap(raw['gameData']);
-    final active = _stringMap(raw['activePlayer']);
-    final players = _mapList(raw['allPlayers']);
-    final activeName = active['summonerName']?.toString();
-    final local = players
-        .where((player) => player['summonerName']?.toString() == activeName)
-        .firstOrNull;
-    final localTeam = local?['team']?.toString();
-    Map<String, dynamic> player(Map<String, dynamic> value) {
-      final scores = _stringMap(value['scores']);
-      final items = _mapList(value['items']).map((item) {
-        final id = (item['itemID'] as num?)?.toInt() ?? 0;
-        final catalog = _itemCatalog[id];
-        return {
-          ...item,
-          'icon_url': catalog == null
-              ? ''
-              : 'https://ddragon.leagueoflegends.com/cdn/${catalog['_version']}/img/item/$id.png',
-        };
-      }).toList();
-      final cs = (scores['creepScore'] as num?)?.toInt() ?? 0;
-      final kills = (scores['kills'] as num?)?.toInt() ?? 0;
-      final assists = (scores['assists'] as num?)?.toInt() ?? 0;
-      final rawGoldTotal = items.fold<int>(0, (total, item) {
-        final id = (item['itemID'] as num?)?.toInt() ?? 0;
-        final count = (item['count'] as num?)?.toInt() ?? 1;
-        final gold = _stringMap(_itemCatalog[id]?['gold']);
-        return total + ((gold['total'] as num?)?.toInt() ?? 0) * count;
-      });
-      // If item catalog is still loading, estimate baseline gold from stats + passive gold
-      final goldTotal = rawGoldTotal > 0
-          ? rawGoldTotal
-          : (500 + cs * 21 + kills * 300 + assists * 100);
-      return {
-        'champion_name': value['championName'] ?? '',
-        'summoner_name': value['summonerName'] ?? '',
-        'tag_line': value['riotIdTagLine'] ?? '',
-        'team': value['team'] ?? '',
-        'role': value['position'] ?? '',
-        'level': value['level'] ?? 0,
-        'kda': [kills, scores['deaths'] ?? 0, assists],
-        'cs': cs,
-        'items': items,
-        'gold_total': goldTotal,
-        'gold_current': value['summonerName'] == activeName
-            ? active['currentGold'] ?? 0
-            : 0,
-        'summoner_spells': _stringMap(value['summonerSpells']).values
-            .whereType<Map>()
-            .map((spell) => spell['displayName']?.toString() ?? '')
-            .toList(),
-        'runes': value['runes'] ?? const {},
-        'position': null,
-        'map_location': null,
-        'is_mia': false,
-        'mia_duration': 0.0,
-        'last_known_location': null,
-        'icon_url':
-            'https://cdn.communitydragon.org/latest/champion/${Uri.encodeComponent(value['championName']?.toString() ?? '')}/square',
-        'is_dead': value['isDead'] == true,
-        'respawn_timer': value['respawnTimer'] ?? 0,
-      };
-    }
-
-    final allies = players
-        .where((value) => value['team']?.toString() == localTeam)
-        .map(player)
-        .toList();
-    final enemies = players
-        .where((value) => value['team']?.toString() != localTeam)
-        .map(player)
-        .toList();
-    final gameTime = (gameData['gameTime'] as num?)?.toDouble() ?? 0;
-    final teamGoldDiff =
-        allies.fold<int>(
-          0,
-          (total, player) =>
-              total + ((player['gold_total'] as num?)?.toInt() ?? 0),
-        ) -
-        enemies.fold<int>(
-          0,
-          (total, player) =>
-              total + ((player['gold_total'] as num?)?.toInt() ?? 0),
-        );
-    final events = _mapList(_stringMap(raw['events'])['Events']);
-    final objectives = <String, dynamic>{};
-    for (final event in events) {
-      final name = event['EventName']?.toString() ?? '';
-      if (name == 'DragonKill') objectives['dragon_last'] = event;
-      if (name == 'BaronKill') objectives['baron_last'] = event;
-      if (name == 'HeraldKill') objectives['herald_last'] = event;
-    }
-    return {
-      'game_time': gameTime,
-      'timestamp': DateTime.now().millisecondsSinceEpoch / 1000,
-      'phase': gameTime < 900
-          ? 'EARLY'
-          : gameTime < 1800
-          ? 'MID'
-          : 'LATE',
-      'allies': allies,
-      'enemies': enemies,
-      'active_player': local == null ? null : player(local),
-      'team_gold_diff': teamGoldDiff,
-      'team_state': teamGoldDiff > 1000
-          ? 'AHEAD'
-          : teamGoldDiff < -1000
-          ? 'BEHIND'
-          : 'EVEN',
-      'lane_states': const {},
-      'events': events,
-      'derived': {'objectives': objectives},
-      '_game_ended': false,
-      'directives_pacing': const {},
-    };
-  }
-
   Future<void> _loadItemCatalog() async {
     final client = HttpClient()..connectionTimeout = const Duration(seconds: 4);
     try {
@@ -442,6 +424,10 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
         Uri.parse('https://ddragon.leagueoflegends.com/api/versions.json'),
       );
       final versionsResponse = await versionsRequest.close();
+      if (versionsResponse.statusCode != HttpStatus.ok) {
+        await versionsResponse.drain<void>();
+        return;
+      }
       final versionBytes = await versionsResponse.fold<List<int>>(
         <int>[],
         (buffer, data) => buffer..addAll(data),
@@ -449,15 +435,18 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
       final versionsRaw = jsonDecode(
         utf8.decode(versionBytes, allowMalformed: true),
       );
-      final version = versionsRaw is List && versionsRaw.isNotEmpty
-          ? versionsRaw.first.toString()
-          : '16.17.1';
+      if (versionsRaw is! List || versionsRaw.isEmpty) return;
+      final version = versionsRaw.first.toString();
       final request = await client.getUrl(
         Uri.parse(
           'https://ddragon.leagueoflegends.com/cdn/$version/data/en_US/item.json',
         ),
       );
       final response = await request.close();
+      if (response.statusCode != HttpStatus.ok) {
+        await response.drain<void>();
+        return;
+      }
       final itemBytes = await response.fold<List<int>>(
         <int>[],
         (buffer, data) => buffer..addAll(data),
@@ -482,9 +471,26 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
     }
   }
 
+  void _ensureItemCatalogLoaded() {
+    final now = DateTime.now();
+    if (_itemCatalogLoading ||
+        (_lastItemCatalogAttempt != null &&
+            now.difference(_lastItemCatalogAttempt!) <
+                const Duration(minutes: 5))) {
+      return;
+    }
+    _itemCatalogLoading = true;
+    _lastItemCatalogAttempt = now;
+    unawaited(
+      _loadItemCatalog().whenComplete(() => _itemCatalogLoading = false),
+    );
+  }
+
   @override
   void dispose() {
     _timer?.cancel();
+    _lcu.dispose();
+    _live.dispose();
     super.dispose();
   }
 }

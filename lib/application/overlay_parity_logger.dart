@@ -25,14 +25,12 @@ class OverlayParityLogger {
     NativeVisionState native,
     GameSnapshot? game,
   ) {
-    final legacyGame = legacy.game;
     final legacyGank = legacy.alerts
         .where((alert) => alert.kind == CompanionAlertKind.gank)
         .firstOrNull;
     final legacyVoice = legacy.alerts
         .where((alert) => alert.kind == CompanionAlertKind.voice)
         .firstOrNull;
-    final legacyJungler = _jungler(legacyGame?.enemies);
     final nativeGank = native.events
         .where((event) => event.kind == NativeTrackerEventKind.gank)
         .firstOrNull;
@@ -47,7 +45,7 @@ class OverlayParityLogger {
       'builds': legacy.coaching['builds'],
       'directives': legacy.directives.map(_directive).toList(),
       'team_comp': legacy.coaching['team_comp'],
-      'gold_chart': legacyGame?.raw['team_gold_diff'],
+      'gold_chart': null,
       'gank': legacyGank == null
           ? null
           : {
@@ -56,15 +54,7 @@ class OverlayParityLogger {
               'role': legacyGank.raw['role'],
               'threat': legacyGank.raw['threat_level'],
             },
-      'jungler': legacyJungler == null
-          ? null
-          : {
-              'champion': legacyJungler['champion_name'],
-              'location':
-                  legacyJungler['map_location'] ??
-                  legacyJungler['last_known_location'],
-              'mia': legacyJungler['is_mia'],
-            },
+      'jungler': null,
       'voice_ask': legacyVoice?.raw,
     };
     final godsense = {

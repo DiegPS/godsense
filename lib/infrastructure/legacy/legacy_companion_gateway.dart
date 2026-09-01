@@ -29,9 +29,6 @@ class LegacyCompanionGateway implements CompanionGateway {
   @override
   Future<Map<String, dynamic>> health() => _getMap('/api/health');
   @override
-  Future<Map<String, dynamic>?> gameState() =>
-      _getOptionalMap('/api/state', waitingStatus: 503);
-  @override
   Future<Map<String, dynamic>> coaching() => _getMap('/api/coaching');
   @override
   Future<Map<String, dynamic>> coachingStatus() =>
@@ -41,9 +38,6 @@ class LegacyCompanionGateway implements CompanionGateway {
       _getMapList('/api/directives');
   @override
   Future<Map<String, dynamic>> players() => _getMap('/api/players');
-  @override
-  Future<Map<String, dynamic>> timeline({int lastN = 3600}) =>
-      _getMap('/api/timeline', query: {'last_n': lastN});
   @override
   Future<Map<String, dynamic>> config() async {
     final config = await _getMap('/api/config');
@@ -76,20 +70,6 @@ class LegacyCompanionGateway implements CompanionGateway {
   @override
   Future<Map<String, dynamic>> importAll() =>
       _postMap('/api/lobby/import_all', data: const {});
-
-  @override
-  Future<Map<String, dynamic>> calibration() => _getMap('/api/calibration');
-  @override
-  Future<Map<String, dynamic>> detectCalibration() =>
-      _postMap('/api/calibration/detect');
-  @override
-  Future<Map<String, dynamic>> saveCalibration(
-    Map<String, dynamic> bounds, {
-    String source = 'auto',
-  }) => _postMap(
-    '/api/calibration/save',
-    data: {'bounds': bounds, 'source': source},
-  );
 
   @override
   Future<Map<String, dynamic>> settings() => _getMap('/api/settings');
@@ -169,15 +149,6 @@ class LegacyCompanionGateway implements CompanionGateway {
     Map<String, dynamic>? query,
   }) async {
     final response = await _dio.get<Object?>(path, queryParameters: query);
-    return _mapResponse(response);
-  }
-
-  Future<Map<String, dynamic>?> _getOptionalMap(
-    String path, {
-    required int waitingStatus,
-  }) async {
-    final response = await _dio.get<Object?>(path);
-    if (response.statusCode == waitingStatus) return null;
     return _mapResponse(response);
   }
 

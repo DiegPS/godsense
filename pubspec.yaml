@@ -49,6 +49,15 @@ dependencies:
   opencv_dart: 2.2.2
   multiview_desktop: 1.2.1
   shared_preferences: ^2.5.5
+  # Offline Push-to-Talk, speech recognition, and text-to-speech.
+  sherpa_onnx: ^1.13.5
+  record: ^7.1.1
+  http: ^1.2.0
+  path: ^1.9.1
+  archive: ^4.0.9
+  crypto: ^3.0.7
+  logger: ^2.0.2
+  file_selector: ^1.1.0
 
 dev_dependencies:
   flutter_test:

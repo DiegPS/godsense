@@ -9,19 +9,21 @@ import 'package:url_launcher/url_launcher.dart';
 
 import 'application/dependencies.dart';
 import 'application/cv_corpus_comparator.dart';
-import 'application/native_vision_controller.dart';
+import 'application/native_calibration_controller.dart';
 import 'application/native_league_controller.dart';
+import 'application/native_speech_controller.dart';
+import 'application/native_vision_controller.dart';
 import 'application/overlay_layout_controller.dart';
 import 'application/overlay_parity_logger.dart';
 import 'application/python_vision_diagnostics_controller.dart';
 import 'domain/companion_models.dart';
+import 'presentation/native_speech_settings_card.dart';
 
 final selectedPageProvider = StateProvider<int>((ref) => 0);
 final trackerSourceProvider = StateProvider<TrackerSource>(
-  (ref) => TrackerSource.python,
+  (ref) => TrackerSource.dartCv,
 );
 final overlayEnabledProvider = StateProvider<bool>((ref) => true);
-final voiceEnabledProvider = StateProvider<bool>((ref) => true);
 final overlayOpenProvider = StateProvider<bool>((ref) => false);
 
 final appProviderContainer = ProviderContainer();
@@ -34,8 +36,9 @@ enum TrackerSource { python, dartCv }
 
 final effectiveGameProvider = Provider<GameSnapshot?>((ref) {
   final native = ref.watch(nativeLeagueProvider);
-  if (native.liveGame != null) return GameSnapshot.fromJson(native.liveGame!);
-  return ref.watch(companionControllerProvider).activeGame;
+  return native.liveGame == null
+      ? null
+      : GameSnapshot.fromJson(native.liveGame!);
 });
 
 final effectiveLobbyProvider = Provider<LobbyState?>((ref) {
@@ -122,34 +125,12 @@ class GodSenseHome extends ConsumerWidget {
     final selectedPage = ref.watch(selectedPageProvider);
     final overlayOpen = ref.watch(overlayOpenProvider);
     final backend = ref.watch(companionControllerProvider);
-    final overlayLayout = ref.watch(overlayLayoutProvider);
-    final trackerSource = ref.watch(trackerSourceProvider);
     final nativeLeague = ref.watch(nativeLeagueProvider);
+    final overlayLayout = ref.watch(overlayLayoutProvider);
+    ref.watch(nativeCalibrationProvider);
+    ref.watch(nativeSpeechProvider);
 
     ref.listen(companionControllerProvider, (previous, next) {
-      final game = ref.read(effectiveGameProvider);
-      final activePlayer = game?.raw['active_player'];
-      unawaited(
-        ref
-            .read(nativeVisionProvider.notifier)
-            .configureTargets(
-              game?.enemies ?? const [],
-              localRole: activePlayer is Map
-                  ? activePlayer['role']?.toString()
-                  : null,
-              iconSize: next.calibration?.trackingIconSize ?? 28,
-            ),
-      );
-      ref
-          .read(nativeVisionProvider.notifier)
-          .configure(
-            enabled:
-                forceNativeVision ||
-                next.activeGame != null ||
-                trackerSource == TrackerSource.dartCv,
-            bounds: next.calibration?.trackingBounds,
-            iconSize: next.calibration?.trackingIconSize ?? 28,
-          );
       final alert = next.alerts.firstOrNull;
       if (alert != null && alert != previous?.alerts.firstOrNull) {
         ref.read(nativeVisionProvider.notifier).recordLegacy(alert);
@@ -162,13 +143,9 @@ class GodSenseHome extends ConsumerWidget {
     });
     ref.listen(nativeVisionProvider, (previous, next) {
       final proposal = next.calibrationProposal;
-      if (proposal != null &&
-          proposal != previous?.calibrationProposal &&
-          ref.read(effectiveGameProvider) != null) {
+      if (proposal != null && proposal != previous?.calibrationProposal) {
         unawaited(
-          ref
-              .read(companionControllerProvider.notifier)
-              .saveManualCalibration(proposal.bounds),
+          ref.read(nativeCalibrationProvider.notifier).saveDetected(proposal),
         );
       }
       overlayParityLogger.record(
@@ -188,7 +165,7 @@ class GodSenseHome extends ConsumerWidget {
       final game = next.liveGame == null
           ? null
           : GameSnapshot.fromJson(next.liveGame!);
-      final calibration = ref.read(companionControllerProvider).calibration;
+      final calibration = ref.read(nativeCalibrationProvider).calibration;
       final activePlayer = game?.raw['active_player'];
       unawaited(
         ref
@@ -204,24 +181,44 @@ class GodSenseHome extends ConsumerWidget {
       ref
           .read(nativeVisionProvider.notifier)
           .configure(
-            enabled:
-                forceNativeVision ||
-                game != null ||
-                trackerSource == TrackerSource.dartCv,
+            enabled: forceNativeVision || (game != null && !game.gameEnded),
+            bounds: calibration?.trackingBounds,
+            iconSize: calibration?.trackingIconSize ?? 28,
+          );
+    });
+    ref.listen(nativeCalibrationProvider, (previous, next) {
+      final calibration = next.calibration;
+      final game = ref.read(effectiveGameProvider);
+      final activePlayer = game?.raw['active_player'];
+      unawaited(
+        ref
+            .read(nativeVisionProvider.notifier)
+            .configureTargets(
+              game?.enemies ?? const [],
+              localRole: activePlayer is Map
+                  ? activePlayer['role']?.toString()
+                  : null,
+              iconSize: calibration?.trackingIconSize ?? 28,
+            ),
+      );
+      ref
+          .read(nativeVisionProvider.notifier)
+          .configure(
+            enabled: forceNativeVision || (game != null && !game.gameEnded),
             bounds: calibration?.trackingBounds,
             iconSize: calibration?.trackingIconSize ?? 28,
           );
     });
     ref.listen(trackerSourceProvider, (previous, next) {
+      final calibration = ref.read(nativeCalibrationProvider).calibration;
       ref
           .read(nativeVisionProvider.notifier)
           .configure(
             enabled:
                 forceNativeVision ||
-                ref.read(effectiveGameProvider) != null ||
-                next == TrackerSource.dartCv,
-            bounds: backend.calibration?.trackingBounds,
-            iconSize: backend.calibration?.trackingIconSize ?? 28,
+                ref.read(effectiveGameProvider)?.gameEnded == false,
+            bounds: calibration?.trackingBounds,
+            iconSize: calibration?.trackingIconSize ?? 28,
           );
     });
     final isDesktop = MediaQuery.sizeOf(context).width >= 900;
@@ -338,6 +335,7 @@ class OverviewPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final backend = ref.watch(companionControllerProvider);
+    final nativeLeague = ref.watch(nativeLeagueProvider);
     final game = ref.watch(effectiveGameProvider);
     final lobby = ref.watch(effectiveLobbyProvider);
     final coach = backend.localCoachHealth['opencode'];
@@ -365,6 +363,15 @@ class OverviewPage extends ConsumerWidget {
                   ? lobby!.phase
                   : 'Not connected',
               icon: Icons.sports_esports,
+            ),
+            _StatusCard(
+              title: 'Live Client API',
+              value: nativeLeague.liveApiConnected
+                  ? '${nativeLeague.liveApiLatencyMilliseconds.toStringAsFixed(1)} ms · native'
+                  : nativeLeague.inGame
+                  ? 'Reconectando · ${nativeLeague.consecutiveLiveFailures} fallos'
+                  : 'Esperando partida',
+              icon: Icons.monitor_heart_outlined,
             ),
             _StatusCard(
               title: 'Local coach',
@@ -443,7 +450,8 @@ class LivePage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(companionControllerProvider);
-    final game = ref.watch(effectiveGameProvider) ?? state.game;
+    final nativeLeague = ref.watch(nativeLeagueProvider);
+    final game = ref.watch(effectiveGameProvider);
     final isEnded = game?.gameEnded == true;
     final derived = game?.raw['derived'] is Map
         ? Map<String, dynamic>.from(game!.raw['derived'] as Map)
@@ -451,10 +459,10 @@ class LivePage extends ConsumerWidget {
     final objectives = derived['objectives'] is Map
         ? Map<String, dynamic>.from(derived['objectives'] as Map)
         : const <String, dynamic>{};
-    final goldPoints = state.timeline['gold_points'] is List
-        ? state.timeline['gold_points'] as List
+    final goldPoints = nativeLeague.timeline['gold_points'] is List
+        ? nativeLeague.timeline['gold_points'] as List
         : const [];
-    final timelineEvents = _asMapList(state.timeline['events']);
+    final timelineEvents = _asMapList(nativeLeague.timeline['events']);
     final clips = _asMapList(state.highlights['clips'])
       ..sort(
         (a, b) =>
@@ -485,6 +493,18 @@ class LivePage extends ConsumerWidget {
             ),
           )
         else ...[
+          if (!nativeLeague.liveApiConnected)
+            Card(
+              color: Theme.of(context).colorScheme.errorContainer,
+              child: ListTile(
+                leading: const Icon(Icons.sync_problem),
+                title: const Text('Live Client temporalmente desconectado'),
+                subtitle: Text(
+                  'Se conserva el último estado válido mientras se reconecta '
+                  '(${nativeLeague.consecutiveLiveFailures} intentos).',
+                ),
+              ),
+            ),
           Card(
             child: Padding(
               padding: const EdgeInsets.all(16),
@@ -829,7 +849,8 @@ class VisionPage extends ConsumerWidget {
     final backend = ref.watch(companionControllerProvider);
     final game = ref.watch(effectiveGameProvider);
     final cv = backend.health?.components['cv'];
-    final calibration = backend.calibration;
+    final calibrationState = ref.watch(nativeCalibrationProvider);
+    final calibration = calibrationState.calibration;
     final native = ref.watch(nativeVisionProvider);
     final pythonDiagnostics = ref.watch(pythonVisionDiagnosticsProvider);
     final corpus = ref.watch(cvCorpusComparatorProvider);
@@ -1038,18 +1059,6 @@ class VisionPage extends ConsumerWidget {
                   icon: const Icon(Icons.center_focus_strong),
                   label: const Text('Detectar nativo'),
                 ),
-                if (native.calibrationProposal != null)
-                  FilledButton.icon(
-                    onPressed: backend.operationInProgress
-                        ? null
-                        : () => ref
-                              .read(companionControllerProvider.notifier)
-                              .saveManualCalibration(
-                                native.calibrationProposal!.bounds,
-                              ),
-                    icon: const Icon(Icons.save_outlined),
-                    label: const Text('Guardar propuesta'),
-                  ),
                 OutlinedButton.icon(
                   onPressed:
                       calibration?.effectiveBounds == null || native.processing
@@ -1464,12 +1473,12 @@ class _CoachPageState extends ConsumerState<CoachPage> {
               icon: Icons.record_voice_over_outlined,
               child: backend.directives.isEmpty
                   ? Text(
-                      backend.game?.raw['directives_pacing'] is Map &&
-                              (backend.game!.raw['directives_pacing']
+                      game?.raw['directives_pacing'] is Map &&
+                              (game!.raw['directives_pacing']
                                       as Map)['capped'] ==
                                   true
                           ? 'Límite de directivas · siguiente espacio en '
-                                '${_formatDuration(((backend.game!.raw['directives_pacing'] as Map)['next_slot_s'] as num?)?.toDouble() ?? 0)}'
+                                '${_formatDuration(((game.raw['directives_pacing'] as Map)['next_slot_s'] as num?)?.toDouble() ?? 0)}'
                           : analysisWaiting,
                     )
                   : Column(
@@ -1548,7 +1557,6 @@ class SettingsPage extends ConsumerStatefulWidget {
 
 class _SettingsPageState extends ConsumerState<SettingsPage> {
   final _supportController = TextEditingController();
-  double? _volume;
 
   @override
   void dispose() {
@@ -1560,9 +1568,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   Widget build(BuildContext context) {
     final overlayEnabled = ref.watch(overlayEnabledProvider);
     final backend = ref.watch(companionControllerProvider);
+    final nativeCalibration = ref.watch(nativeCalibrationProvider);
+    final calibration = nativeCalibration.calibration;
     final settings = backend.settings;
-    final voiceEnabled =
-        (settings?.ttsEnabled ?? ref.watch(voiceEnabledProvider)) == true;
     final meta = settings?.meta ?? const <String, dynamic>{};
     final locks = meta['locks'] is Map ? meta['locks'] as Map : const {};
     const panels = {
@@ -1596,76 +1604,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     await overlayWindowManager.close();
                   }
                 },
-              ),
-              const Divider(height: 1),
-              SwitchListTile(
-                title: const Text('Activar voz del coach'),
-                subtitle: const Text('Leer directivas importantes.'),
-                value: voiceEnabled,
-                onChanged: (value) {
-                  ref.read(voiceEnabledProvider.notifier).state = value;
-                  ref.read(companionControllerProvider.notifier).updateSettings(
-                    {'tts_enabled': value},
-                  );
-                },
-              ),
-              const Divider(height: 1),
-              ListTile(
-                title: const Text('Tecla para hablar'),
-                subtitle: locks.containsKey('ptt_key')
-                    ? Text('Bloqueado por ${locks['ptt_key']}')
-                    : null,
-                trailing: DropdownButton<String>(
-                  value: settings?.pttKey ?? 'delete',
-                  items:
-                      const [
-                            'delete',
-                            'f9',
-                            'mouse4',
-                            'mouse5',
-                            'capslock',
-                            'iso102',
-                            'off',
-                          ]
-                          .map(
-                            (value) => DropdownMenuItem(
-                              value: value,
-                              child: Text(value.toUpperCase()),
-                            ),
-                          )
-                          .toList(),
-                  onChanged:
-                      locks.containsKey('ptt_key') ||
-                          backend.operationInProgress
-                      ? null
-                      : (value) => ref
-                            .read(companionControllerProvider.notifier)
-                            .updateSettings({'ptt_key': value}),
-                ),
-              ),
-              const Divider(height: 1),
-              ListTile(
-                title: const Text('Volumen de voz'),
-                subtitle: Slider(
-                  value: _volume ?? settings?.ttsVolume ?? 1,
-                  onChanged: backend.operationInProgress
-                      ? null
-                      : (value) => setState(() => _volume = value),
-                  onChangeEnd: (value) {
-                    ref
-                        .read(companionControllerProvider.notifier)
-                        .updateSettings({'tts_volume': value});
-                    setState(() => _volume = null);
-                  },
-                ),
-                trailing: FilledButton(
-                  onPressed: backend.operationInProgress
-                      ? null
-                      : () => ref
-                            .read(companionControllerProvider.notifier)
-                            .testVoice(),
-                  child: const Text('Probar'),
-                ),
               ),
               const Divider(height: 1),
               ListTile(
@@ -1732,26 +1670,35 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               const Divider(height: 1),
               ListTile(
                 title: const Text('Calibración del minimapa'),
-                subtitle: Text(_calibrationDescription(backend.calibration)),
+                subtitle: Text(_calibrationDescription(calibration)),
                 trailing: Wrap(
                   spacing: 8,
                   children: [
+                    if (calibration != null)
+                      OutlinedButton(
+                        onPressed: nativeCalibration.saving
+                            ? null
+                            : () => ref
+                                  .read(nativeCalibrationProvider.notifier)
+                                  .clear(),
+                        child: const Text('Borrar'),
+                      ),
                     OutlinedButton(
-                      onPressed: backend.operationInProgress
+                      onPressed: nativeCalibration.saving
                           ? null
                           : () => _showManualCalibrationDialog(
                               context,
                               ref,
-                              backend.calibration,
+                              calibration,
                             ),
                       child: const Text('Manual'),
                     ),
                     FilledButton(
-                      onPressed: backend.operationInProgress
+                      onPressed: nativeCalibration.saving
                           ? null
                           : () => ref
-                                .read(companionControllerProvider.notifier)
-                                .autoCalibrate(),
+                                .read(nativeVisionProvider.notifier)
+                                .detectCalibration(),
                       child: const Text('Detectar'),
                     ),
                   ],
@@ -1760,6 +1707,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             ],
           ),
         ),
+        const SizedBox(height: 16),
+        const NativeSpeechSettingsCard(),
         const SizedBox(height: 16),
         Text(
           'Paneles del overlay',
@@ -1890,6 +1839,8 @@ class _GodSenseOverlayState extends ConsumerState<GodSenseOverlay> {
   Widget build(BuildContext context) {
     final backend = ref.watch(companionControllerProvider);
     final nativeVision = ref.watch(nativeVisionProvider);
+    final nativeSpeech = ref.watch(nativeSpeechProvider);
+    final calibration = ref.watch(nativeCalibrationProvider).calibration;
     final game = ref.watch(effectiveGameProvider);
     final goldDifference = (game?.raw['team_gold_diff'] as num?)?.toInt();
     final sighting = backend.alerts
@@ -1918,6 +1869,10 @@ class _GodSenseOverlayState extends ConsumerState<GodSenseOverlay> {
               _now.difference(alert.receivedAt).inSeconds < 8;
         })
         .firstOrNull;
+    final nativeVoiceVisible =
+        nativeSpeech.pushToTalkPressed ||
+        (nativeSpeech.lastTranscriptAt != null &&
+            _now.difference(nativeSpeech.lastTranscriptAt!).inSeconds < 8);
     final visibilityEvent = backend.alerts
         .where((alert) => alert.kind == CompanionAlertKind.overlayVisibility)
         .firstOrNull;
@@ -2121,7 +2076,7 @@ class _GodSenseOverlayState extends ConsumerState<GodSenseOverlay> {
                 ),
               ),
             ),
-          if ((voice != null || layout.editing) &&
+          if ((nativeVoiceVisible || voice != null || layout.editing) &&
               !hiddenPanels.contains('voice_ask'))
             _EditableOverlayPanel(
               id: 'voice_ask',
@@ -2130,7 +2085,9 @@ class _GodSenseOverlayState extends ConsumerState<GodSenseOverlay> {
                 borderColor: const Color(0xFF818CF8),
                 child: ListTile(
                   leading: Icon(
-                    voice?.raw['state'] == 'recording'
+                    nativeSpeech.pushToTalkPressed
+                        ? Icons.mic
+                        : voice?.raw['state'] == 'recording'
                         ? Icons.mic
                         : voice?.raw['state'] == 'thinking'
                         ? Icons.psychology
@@ -2140,16 +2097,24 @@ class _GodSenseOverlayState extends ConsumerState<GodSenseOverlay> {
                     color: const Color(0xFF818CF8),
                   ),
                   title: Text(
-                    voice?.raw['question']?.toString() ??
-                        voice?.title ??
-                        'Coach de voz',
+                    nativeSpeech.pushToTalkPressed
+                        ? 'Escuchando localmente…'
+                        : nativeSpeech.transcript.isNotEmpty
+                        ? nativeSpeech.transcript
+                        : voice?.raw['question']?.toString() ??
+                              voice?.title ??
+                              'Coach de voz',
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       color: Colors.white,
                     ),
                   ),
                   subtitle: Text(
-                    voice == null
+                    nativeSpeech.pushToTalkPressed
+                        ? 'Sherpa-ONNX · suelta la tecla para enviar'
+                        : nativeSpeech.transcript.isNotEmpty
+                        ? 'Transcripción offline completada'
+                        : voice == null
                         ? 'Esperando una interacción de voz…'
                         : _voiceMessage(voice),
                     style: const TextStyle(color: Color(0xFFCBD5E1)),
@@ -2241,9 +2206,9 @@ class _GodSenseOverlayState extends ConsumerState<GodSenseOverlay> {
                     : _NativeCompositionView(game: game),
               ),
             ),
-          if (gank != null && backend.calibration?.bounds != null)
+          if (gank != null && calibration?.bounds != null)
             _CalibrationDangerRing(
-              bounds: backend.calibration!.bounds!,
+              bounds: calibration!.bounds!,
               danger: gank.raw['threat_level'] == 'DANGER',
               devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
             ),
@@ -2400,7 +2365,6 @@ String _sessionLabel(CompanionState state, NativeLeagueState native) {
   if (native.inGame) return 'League game active · native';
   if (native.lcuConnected) return '${native.gameflowPhase} · native';
   if (state.connection != CompanionConnection.online) return 'League offline';
-  if (state.activeGame != null) return 'League game active · fallback';
   if (state.lobby?.lcuConnected == true) {
     return '${state.lobby!.phase} · fallback';
   }
@@ -2423,9 +2387,9 @@ String _formatTimestamp(DateTime timestamp) {
 }
 
 String _calibrationDescription(CalibrationState? calibration) {
-  if (calibration == null) return 'Waiting for backend calibration state.';
+  if (calibration == null) return 'Sin calibración nativa guardada.';
   if (!calibration.calibrated && calibration.defaultBounds == null) {
-    return 'A live game is required to calibrate.';
+    return 'Detecta el minimapa o introduce sus límites manualmente.';
   }
   if (calibration.calibrated &&
       !calibration.boundsAreUsable(calibration.bounds)) {
@@ -2434,7 +2398,7 @@ String _calibrationDescription(CalibrationState? calibration) {
         'Vuelve a calibrar manualmente.';
   }
   final bounds = calibration.effectiveBounds;
-  if (bounds == null) return 'Calibration is active.';
+  if (bounds == null) return 'Calibración nativa activa.';
   final source = calibration.calibrated
       ? 'calibración guardada'
       : calibration.defaultTrustworthy
@@ -2917,9 +2881,7 @@ Future<void> _showManualCalibrationDialog(
   width.dispose();
   height.dispose();
   if (result != null) {
-    await ref
-        .read(companionControllerProvider.notifier)
-        .saveManualCalibration(result);
+    await ref.read(nativeCalibrationProvider.notifier).save(result);
   }
 }
 

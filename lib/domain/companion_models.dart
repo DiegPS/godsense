@@ -338,16 +338,13 @@ class CompanionState {
     this.webSocketConnected = false,
     this.health,
     this.localCoachHealth = const {},
-    this.game,
     this.lobby,
     this.lobbyHealth = const {},
-    this.calibration,
     this.settings,
     this.coaching = const {},
     this.coachingStatus = const {},
     this.config = const {},
     this.players = const {},
-    this.timeline = const {},
     this.highlights = const {},
     this.scoutProfile = const {},
     this.scoutMatch = const {},
@@ -363,16 +360,13 @@ class CompanionState {
   final bool webSocketConnected;
   final CompanionHealth? health;
   final Map<String, dynamic> localCoachHealth;
-  final GameSnapshot? game;
   final LobbyState? lobby;
   final Map<String, dynamic> lobbyHealth;
-  final CalibrationState? calibration;
   final CompanionSettings? settings;
   final Map<String, dynamic> coaching;
   final Map<String, dynamic> coachingStatus;
   final Map<String, dynamic> config;
   final Map<String, dynamic> players;
-  final Map<String, dynamic> timeline;
   final Map<String, dynamic> highlights;
   final Map<String, dynamic> scoutProfile;
   final Map<String, dynamic> scoutMatch;
@@ -383,24 +377,18 @@ class CompanionState {
   final bool operationInProgress;
   final Map<String, dynamic> lastOperationResult;
 
-  GameSnapshot? get activeGame => game?.gameEnded == false ? game : null;
-
   CompanionState copyWith({
     CompanionConnection? connection,
     bool? webSocketConnected,
     CompanionHealth? health,
     Map<String, dynamic>? localCoachHealth,
-    GameSnapshot? game,
-    bool clearGame = false,
     LobbyState? lobby,
     Map<String, dynamic>? lobbyHealth,
-    CalibrationState? calibration,
     CompanionSettings? settings,
     Map<String, dynamic>? coaching,
     Map<String, dynamic>? coachingStatus,
     Map<String, dynamic>? config,
     Map<String, dynamic>? players,
-    Map<String, dynamic>? timeline,
     Map<String, dynamic>? highlights,
     Map<String, dynamic>? scoutProfile,
     Map<String, dynamic>? scoutMatch,
@@ -417,16 +405,13 @@ class CompanionState {
       webSocketConnected: webSocketConnected ?? this.webSocketConnected,
       health: health ?? this.health,
       localCoachHealth: localCoachHealth ?? this.localCoachHealth,
-      game: clearGame ? null : game ?? this.game,
       lobby: lobby ?? this.lobby,
       lobbyHealth: lobbyHealth ?? this.lobbyHealth,
-      calibration: calibration ?? this.calibration,
       settings: settings ?? this.settings,
       coaching: coaching ?? this.coaching,
       coachingStatus: coachingStatus ?? this.coachingStatus,
       config: config ?? this.config,
       players: players ?? this.players,
-      timeline: timeline ?? this.timeline,
       highlights: highlights ?? this.highlights,
       scoutProfile: scoutProfile ?? this.scoutProfile,
       scoutMatch: scoutMatch ?? this.scoutMatch,

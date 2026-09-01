@@ -56,21 +56,17 @@ class CompanionController extends StateNotifier<CompanionState> {
     _fastPolling = true;
     try {
       final results = await Future.wait<Object?>([
-        client.gameState(),
         client.lobbyState(),
         client.lobbyHealth(),
         client.coachingStatus(),
         client.directives(),
       ]);
-      final gameJson = results[0] as Map<String, dynamic>?;
-      final directiveJson = results[4] as List<Map<String, dynamic>>;
+      final directiveJson = results[3] as List<Map<String, dynamic>>;
       state = state.copyWith(
         connection: CompanionConnection.online,
-        game: gameJson == null ? null : GameSnapshot.fromJson(gameJson),
-        clearGame: gameJson == null,
-        lobby: LobbyState.fromJson(results[1] as Map<String, dynamic>),
-        lobbyHealth: results[2] as Map<String, dynamic>,
-        coachingStatus: results[3] as Map<String, dynamic>,
+        lobby: LobbyState.fromJson(results[0] as Map<String, dynamic>),
+        lobbyHealth: results[1] as Map<String, dynamic>,
+        coachingStatus: results[2] as Map<String, dynamic>,
         directives: directiveJson.map(CoachDirective.fromJson).toList(),
         clearError: true,
       );
@@ -87,20 +83,14 @@ class CompanionController extends StateNotifier<CompanionState> {
     try {
       final coaching = await _optional(client.coaching);
       final players = await _optional(client.players);
-      final timeline = await _optional(client.timeline);
       final config = await _optional(client.config);
-      final calibration = await _optional(client.calibration);
       final settings = await _optional(client.settings);
       final highlights = await _optional(client.highlights);
       state = state.copyWith(
         connection: CompanionConnection.online,
         coaching: coaching ?? state.coaching,
         players: players ?? state.players,
-        timeline: timeline ?? state.timeline,
         config: config ?? state.config,
-        calibration: calibration == null
-            ? state.calibration
-            : CalibrationState.fromJson(calibration),
         settings: settings == null
             ? state.settings
             : CompanionSettings.fromJson(settings),
@@ -164,60 +154,6 @@ class CompanionController extends StateNotifier<CompanionState> {
     state = state.copyWith(webSocketConnected: false);
     _reconnectTimer?.cancel();
     _reconnectTimer = Timer(const Duration(seconds: 2), _connectAlerts);
-  }
-
-  Future<void> autoCalibrate() async {
-    state = state.copyWith(operationInProgress: true, clearError: true);
-    try {
-      final detected = await client.detectCalibration();
-      final bounds = detected['bounds'];
-      if (bounds is! Map) {
-        throw const CompanionGatewayException(
-          'Calibration returned no bounds.',
-        );
-      }
-      final normalized = bounds.map(
-        (key, value) => MapEntry(key.toString(), value),
-      );
-      final width = (normalized['width'] as num?)?.toDouble() ?? 0;
-      final height = (normalized['height'] as num?)?.toDouble() ?? 0;
-      final ratio = height == 0 ? double.infinity : width / height;
-      if (width <= 0 || height <= 0 || ratio < 0.75 || ratio > 1.33) {
-        throw CompanionGatewayException(
-          'Calibration detectó bounds inválidos '
-          '${width.round()}x${height.round()}. Usa calibración manual.',
-        );
-      }
-      final saved = await client.saveCalibration(normalized);
-      state = state.copyWith(
-        calibration: CalibrationState.fromJson(saved),
-        operationInProgress: false,
-        clearError: true,
-      );
-    } catch (error) {
-      state = state.copyWith(
-        operationInProgress: false,
-        lastError: error.toString(),
-      );
-    }
-  }
-
-  Future<void> saveManualCalibration(Map<String, dynamic> bounds) async {
-    state = state.copyWith(operationInProgress: true, clearError: true);
-    try {
-      final saved = await client.saveCalibration(bounds, source: 'manual');
-      state = state.copyWith(
-        calibration: CalibrationState.fromJson(saved),
-        operationInProgress: false,
-        lastOperationResult: saved,
-        clearError: true,
-      );
-    } catch (error) {
-      state = state.copyWith(
-        operationInProgress: false,
-        lastError: error.toString(),
-      );
-    }
   }
 
   Future<void> updateSettings(Map<String, dynamic> patch) async {

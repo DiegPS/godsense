@@ -64,30 +64,51 @@ void main() {
   final realCorpusExists =
       appData != null &&
       Directory('$appData\\GodSense\\cv-real-corpus').existsSync();
-  test('compares current real-game Python corpus', () async {
-    final comparator = CvCorpusComparator();
-    addTearDown(comparator.dispose);
-    await comparator.run(rawTargets: false, corpusDirectory: 'cv-real-corpus');
-    final result = comparator.state;
-    debugPrint(
-      'REAL CV: frames=${result.frames}, precision=${result.precision}, '
-      'recall=${result.recall}, identity=${result.identityAgreement}, '
-      'IoU=${result.averageIou}, confidenceDelta=${result.averageConfidenceDelta}, '
-      'dartMs=${result.averageDartMilliseconds}',
-    );
-    for (final sample in result.sampleComparisons) {
-      debugPrint('REAL $sample');
-    }
-    for (final mismatch in result.identityMismatches) {
-      debugPrint('MISMATCH $mismatch');
-    }
-    expect(result.error, isNull);
-    expect(result.frames, equals(866));
-    expect(result.precision, greaterThan(0.99));
-    expect(result.recall, greaterThan(0.99));
-    expect(result.averageIou, greaterThan(0.99));
-    expect(result.identityAgreement, greaterThan(0.99));
-  }, timeout: const Timeout(Duration(minutes: 2)), skip: realCorpusExists ? false : 'Real-game corpus unavailable.');
+  test(
+    'compares current real-game Python corpus',
+    () async {
+      final comparator = CvCorpusComparator();
+      addTearDown(comparator.dispose);
+      await comparator.run(
+        rawTargets: false,
+        corpusDirectory: 'cv-real-corpus',
+      );
+      final result = comparator.state;
+      debugPrint(
+        'REAL CV: frames=${result.frames}, precision=${result.precision}, '
+        'recall=${result.recall}, identity=${result.identityAgreement}, '
+        'exactBoxes=${result.exactBoxes}/${result.matchedBoxes}, '
+        'IoU=${result.averageIou}, confidenceDelta=${result.averageConfidenceDelta}, '
+        'dartMs=${result.averageDartMilliseconds}',
+      );
+      for (final sample in result.sampleComparisons) {
+        debugPrint('REAL $sample');
+      }
+      for (final mismatch in result.identityMismatches) {
+        debugPrint('MISMATCH $mismatch');
+      }
+      for (final mismatch in result.boxMismatches) {
+        debugPrint('BOX MISMATCH $mismatch');
+      }
+      expect(result.error, isNull);
+      expect(result.frames, equals(866));
+      expect(result.dartDetections, equals(result.pythonDetections));
+      expect(result.matchedBoxes, equals(result.pythonDetections));
+      expect(result.exactBoxes, equals(result.pythonDetections));
+      expect(result.matchedIdentities, equals(result.pythonDetections));
+      expect(result.precision, equals(1));
+      expect(result.recall, equals(1));
+      expect(result.averageIou, equals(1));
+      expect(result.identityAgreement, equals(1));
+      expect(result.averageConfidenceDelta, lessThan(1e-5));
+      expect(result.averageTemplateDelta, lessThan(1e-5));
+      expect(result.averageHistogramDelta, lessThan(1e-5));
+      expect(result.identityMismatches, isEmpty);
+      expect(result.boxMismatches, isEmpty);
+    },
+    timeout: const Timeout(Duration(minutes: 2)),
+    skip: realCorpusExists ? false : 'Real-game corpus unavailable.',
+  );
 
   test('checks direct Dart pixel parity for a saved frame', () async {
     final root = Directory('$appData\\GodSense\\cv-corpus');
