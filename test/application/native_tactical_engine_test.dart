@@ -8,6 +8,33 @@ void main() {
 
   setUp(() => engine = NativeTacticalEngine(now: () => observedAt));
 
+  test('retains live matchup and build after champion select disappears', () {
+    const local = {
+      'champion_name': 'Ahri',
+      'summoner_name': 'Local',
+      'tag_line': 'LAN',
+      'role': 'MIDDLE',
+    };
+    final game = <String, dynamic>{
+      'active_player': local,
+      'allies': [local],
+      'enemies': [
+        {'champion_name': 'Vi', 'role': 'JUNGLE'},
+        {'champion_name': 'Vex', 'role': 'MIDDLE'},
+      ],
+      'builds': {'build_type': 'RIOT_GENERAL', 'items': <Object?>[]},
+    };
+    final result = engine.analyze(game: game);
+    expect(result['matchup'], isNotNull);
+    expect(result['builds'], isNotEmpty);
+    final advice = engine.answer(question: 'mi rival de linea', game: game);
+    expect(advice.title, 'Ahri contra Vex');
+    expect(
+      advice.evidence.map((entry) => entry.source),
+      contains(FactSource.liveClient),
+    );
+  });
+
   test('prioritizes imminent objective setup over generic gold advice', () {
     final advice = engine.directives(
       _game(
@@ -239,8 +266,8 @@ void main() {
   test('answers build questions only from the loaded Riot artifact', () {
     final answer = engine.answer(
       question: '¿Qué objetos compro?',
-      game: _game(),
-      lobby: {
+      game: {
+        ..._game(),
         'builds': {
           'patch': '16.17',
           'position': 'MIDDLE',
@@ -297,14 +324,13 @@ void main() {
   test('labels generic matchup coaching with reduced confidence', () {
     final answer = engine.answer(
       question: '¿Cuál es mi matchup?',
-      game: _game(),
       lobby: {
         'snapshot': {
           'my_team': [
-            {'champion_name': 'Ahri', 'is_local': true},
+            {'champion_name': 'Ahri', 'is_local': true, 'position': 'MIDDLE'},
           ],
           'their_team': [
-            {'champion_name': 'Vex'},
+            {'champion_name': 'Vex', 'position': 'MIDDLE'},
           ],
         },
       },

@@ -31,6 +31,7 @@ class LiveGameProcessor {
     required Map<int, Map<String, dynamic>> itemCatalog,
     Map<String, List<Map<String, dynamic>>> championAbilities = const {},
     Map<String, Map<String, dynamic>> rankedProfiles = const {},
+    Map<String, Map<String, dynamic>> championProfiles = const {},
     String? gameId,
     DateTime? observedAt,
   }) {
@@ -109,6 +110,7 @@ class LiveGameProcessor {
       final championName = value['championName']?.toString() ?? '';
       return {
         'champion_name': championName,
+        'champion_profile': championProfiles[_championKey(championName)],
         'summoner_name': _playerName(value),
         'tag_line': value['riotIdTagLine'] ?? '',
         'team': value['team'] ?? '',

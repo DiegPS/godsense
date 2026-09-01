@@ -14,6 +14,7 @@ class NativeTacticalEngine {
   }) {
     final now = _now().toUtc();
     final normalized = _normalize(question);
+    final context = _coachingContext(lobby, game);
     final gameTime = (game?['game_time'] as num?)?.toDouble();
     final userEvidence = _evidence(
       'voice_question',
@@ -30,7 +31,7 @@ class NativeTacticalEngine {
       'objeto',
       'item',
     ])) {
-      return _buildAnswer(_map(lobby?['builds']), userEvidence, now, gameTime);
+      return _buildAnswer(_map(context['builds']), userEvidence, now, gameTime);
     }
 
     if (_containsAny(normalized, const [
@@ -63,7 +64,7 @@ class NativeTacticalEngine {
       'mi rival',
       'rival de linea',
     ])) {
-      return _matchupAnswer(lobby, userEvidence, now, gameTime);
+      return _matchupAnswer(context, userEvidence, now, gameTime);
     }
 
     if (_containsAny(normalized, const ['jungla', 'jungler'])) {
@@ -145,7 +146,7 @@ class NativeTacticalEngine {
     Map<String, dynamic>? game,
     String? selectedEnemy,
   }) {
-    final normalizedLobby = lobby ?? const <String, dynamic>{};
+    final normalizedLobby = _coachingContext(lobby, game);
     final snapshot = _map(normalizedLobby['snapshot']);
     final allies = _mapList(snapshot['my_team']);
     final enemies = _mapList(snapshot['their_team']);
@@ -153,9 +154,9 @@ class NativeTacticalEngine {
         .where((player) => player['is_local'] == true)
         .firstOrNull;
     final localChampion = _champion(local);
-    final opponent =
-        selectedEnemy ??
-        enemies.map(_champion).where((name) => name.isNotEmpty).firstOrNull;
+    final opponent = enemies.any((enemy) => _champion(enemy) == selectedEnemy)
+        ? selectedEnemy
+        : _laneOpponent(local, enemies);
     final matchup = localChampion.isEmpty || opponent == null
         ? null
         : _matchup(localChampion, opponent);
@@ -450,16 +451,13 @@ class NativeTacticalEngine {
         .where((player) => player['is_local'] == true)
         .firstOrNull;
     final champion = _champion(local);
-    final enemy = enemies
-        .map(_champion)
-        .where((name) => name.isNotEmpty)
-        .firstOrNull;
+    final enemy = _laneOpponent(local, enemies);
     if (champion.isEmpty || enemy == null) {
       return TacticalAdvice(
         id: 'voice_matchup_unavailable',
         title: 'Matchup sin confirmar',
         hints: const ['Espera a que ambos campeones estén confirmados.'],
-        rationale: 'Champion Select no aporta todavía los dos campeones.',
+        rationale: 'No hay un rival confirmado para el mismo rol.',
         ttsText: 'Todavía no tengo tu matchup confirmado.',
         priority: 45,
         evidence: [question],
@@ -482,7 +480,16 @@ class NativeTacticalEngine {
       priority: 60,
       evidence: [
         question,
-        _evidence('champ_select_matchup', FactSource.lcu, now, gameTime),
+        _evidence(
+          lobby?['source'] == 'live_client'
+              ? 'live_matchup'
+              : 'champ_select_matchup',
+          lobby?['source'] == 'live_client'
+              ? FactSource.liveClient
+              : FactSource.lcu,
+          now,
+          gameTime,
+        ),
         TacticalEvidence(
           factType: 'general_matchup_rule',
           source: FactSource.derived,
@@ -766,6 +773,47 @@ Map<String, dynamic> _matchup(String champion, String enemy) => {
 
 String _champion(Map<String, dynamic>? player) =>
     player?['champion_name']?.toString().trim() ?? '';
+
+Map<String, dynamic> _coachingContext(
+  Map<String, dynamic>? lobby,
+  Map<String, dynamic>? game,
+) {
+  if (game == null || game['_game_ended'] == true) return lobby ?? const {};
+  final active = _map(game['active_player']);
+  return {
+    'source': 'live_client',
+    'builds': game['builds'],
+    'snapshot': {
+      'my_team': [
+        for (final player in _mapList(game['allies']))
+          {
+            ...player,
+            'position': player['role'],
+            'is_local':
+                player['summoner_name'] == active['summoner_name'] &&
+                player['tag_line'] == active['tag_line'],
+          },
+      ],
+      'their_team': [
+        for (final player in _mapList(game['enemies']))
+          {...player, 'position': player['role']},
+      ],
+    },
+  };
+}
+
+String? _laneOpponent(
+  Map<String, dynamic>? local,
+  List<Map<String, dynamic>> enemies,
+) {
+  final role = local?['position']?.toString().toUpperCase() ?? '';
+  if (role.isEmpty || role == 'UNKNOWN') return null;
+  return enemies
+      .where((enemy) => enemy['position']?.toString().toUpperCase() == role)
+      .map(_champion)
+      .where((name) => name.isNotEmpty)
+      .firstOrNull;
+}
 
 String _objectiveLabel(String key) => switch (key) {
   'dragon' => 'dragón',

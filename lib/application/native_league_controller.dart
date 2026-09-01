@@ -424,13 +424,20 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
           itemCatalog: _itemCatalog,
           championAbilities: _championAbilities,
           rankedProfiles: _liveRankedProfiles,
+          championProfiles: {
+            for (final entry in _championProfiles.entries)
+              _championKey(_championNames[entry.key] ?? ''): entry.value,
+          },
           gameId: _currentGameId,
         );
         state = state.copyWith(
           lcuConnected: lcuConnected,
           gameflowPhase: phase,
           lobby: lobby,
-          liveGame: processed.snapshot,
+          liveGame: {
+            ...processed.snapshot,
+            'builds': ?_liveItemBuild(processed.snapshot),
+          },
           liveApiConnected: true,
           liveApiLatencyMilliseconds: liveLatency,
           consecutiveLiveFailures: 0,
@@ -892,6 +899,26 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
   Map<String, dynamic>? _matchingItemBuild(int championId) {
     final bundle = state.itemRecommendations;
     if (bundle == null || bundle.championId != championId) return null;
+    return bundle.toBuildJson();
+  }
+
+  Map<String, dynamic>? _liveItemBuild(Map<String, dynamic> game) {
+    final bundle = state.itemRecommendations;
+    if (bundle == null) return null;
+    final active = _stringMap(game['active_player']);
+    final champion = _championKey(active['champion_name']?.toString() ?? '');
+    final role = LeaguePosition.tryParse(active['role']);
+    final patch = foundation?.state.account.context?.account.patchKey;
+    final mapId = (game['map_number'] as num?)?.toInt();
+    if (patch != bundle.patch ||
+        mapId != bundle.mapId ||
+        role != bundle.position) {
+      return null;
+    }
+    if (champion != _championKey(bundle.championAlias) &&
+        champion != _championKey(_championNames[bundle.championId] ?? '')) {
+      return null;
+    }
     return bundle.toBuildJson();
   }
 
