@@ -73,6 +73,36 @@ class GodSenseHome extends ConsumerWidget {
       );
     });
     ref.listen(nativeVisionProvider, (previous, next) {
+      final previousKeys =
+          previous?.events.map(_nativeVisionEventKey).toSet() ??
+          const <String>{};
+      for (final event in next.events) {
+        if (previousKeys.contains(_nativeVisionEventKey(event))) continue;
+        final gameTime = ref.read(effectiveGameProvider)?.gameTime;
+        final identified = next.lastKnown[event.champion];
+        unawaited(
+          ref
+              .read(nativeLeagueProvider.notifier)
+              .recordVisionObservation(
+                VisionObservation(
+                  kind: event.kind == NativeTrackerEventKind.gank
+                      ? VisionObservationKind.gankThreat
+                      : VisionObservationKind.enemySighting,
+                  champion: event.champion,
+                  location: event.location,
+                  region: event.region,
+                  role: event.role,
+                  observedAt: event.timestamp,
+                  confidence: identified?.confidence ?? 1,
+                  gameTime: gameTime == null
+                      ? null
+                      : GameTime(
+                          Duration(milliseconds: (gameTime * 1000).round()),
+                        ),
+                ),
+              ),
+        );
+      }
       final proposal = next.calibrationProposal;
       if (proposal != null && proposal != previous?.calibrationProposal) {
         unawaited(
@@ -247,3 +277,7 @@ class GodSenseHome extends ConsumerWidget {
     );
   }
 }
+
+String _nativeVisionEventKey(NativeTrackerEvent event) =>
+    '${event.kind.name}:${event.champion}:${event.region}:'
+    '${event.timestamp.toUtc().microsecondsSinceEpoch}';

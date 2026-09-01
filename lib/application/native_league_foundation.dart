@@ -7,6 +7,7 @@ import '../domain/league/game_session.dart';
 import '../domain/league/lcu_capabilities.dart';
 import '../domain/league/local_scout.dart';
 import '../domain/tactical/tactical_models.dart';
+import '../domain/vision/vision_observation.dart';
 import '../infrastructure/league/lcu_capability_probe.dart';
 import '../infrastructure/league/lcu_current_account_source.dart';
 import '../infrastructure/league/lcu_probe_transport.dart';
@@ -21,6 +22,7 @@ import 'game_session_coordinator.dart';
 import 'live_client_journal_adapter.dart';
 import 'local_scout_sync_service.dart';
 import 'tactical_advice_journal_adapter.dart';
+import 'vision_journal_adapter.dart';
 
 class NativeLeagueFoundationState {
   const NativeLeagueFoundationState({
@@ -82,6 +84,7 @@ class NativeLeagueFoundation {
   LocalScoutSyncService? _scoutSync;
   DriftLocalScoutRepository? _scoutRepository;
   TacticalAdviceJournalAdapter? _tacticalAdviceJournal;
+  VisionJournalAdapter? _visionJournal;
   late final GameSessionCoordinator _sessions = GameSessionCoordinator(
     now: _now,
   );
@@ -124,6 +127,15 @@ class NativeLeagueFoundation {
     return _tacticalAdviceJournal!.ingest(
       question: question,
       advice: advice,
+      session: _sessions.state.current,
+    );
+  }
+
+  Future<bool> recordVisionObservation(VisionObservation observation) async {
+    await _ensureInitialized();
+    if (_disposed) return false;
+    return _visionJournal!.ingest(
+      observation,
       session: _sessions.state.current,
     );
   }
@@ -294,6 +306,10 @@ class NativeLeagueFoundation {
       repository: _journal!,
       now: _now,
       idPrefix: '${_captureEpochId.value}-coach',
+    );
+    _visionJournal = VisionJournalAdapter(
+      repository: _journal!,
+      idPrefix: '${_captureEpochId.value}-vision',
     );
     _liveClientJournal = LiveClientJournalAdapter(
       repository: _journal!,

@@ -7,6 +7,7 @@ import '../domain/league/game_session.dart';
 import '../domain/league/lcu_capabilities.dart';
 import '../domain/league/local_scout.dart';
 import '../domain/tactical/tactical_models.dart';
+import '../domain/vision/vision_observation.dart';
 import '../infrastructure/data_dragon/data_dragon_catalog_service.dart';
 import '../infrastructure/league/league_clients.dart';
 import '../infrastructure/league/lcu_event_stream.dart';
@@ -151,6 +152,11 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
   }) => (foundation ??= NativeLeagueFoundation(
     client: _lcu,
   )).recordTacticalAdvice(question: question, advice: advice);
+
+  Future<bool> recordVisionObservation(VisionObservation observation) =>
+      (foundation ??= NativeLeagueFoundation(
+        client: _lcu,
+      )).recordVisionObservation(observation);
 
   Future<List<LocalMatchRecord>> loadLocalMatches(
     Puuid puuid, {
