@@ -2,21 +2,24 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../domain/companion_gateway.dart';
 import '../domain/companion_models.dart';
-import '../infrastructure/legacy/legacy_companion_gateway.dart';
-import '../infrastructure/local_coach/local_coach_gateway.dart';
+import '../infrastructure/native_runtime/native_companion_gateway.dart';
 import 'companion_controller.dart';
 
 final companionGatewayProvider = Provider<CompanionGateway>(
-  (_) => LegacyCompanionGateway(),
+  (_) => NativeCompanionGateway(),
 );
 
 final companionRuntimeProvider = Provider<CompanionRuntime>(
-  (_) => LegacyCompanionRuntime(),
+  (_) => const InProcessCompanionRuntime(),
 );
 
-final coachGatewayProvider = Provider<CoachGateway>((_) => LocalCoachGateway());
+final coachGatewayProvider = Provider<CoachGateway>(
+  (_) => const NativeCoachHealthGateway(),
+);
 
-final coachRuntimeProvider = Provider<CoachRuntime>((_) => LocalCoachRuntime());
+final coachRuntimeProvider = Provider<CoachRuntime>(
+  (_) => const InProcessCompanionRuntime(),
+);
 
 final companionControllerProvider =
     StateNotifierProvider<CompanionController, CompanionState>((ref) {
