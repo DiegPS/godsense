@@ -5,7 +5,6 @@ class LivePage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(companionControllerProvider);
     final nativeLeague = ref.watch(nativeLeagueProvider);
     final game = ref.watch(effectiveGameProvider);
     final isEnded = game?.gameEnded == true;
@@ -131,11 +130,7 @@ class LivePage extends ConsumerWidget {
               child: ListTile(title: Text('Esperando rival de línea…')),
             )
           else
-            _LiveMatchup(
-              activePlayer: activePlayer,
-              opponent: opponent,
-              profiles: state.players,
-            ),
+            _LiveMatchup(activePlayer: activePlayer, opponent: opponent),
         ],
         const SizedBox(height: 20),
         Text(
@@ -299,24 +294,13 @@ class _PlayerTile extends StatelessWidget {
 }
 
 class _LiveMatchup extends StatelessWidget {
-  const _LiveMatchup({
-    required this.activePlayer,
-    required this.opponent,
-    required this.profiles,
-  });
+  const _LiveMatchup({required this.activePlayer, required this.opponent});
 
   final Map<String, dynamic> activePlayer;
   final Map<String, dynamic> opponent;
-  final Map<String, dynamic> profiles;
 
   @override
   Widget build(BuildContext context) {
-    final profile = profiles[opponent['champion_name']] is Map
-        ? Map<String, dynamic>.from(profiles[opponent['champion_name']] as Map)
-        : const <String, dynamic>{};
-    final rank = profile['rank'] is Map
-        ? Map<String, dynamic>.from(profile['rank'] as Map)
-        : const <String, dynamic>{};
     final abilities = _asMapList(opponent['abilities']);
     return Card(
       child: Padding(
@@ -330,17 +314,6 @@ class _LiveMatchup extends StatelessWidget {
                 Expanded(child: _MatchupPlayer(player: opponent)),
               ],
             ),
-            if (rank.isNotEmpty)
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.military_tech),
-                title: Text(
-                  '${rank['tier'] ?? ''} ${rank['division'] ?? ''} · ${rank['lp'] ?? 0} LP',
-                ),
-                subtitle: Text(
-                  '${rank['wins'] ?? 0}W ${rank['losses'] ?? 0}L · ${rank['winrate'] ?? 0}% WR',
-                ),
-              ),
             if (abilities.isNotEmpty) ...[
               const Divider(),
               Align(

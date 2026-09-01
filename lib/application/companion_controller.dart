@@ -82,14 +82,10 @@ class CompanionController extends StateNotifier<CompanionState> {
     _mediumPolling = true;
     try {
       final coaching = await _optional(client.coaching);
-      final players = await _optional(client.players);
-      final config = await _optional(client.config);
       final settings = await _optional(client.settings);
       state = state.copyWith(
         connection: CompanionConnection.online,
         coaching: coaching ?? state.coaching,
-        players: players ?? state.players,
-        config: config ?? state.config,
         settings: settings == null
             ? state.settings
             : CompanionSettings.fromJson(settings),
@@ -173,40 +169,6 @@ class CompanionController extends StateNotifier<CompanionState> {
     }
   }
 
-  Future<void> testVoice() async {
-    state = state.copyWith(operationInProgress: true, clearError: true);
-    try {
-      final result = await client.testVoice();
-      state = state.copyWith(
-        operationInProgress: false,
-        lastOperationResult: result,
-        clearError: true,
-      );
-    } catch (error) {
-      state = state.copyWith(
-        operationInProgress: false,
-        lastError: error.toString(),
-      );
-    }
-  }
-
-  Future<void> importLobbySetup() async {
-    state = state.copyWith(operationInProgress: true, clearError: true);
-    try {
-      final result = await client.importAll();
-      state = state.copyWith(
-        operationInProgress: false,
-        lastOperationResult: result,
-        clearError: true,
-      );
-    } catch (error) {
-      state = state.copyWith(
-        operationInProgress: false,
-        lastError: error.toString(),
-      );
-    }
-  }
-
   Future<void> generateLobbyBrief(String candidate) async {
     state = state.copyWith(operationInProgress: true, clearError: true);
     try {
@@ -214,59 +176,6 @@ class CompanionController extends StateNotifier<CompanionState> {
       await _pollFast();
       await _pollMedium();
       state = state.copyWith(operationInProgress: false, clearError: true);
-    } catch (error) {
-      state = state.copyWith(
-        operationInProgress: false,
-        lastError: error.toString(),
-      );
-    }
-  }
-
-  Future<void> scoutSummoner({
-    required String name,
-    required String tag,
-    required String region,
-  }) async {
-    state = state.copyWith(operationInProgress: true, clearError: true);
-    try {
-      final result = await client.scoutSummoner(
-        name: name,
-        tag: tag,
-        region: region,
-      );
-      state = state.copyWith(
-        scoutProfile: result,
-        scoutMatch: const {},
-        operationInProgress: false,
-        clearError: true,
-      );
-    } catch (error) {
-      state = state.copyWith(
-        operationInProgress: false,
-        lastError: error.toString(),
-      );
-    }
-  }
-
-  Future<void> scoutMatch({
-    required int matchId,
-    required String region,
-    required String name,
-    required String tag,
-  }) async {
-    state = state.copyWith(operationInProgress: true, clearError: true);
-    try {
-      final result = await client.scoutMatch(
-        matchId: matchId,
-        region: region,
-        name: name,
-        tag: tag,
-      );
-      state = state.copyWith(
-        scoutMatch: result,
-        operationInProgress: false,
-        clearError: true,
-      );
     } catch (error) {
       state = state.copyWith(
         operationInProgress: false,

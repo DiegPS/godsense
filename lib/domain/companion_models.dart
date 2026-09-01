@@ -340,10 +340,6 @@ class CompanionState {
     this.settings,
     this.coaching = const {},
     this.coachingStatus = const {},
-    this.config = const {},
-    this.players = const {},
-    this.scoutProfile = const {},
-    this.scoutMatch = const {},
     this.supportResult = const {},
     this.directives = const [],
     this.alerts = const [],
@@ -361,10 +357,6 @@ class CompanionState {
   final CompanionSettings? settings;
   final Map<String, dynamic> coaching;
   final Map<String, dynamic> coachingStatus;
-  final Map<String, dynamic> config;
-  final Map<String, dynamic> players;
-  final Map<String, dynamic> scoutProfile;
-  final Map<String, dynamic> scoutMatch;
   final Map<String, dynamic> supportResult;
   final List<CoachDirective> directives;
   final List<CompanionAlert> alerts;
@@ -382,10 +374,6 @@ class CompanionState {
     CompanionSettings? settings,
     Map<String, dynamic>? coaching,
     Map<String, dynamic>? coachingStatus,
-    Map<String, dynamic>? config,
-    Map<String, dynamic>? players,
-    Map<String, dynamic>? scoutProfile,
-    Map<String, dynamic>? scoutMatch,
     Map<String, dynamic>? supportResult,
     List<CoachDirective>? directives,
     List<CompanionAlert>? alerts,
@@ -404,10 +392,6 @@ class CompanionState {
       settings: settings ?? this.settings,
       coaching: coaching ?? this.coaching,
       coachingStatus: coachingStatus ?? this.coachingStatus,
-      config: config ?? this.config,
-      players: players ?? this.players,
-      scoutProfile: scoutProfile ?? this.scoutProfile,
-      scoutMatch: scoutMatch ?? this.scoutMatch,
       supportResult: supportResult ?? this.supportResult,
       directives: directives ?? this.directives,
       alerts: alerts ?? this.alerts,

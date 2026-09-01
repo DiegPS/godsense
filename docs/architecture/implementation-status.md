@@ -10,7 +10,7 @@
 | Area | Implemented contract | Verification |
 | --- | --- | --- |
 | UI composition | Native Flutter navigation, modular pages, overlay, window manager; no `go_router` | Widget tests and Windows debug build |
-| Runtime | In-process companion and coach gateways; no external process startup | Legacy runtime sources and Dio dependency removed |
+| Runtime | In-process companion and coach gateways expose only active projection, settings, and support contracts; no external process startup | Legacy runtime sources, unused backend placeholders, and Dio dependency removed |
 | Vision | Win32 capture plus DartCV processing | Exact parity on 120 synthetic and 866 real frames |
 | Calibration | Native detection, validation, persistence, and UI | Controller tests |
 | Account lifetime | `AccountContext` survives a game and changes only with account identity | Coordinator tests |
@@ -44,9 +44,9 @@ The latest complete real-corpus run processed 866 frames with:
 - identity agreement: 100%
 - exact boxes: 1,249 / 1,249
 - average IoU: 1.0
-- average DartCV time in that run: 19.51 ms/frame
+- average DartCV time in that run: 20.66 ms/frame
 
-The 19.51 ms result is the honest end-to-end comparator measurement for that
+The 20.66 ms result is the honest end-to-end comparator measurement for that
 run. It is not reported as less than 10 ms.
 
 ## Deliberately not copied from the old coach

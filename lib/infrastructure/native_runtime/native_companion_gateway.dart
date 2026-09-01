@@ -76,14 +76,6 @@ class NativeCompanionGateway implements CompanionGateway {
           .toList(growable: false);
 
   @override
-  Future<Map<String, dynamic>> players() async => const {};
-
-  @override
-  Future<Map<String, dynamic>> config() async => const {
-    'runtime': 'in_process',
-  };
-
-  @override
   Future<Map<String, dynamic>> lobbyState() async =>
       _lobbySnapshot() ??
       const {
@@ -142,46 +134,6 @@ class NativeCompanionGateway implements CompanionGateway {
       'settings': next,
     };
   }
-
-  @override
-  Future<Map<String, dynamic>> testVoice() async => const {
-    'ok': true,
-    'runtime': 'native_sherpa',
-    'message': 'Use the native speech test in Voice settings.',
-  };
-
-  @override
-  Future<Map<String, dynamic>> importAll() async => const {
-    'ok': false,
-    'reason': 'Use the native League import action.',
-  };
-
-  @override
-  Future<Map<String, dynamic>> scoutSummoner({
-    required String name,
-    required String tag,
-    required String region,
-  }) async => {
-    'game_name': name,
-    'tag_line': tag,
-    'region': region,
-    'matches': const <Object?>[],
-    'local_only': true,
-  };
-
-  @override
-  Future<Map<String, dynamic>> scoutMatch({
-    required int matchId,
-    required String region,
-    required String name,
-    required String tag,
-  }) async => {
-    'match_id': matchId,
-    'region': region,
-    'players': const <Object?>[],
-    'teams': const <Object?>[],
-    'local_only': true,
-  };
 
   @override
   Future<Map<String, dynamic>> createSupportBundle() async => _support
