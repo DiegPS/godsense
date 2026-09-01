@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../domain/companion_gateway.dart';
 import '../../domain/tactical/tactical_models.dart';
+import 'native_support_service.dart';
 
 typedef TacticalAnalysisCallback = Map<String, dynamic> Function({
   Map<String, dynamic>? lobby,
@@ -22,15 +23,18 @@ class NativeCompanionGateway implements CompanionGateway {
     Map<String, dynamic>? Function()? gameSnapshot,
     this._tacticalAnalysis,
     this._tacticalDirectives,
+    NativeSupportService? support,
   }) : _preferences = preferences ?? SharedPreferences.getInstance,
        _lobbySnapshot = lobbySnapshot ?? (() => null),
-       _gameSnapshot = gameSnapshot ?? (() => null);
+       _gameSnapshot = gameSnapshot ?? (() => null),
+       _support = support ?? NativeSupportService();
 
   final Future<SharedPreferences> Function() _preferences;
   final Map<String, dynamic>? Function() _lobbySnapshot;
   final Map<String, dynamic>? Function() _gameSnapshot;
   final TacticalAnalysisCallback? _tacticalAnalysis;
   final TacticalDirectivesCallback? _tacticalDirectives;
+  final NativeSupportService _support;
   final StreamController<Map<String, dynamic>> _alerts =
       StreamController<Map<String, dynamic>>.broadcast();
 
@@ -192,18 +196,12 @@ class NativeCompanionGateway implements CompanionGateway {
   };
 
   @override
-  Future<Map<String, dynamic>> createSupportBundle() async => const {
-    'created': true,
-    'runtime': 'in_process',
-    'contains_secrets': false,
-  };
+  Future<Map<String, dynamic>> createSupportBundle() async => _support
+      .createBundle(settings: await _loadSettings(), health: await health());
 
   @override
-  Future<Map<String, dynamic>> reportSupport({String? note}) async => {
-    'saved_locally': true,
-    'note': note ?? '',
-    'uploaded': false,
-  };
+  Future<Map<String, dynamic>> reportSupport({String? note}) =>
+      _support.saveReport(note ?? '');
 
   @override
   Stream<Map<String, dynamic>> alertEvents() => _alerts.stream;

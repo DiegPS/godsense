@@ -247,7 +247,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                           : () => ref
                                 .read(companionControllerProvider.notifier)
                                 .reportSupport(_supportController.text),
-                      child: const Text('Enviar reporte'),
+                      child: const Text('Guardar reporte'),
                     ),
                   ],
                 ),
