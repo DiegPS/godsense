@@ -63,90 +63,73 @@ class _CoachPageState extends ConsumerState<CoachPage> {
                     style: Theme.of(context).textTheme.headlineMedium,
                   ),
                   Text(
-                    '${lobby?.phase ?? 'NO_LCU'} · ${lobby?.timerPhase ?? 'Esperando cliente'}',
-                  ),
-                  if (lobby?.timeLeftMilliseconds != null)
-                    Text(
-                      'Tiempo restante: ${_formatDuration(lobby!.timeLeftMilliseconds! / 1000)}',
+                    '${lobby?.phase ?? 'NO_LCU'} · ${lobby?.timerPhase ?? 'Esperando cliente'}'
+                    '${lobby?.timeLeftMilliseconds != null ? ' · Restante ${_formatDuration(lobby!.timeLeftMilliseconds! / 1000)}' : ''}',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: GsColors.textSecondary,
                     ),
+                  ),
                 ],
               ),
             ),
-            Chip(
-              avatar: const Icon(Icons.memory, size: 16),
-              label: Text('Coach local: ${modelMap['state'] ?? 'offline'}'),
+            GsBadge(
+              label:
+                  'COACH: ${modelMap['state']?.toString().toUpperCase() ?? 'OFFLINE'}',
+              variant: modelMap['state'] == 'ready'
+                  ? GsBadgeVariant.success
+                  : GsBadgeVariant.neutral,
             ),
           ],
         ),
-        const SizedBox(height: 16),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                SizedBox(
-                  width: 260,
-                  child: DropdownButtonFormField<String>(
-                    initialValue: selectedEnemy,
-                    decoration: const InputDecoration(
-                      labelText: 'Enemigo para el informe',
-                      border: OutlineInputBorder(),
-                    ),
-                    items: enemies
-                        .map(
-                          (enemy) => DropdownMenuItem(
-                            value: enemy,
-                            child: Text(enemy),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: enemies.isEmpty
-                        ? null
-                        : (value) => setState(() => _selectedEnemy = value),
-                  ),
+        const SizedBox(height: 20),
+        GsCard(
+          child: Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              if (enemies.isNotEmpty)
+                GsSelect<String>(
+                  label: 'ENEMIGO DE LÍNEA',
+                  width: 220,
+                  value: selectedEnemy ?? enemies.first,
+                  items: {for (final enemy in enemies) enemy: enemy},
+                  onChanged: (value) => setState(() => _selectedEnemy = value),
+                )
+              else
+                const Text(
+                  'Esperando un rival detectado en el lobby o partida.',
+                  style: TextStyle(color: GsColors.textSecondary, fontSize: 12),
                 ),
-                FilledButton.icon(
-                  onPressed:
-                      selectedEnemy == null || backend.operationInProgress
-                      ? null
-                      : () => ref
-                            .read(companionControllerProvider.notifier)
-                            .generateLobbyBrief(selectedEnemy),
-                  icon: const Icon(Icons.auto_awesome),
-                  label: const Text('Generar informe'),
-                ),
-                OutlinedButton.icon(
-                  onPressed:
-                      nativeSetupReady &&
-                          nativeLeague.lcuConnected &&
-                          !nativeLeague.operationInProgress
-                      ? () => ref
-                            .read(nativeLeagueProvider.notifier)
-                            .importCurrentRecommendations()
-                      : null,
-                  icon: const Icon(Icons.download),
-                  label: const Text('Importar configuración Riot'),
-                ),
-                if (enemies.isEmpty)
-                  const Text('Esperando un enemigo bloqueado o visible.'),
-                if (backend.coachingStatus['matchup_refresh_in_progress'] ==
-                    true)
-                  const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      SizedBox.square(
-                        dimension: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      ),
-                      SizedBox(width: 8),
-                      Text('Generando análisis…'),
-                    ],
-                  ),
-              ],
-            ),
+              GsButton(
+                label: 'Generar informe',
+                icon: Icons.auto_awesome_rounded,
+                loading:
+                    backend.operationInProgress ||
+                    backend.coachingStatus['matchup_refresh_in_progress'] ==
+                        true,
+                onPressed: selectedEnemy == null || backend.operationInProgress
+                    ? null
+                    : () => ref
+                          .read(companionControllerProvider.notifier)
+                          .generateLobbyBrief(selectedEnemy),
+              ),
+              GsButton(
+                label: 'Importar configuración Riot',
+                icon: Icons.download_rounded,
+                variant: GsButtonVariant.secondary,
+                loading: nativeLeague.operationInProgress,
+                onPressed:
+                    nativeSetupReady &&
+                        nativeLeague.lcuConnected &&
+                        !nativeLeague.operationInProgress
+                    ? () => ref
+                          .read(nativeLeagueProvider.notifier)
+                          .importCurrentRecommendations()
+                    : null,
+              ),
+            ],
           ),
         ),
         const SizedBox(height: 16),
@@ -443,30 +426,7 @@ class _CoachPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     return SizedBox(
       width: 380,
-      child: Card(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(icon, size: 20),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      title,
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                  ),
-                ],
-              ),
-              const Divider(height: 24),
-              child,
-            ],
-          ),
-        ),
-      ),
+      child: GsCard(title: title, icon: icon, child: child),
     );
   }
 }

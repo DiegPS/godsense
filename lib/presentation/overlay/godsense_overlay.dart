@@ -68,7 +68,9 @@ class _GodSenseOverlayState extends ConsumerState<GodSenseOverlay> {
         .where((alert) => alert.kind == CompanionAlertKind.overlayVisibility)
         .firstOrNull;
     final layout = ref.watch(overlayLayoutProvider);
-    final visible = layout.editing || visibilityEvent?.raw['visible'] != false;
+    final inGame = game != null && !game.gameEnded;
+    final inGameVisible = inGame && visibilityEvent?.raw['visible'] != false;
+    final visible = layout.editing || inGameVisible;
     final enemies = game?.enemies ?? const <Map<String, dynamic>>[];
     final jungler = enemies
         .where((enemy) => enemy['role']?.toString().toUpperCase() == 'JUNGLE')

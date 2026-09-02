@@ -43,7 +43,8 @@ dependencies:
   freezed_annotation: ^3.1.0
   json_annotation: ^4.12.0
   opencv_dart: 2.2.2
-  multiview_desktop: 1.2.1
+  multiview_desktop:
+    path: third_party/multiview_desktop
   shared_preferences: ^2.5.5
   # Offline Push-to-Talk, speech recognition, and text-to-speech.
   sherpa_onnx: ^1.13.5

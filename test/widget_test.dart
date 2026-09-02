@@ -16,6 +16,10 @@ void main() {
   );
 
   testWidgets('shows the GodSense overview', (tester) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
     await tester.pumpWidget(_testApp());
 
     expect(
@@ -29,22 +33,32 @@ void main() {
   testWidgets('uses Flutter native navigation with labeled destinations', (
     tester,
   ) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
     await tester.pumpWidget(_testApp());
 
-    final navigation = tester.widget<NavigationBar>(find.byType(NavigationBar));
-    expect(navigation.destinations, hasLength(6));
-    expect(
-      navigation.destinations.whereType<NavigationDestination>().map(
-        (destination) => destination.label,
-      ),
-      everyElement(isNotEmpty),
-    );
+    for (final label in [
+      'Overview',
+      'Live',
+      'Vision',
+      'Coach',
+      'Scout',
+      'Settings',
+    ]) {
+      expect(find.text(label), findsAtLeastNWidgets(1));
+    }
   });
 
   testWidgets('uses only the native DartCV vision runtime', (tester) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
     await tester.pumpWidget(_testApp());
 
-    await tester.tap(find.byIcon(Icons.visibility_outlined));
+    await tester.tap(find.text('Vision'));
     await tester.pumpAndSettle();
     expect(find.text('DartCV tracker nativo'), findsOneWidget);
     expect(find.text('Python backend'), findsNothing);
@@ -53,9 +67,13 @@ void main() {
   testWidgets('exposes native Sherpa Push-to-Talk and voice models', (
     tester,
   ) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
     await tester.pumpWidget(_testApp());
 
-    await tester.tap(find.byIcon(Icons.settings_outlined).first);
+    await tester.tap(find.text('Settings'));
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(
       find.text('Voz local · Sherpa-ONNX'),

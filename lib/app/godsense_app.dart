@@ -36,6 +36,7 @@ part '../presentation/overlay/godsense_overlay.dart';
 part '../presentation/overlay/overlay_components.dart';
 part '../presentation/window/overlay_window_manager.dart';
 part '../presentation/shared/presentation_shared.dart';
+part '../presentation/shared/godsense_ui_components.dart';
 
 final selectedPageProvider = StateProvider<int>((ref) => 0);
 final overlayEnabledProvider = StateProvider<bool>((ref) => true);
@@ -58,6 +59,13 @@ final effectiveLobbyProvider = Provider<LobbyState?>((ref) {
   final native = ref.watch(nativeLeagueProvider);
   if (native.lobby.isNotEmpty) return LobbyState.fromJson(native.lobby);
   return ref.watch(companionControllerProvider).lobby;
+});
+
+final overlayWindowVisibleProvider = Provider<bool>((ref) {
+  if (!ref.watch(overlayEnabledProvider)) return false;
+  if (ref.watch(overlayLayoutProvider).editing) return true;
+  final game = ref.watch(effectiveGameProvider);
+  return game != null && !game.gameEnded;
 });
 
 void runGodSense() {

@@ -127,8 +127,8 @@ void main() {
         for (var channel = 0; channel < 3; channel++) {
           final frameIndex = ((47 + y) * frame.cols + (41 + x)) * 3 + channel;
           final targetIndex = (y * target.cols + x) * 3 + channel;
-          manualDelta +=
-              (frame.data[frameIndex] - target.data[targetIndex]).abs();
+          manualDelta += (frame.data[frameIndex] - target.data[targetIndex])
+              .abs();
           manualCount++;
         }
       }

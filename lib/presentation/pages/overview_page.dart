@@ -17,99 +17,295 @@ class OverviewPage extends ConsumerWidget {
     final alerts = backend.alerts
         .where((alert) => alert.isVisibleAlert)
         .take(5);
+
+    final isLeagueActive = game != null || lobby?.lcuConnected == true;
+    final isLiveConnected = nativeLeague.liveApiConnected;
+
     return ListView(
       padding: const EdgeInsets.all(24),
       children: [
-        Text('Overview', style: Theme.of(context).textTheme.headlineMedium),
-        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Overview',
+                    style: Theme.of(context).textTheme.headlineMedium,
+                  ),
+                  const Text(
+                    'Estado del sistema en tiempo real y sesión de juego activa.',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: GsColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            GsBadge(
+              label: isLeagueActive ? 'CLIENTE CONECTADO' : 'CLIENTE OFFLINE',
+              variant: isLeagueActive
+                  ? GsBadgeVariant.success
+                  : GsBadgeVariant.neutral,
+            ),
+          ],
+        ),
+        const SizedBox(height: 20),
+
+        // 1. Grid of Service Cards
         Wrap(
           spacing: 12,
           runSpacing: 12,
           children: [
-            _StatusCard(
+            _OverviewServiceCard(
               title: 'League client',
-              value: game != null
-                  ? 'In game · ${game.phase} · '
-                        '${nativeLeague.lcuEventConnected ? 'eventos' : 'polling'}'
+              status: game != null
+                  ? 'En partida · ${game.phase}'
                   : lobby?.lcuConnected == true
-                  ? '${lobby!.phase} · '
-                        '${nativeLeague.lcuEventConnected ? 'eventos' : 'polling'}'
-                  : 'Not connected',
-              icon: Icons.sports_esports,
+                  ? 'Conectado · ${lobby!.phase}'
+                  : 'Desconectado',
+              detail: nativeLeague.lcuEventConnected
+                  ? 'Eventos WebSocket'
+                  : 'Polling LCU',
+              icon: Icons.sports_esports_outlined,
+              isOnline: isLeagueActive,
             ),
-            _StatusCard(
+            _OverviewServiceCard(
               title: 'Live Client API',
-              value: nativeLeague.liveApiConnected
-                  ? '${nativeLeague.liveApiLatencyMilliseconds.toStringAsFixed(1)} ms · native'
+              status: isLiveConnected
+                  ? '${nativeLeague.liveApiLatencyMilliseconds.toStringAsFixed(1)} ms'
                   : nativeLeague.inGame
-                  ? 'Reconectando · ${nativeLeague.consecutiveLiveFailures} fallos'
+                  ? 'Reconectando (${nativeLeague.consecutiveLiveFailures})'
                   : 'Esperando partida',
+              detail: isLiveConnected ? 'Captura nativa 100 Hz' : 'Offline',
               icon: Icons.monitor_heart_outlined,
+              isOnline: isLiveConnected,
             ),
-            _StatusCard(
-              title: 'Local coach',
-              value:
+            _OverviewServiceCard(
+              title: 'Coach Táctico',
+              status:
                   modelMap['name']?.toString() ??
                   coachMap['state']?.toString() ??
-                  'Checking',
-              icon: Icons.psychology,
+                  'Local Sherpa / AI',
+              detail: 'Motor local en proceso',
+              icon: Icons.psychology_outlined,
+              isOnline: true,
             ),
-            _StatusCard(
+            _OverviewServiceCard(
               title: 'Vision tracker',
-              value: cv == null
-                  ? 'Unavailable'
+              status: cv == null
+                  ? 'No disponible'
                   : cv.alive
-                  ? 'Running'
-                  : cv.error ?? 'Stopped',
-              icon: Icons.visibility,
+                  ? 'Activo y calibrado'
+                  : cv.error ?? 'Detenido',
+              detail: 'Visión Canny en proceso',
+              icon: Icons.visibility_outlined,
+              isOnline: cv?.alive == true,
             ),
           ],
         ),
-        const SizedBox(height: 24),
-        Text('Current session', style: Theme.of(context).textTheme.titleLarge),
-        const SizedBox(height: 8),
-        Card(
+        const SizedBox(height: 20),
+
+        // 2. Current Session Card
+        GsCard(
+          title: 'Sesión Actual',
+          icon: Icons.sports_esports_outlined,
+          action: game != null
+              ? GsBadge(label: game.phase, variant: GsBadgeVariant.info)
+              : null,
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              ListTile(
-                leading: const Icon(Icons.info_outline),
-                title: Text(
-                  game == null
-                      ? 'No active game'
-                      : '${game.phase} · ${_formatGameTime(game.gameTime)}',
+              if (game == null)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 24,
+                    horizontal: 16,
+                  ),
+                  decoration: BoxDecoration(
+                    color: GsColors.surfaceElevated,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Center(
+                    child: Column(
+                      children: [
+                        Icon(
+                          Icons.hourglass_empty_rounded,
+                          size: 28,
+                          color: GsColors.textMuted,
+                        ),
+                        SizedBox(height: 8),
+                        Text(
+                          'No hay una partida activa de League of Legends en curso.',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: GsColors.textPrimary,
+                          ),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          'GodSense iniciará el rastreo automáticamente en cuanto empiece el juego.',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: GsColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              else ...[
+                Row(
+                  children: [
+                    Expanded(
+                      child: GsMetricStat(
+                        label: 'Tiempo',
+                        value: _formatGameTime(game.gameTime),
+                        icon: Icons.timer_outlined,
+                      ),
+                    ),
+                    Expanded(
+                      child: GsMetricStat(
+                        label: 'Aliados',
+                        value: '${game.allies.length} campeones',
+                        icon: Icons.shield_outlined,
+                        valueColor: GsColors.cyan,
+                      ),
+                    ),
+                    Expanded(
+                      child: GsMetricStat(
+                        label: 'Enemigos',
+                        value: '${game.enemies.length} campeones',
+                        icon: Icons.warning_amber_rounded,
+                        valueColor: GsColors.crimson,
+                      ),
+                    ),
+                  ],
                 ),
-                subtitle: Text(
-                  game == null
-                      ? 'GodSense will start tracking when League game data is available.'
-                      : '${game.allies.length} allies · ${game.enemies.length} enemies',
+              ],
+              const SizedBox(height: 16),
+              const Text(
+                'ÚLTIMAS ALERTAS DE PARTIDA',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.5,
+                  color: GsColors.textMuted,
                 ),
               ),
-              const Divider(height: 1),
+              const SizedBox(height: 8),
               if (alerts.isEmpty)
-                const ListTile(
-                  leading: Icon(Icons.notifications_none),
-                  title: Text('No recent alerts'),
-                  subtitle: Text('Live alerts arrive through /ws/alerts.'),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: GsColors.surfaceElevated,
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: GsColors.border),
+                  ),
+                  child: const Row(
+                    children: [
+                      Icon(
+                        Icons.notifications_none_rounded,
+                        size: 16,
+                        color: GsColors.textMuted,
+                      ),
+                      SizedBox(width: 8),
+                      Text(
+                        'Sin alertas recientes. Las alertas de gank y visión aparecerán aquí en vivo.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: GsColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
                 )
               else
-                for (final alert in alerts)
-                  ListTile(
-                    leading: Icon(
-                      alert.kind == CompanionAlertKind.gank
-                          ? Icons.warning_amber
-                          : Icons.visibility,
+                ...alerts.map(
+                  (alert) => Container(
+                    margin: const EdgeInsets.only(bottom: 6),
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: GsColors.surfaceElevated,
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(
+                        color: alert.kind == CompanionAlertKind.gank
+                            ? const Color(0x33EF4444)
+                            : GsColors.border,
+                      ),
                     ),
-                    title: Text(alert.title),
-                    subtitle: Text(alert.message),
+                    child: Row(
+                      children: [
+                        Icon(
+                          alert.kind == CompanionAlertKind.gank
+                              ? Icons.warning_amber_rounded
+                              : Icons.visibility_outlined,
+                          size: 18,
+                          color: alert.kind == CompanionAlertKind.gank
+                              ? GsColors.crimson
+                              : GsColors.cyan,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                alert.title,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: GsColors.textPrimary,
+                                ),
+                              ),
+                              Text(
+                                alert.message,
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: GsColors.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
+                ),
             ],
           ),
         ),
         if (backend.lastError != null) ...[
           const SizedBox(height: 12),
-          Text(
-            backend.lastError!,
-            style: TextStyle(color: Theme.of(context).colorScheme.error),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: GsColors.crimsonGlow,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0x4DEF4444)),
+            ),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.error_outline_rounded,
+                  size: 16,
+                  color: GsColors.crimson,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    backend.lastError!,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: GsColors.crimson,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ],
@@ -117,27 +313,106 @@ class OverviewPage extends ConsumerWidget {
   }
 }
 
-class _StatusCard extends StatelessWidget {
-  const _StatusCard({
+class _OverviewServiceCard extends StatelessWidget {
+  const _OverviewServiceCard({
     required this.title,
-    required this.value,
+    required this.status,
+    required this.detail,
     required this.icon,
+    required this.isOnline,
   });
 
   final String title;
-  final String value;
+  final String status;
+  final String detail;
   final IconData icon;
+  final bool isOnline;
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 240,
-      child: Card(
-        child: ListTile(
-          leading: Icon(icon),
-          title: Text(title),
-          subtitle: Text(value),
-        ),
+    return Container(
+      width: 260,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: GsColors.surface,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: isOnline ? GsColors.cyanGlow : GsColors.surfaceElevated,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: isOnline ? const Color(0x4D38BDF8) : GsColors.border,
+              ),
+            ),
+            child: Center(
+              child: Icon(
+                icon,
+                size: 18,
+                color: isOnline ? GsColors.cyan : GsColors.textMuted,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: GsColors.textPrimary,
+                        ),
+                      ),
+                    ),
+                    Container(
+                      width: 6,
+                      height: 6,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: isOnline ? GsColors.emerald : GsColors.textMuted,
+                        boxShadow: isOnline
+                            ? const [
+                                BoxShadow(
+                                  color: Color(0x8010B981),
+                                  blurRadius: 4,
+                                ),
+                              ]
+                            : null,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  status,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: isOnline ? GsColors.cyan : GsColors.textSecondary,
+                  ),
+                ),
+                Text(
+                  detail,
+                  style: const TextStyle(
+                    fontSize: 10,
+                    color: GsColors.textMuted,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

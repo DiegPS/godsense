@@ -35,90 +35,157 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       'jungler': 'Jungla enemigo',
       'voice_ask': 'Voz',
     };
+    final healthComponents =
+        <String, ({bool alive, String? latency, String? error})>{
+          for (final name in const ['tick', 'gank', 'cv', 'tts', 'publisher'])
+            name: (
+              alive: backend.health?.components[name]?.alive ?? false,
+              latency: backend.health?.components[name]?.alive == true
+                  ? 'ACTIVO'
+                  : null,
+              error: backend.health?.components[name]?.error,
+            ),
+        };
 
     return ListView(
       padding: const EdgeInsets.all(24),
       children: [
-        Text('Ajustes', style: Theme.of(context).textTheme.headlineMedium),
-        const SizedBox(height: 16),
-        Card(
+        Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Ajustes',
+                    style: Theme.of(context).textTheme.headlineMedium,
+                  ),
+                  const Text(
+                    'Preferencias del sistema, integración de overlay y diagnóstico.',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: GsColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 20),
+
+        // 1. General Settings Card
+        GsCard(
+          title: 'General y Overlay',
+          icon: Icons.tune_rounded,
+          padding: EdgeInsets.zero,
           child: Column(
             children: [
-              SwitchListTile(
-                title: const Text('Activar overlay'),
-                subtitle: const Text('Mostrar información sobre League.'),
+              GsToggleSwitch(
+                title: 'Activar Overlay In-Game',
+                subtitle:
+                    'Superposición HUD transparente acelerada por hardware.',
+                icon: Icons.layers_outlined,
                 value: overlayEnabled,
-                onChanged: (value) async {
+                onChanged: (value) {
                   ref.read(overlayEnabledProvider.notifier).state = value;
-                  if (value) {
-                    await overlayWindowManager.open(context);
-                  } else {
-                    await overlayWindowManager.close();
-                  }
                 },
               ),
-              const Divider(height: 1),
-              ListTile(
-                title: const Text('Idioma'),
-                subtitle: meta['language_restart_required'] == true
-                    ? const Text('Requiere reiniciar')
-                    : null,
-                trailing: DropdownButton<String>(
-                  value: settings?.language ?? 'auto',
-                  items: const ['auto', 'en', 'es']
-                      .map(
-                        (value) => DropdownMenuItem(
-                          value: value,
-                          child: Text(value.toUpperCase()),
-                        ),
-                      )
-                      .toList(),
-                  onChanged:
-                      locks.containsKey('language') ||
-                          backend.operationInProgress
-                      ? null
-                      : (value) => ref
-                            .read(companionControllerProvider.notifier)
-                            .updateSettings({'language': value}),
-                ),
-              ),
-              const Divider(height: 1),
-              ListTile(
-                title: const Text('Cadencia'),
-                trailing: DropdownButton<String>(
-                  value: settings?.cadence ?? 'normal',
-                  items: const ['quiet', 'normal', 'chatty']
-                      .map(
-                        (value) =>
-                            DropdownMenuItem(value: value, child: Text(value)),
-                      )
-                      .toList(),
-                  onChanged:
-                      meta['cadence_editable'] != true ||
-                          backend.operationInProgress
-                      ? null
-                      : (value) => ref
-                            .read(companionControllerProvider.notifier)
-                            .updateSettings({'cadence': value}),
-                ),
-              ),
-              const Divider(height: 1),
-              ListTile(
-                title: const Text('Calibración del minimapa'),
-                subtitle: Text(_calibrationDescription(calibration)),
-                trailing: Wrap(
-                  spacing: 8,
+              const Divider(height: 1, color: Color(0x14FFFFFF)),
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: Wrap(
+                  spacing: 16,
+                  runSpacing: 12,
+                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
+                    GsSelect<String>(
+                      label: 'IDIOMA DE LA APP',
+                      width: 140,
+                      value: settings?.language ?? 'auto',
+                      items: const {
+                        'auto': 'AUTO',
+                        'en': 'ENGLISH',
+                        'es': 'ESPAÑOL',
+                      },
+                      onChanged:
+                          locks.containsKey('language') ||
+                              backend.operationInProgress
+                          ? null
+                          : (value) => ref
+                                .read(companionControllerProvider.notifier)
+                                .updateSettings({'language': value}),
+                    ),
+                    GsSelect<String>(
+                      label: 'CADENCIA DE VOZ',
+                      width: 140,
+                      value: settings?.cadence ?? 'normal',
+                      items: const {
+                        'quiet': 'Silencioso',
+                        'normal': 'Normal',
+                        'chatty': 'Frecuente',
+                      },
+                      onChanged:
+                          meta['cadence_editable'] != true ||
+                              backend.operationInProgress
+                          ? null
+                          : (value) => ref
+                                .read(companionControllerProvider.notifier)
+                                .updateSettings({'cadence': value}),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1, color: Color(0x14FFFFFF)),
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.crop_free_rounded,
+                      size: 18,
+                      color: GsColors.cyan,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Calibración del Minimapa',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: GsColors.textPrimary,
+                            ),
+                          ),
+                          Text(
+                            _calibrationDescription(calibration),
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: GsColors.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
                     if (calibration != null)
-                      OutlinedButton(
+                      GsButton(
+                        label: 'Borrar',
+                        variant: GsButtonVariant.ghost,
+                        compact: true,
                         onPressed: nativeCalibration.saving
                             ? null
                             : () => ref
                                   .read(nativeCalibrationProvider.notifier)
                                   .clear(),
-                        child: const Text('Borrar'),
                       ),
-                    OutlinedButton(
+                    const SizedBox(width: 6),
+                    GsButton(
+                      label: 'Manual',
+                      variant: GsButtonVariant.secondary,
+                      compact: true,
                       onPressed: nativeCalibration.saving
                           ? null
                           : () => _showManualCalibrationDialog(
@@ -126,15 +193,16 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                               ref,
                               calibration,
                             ),
-                      child: const Text('Manual'),
                     ),
-                    FilledButton(
+                    const SizedBox(width: 6),
+                    GsButton(
+                      label: 'Detectar',
+                      compact: true,
                       onPressed: nativeCalibration.saving
                           ? null
                           : () => ref
                                 .read(nativeVisionProvider.notifier)
                                 .detectCalibration(),
-                      child: const Text('Detectar'),
                     ),
                   ],
                 ),
@@ -143,19 +211,24 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           ),
         ),
         const SizedBox(height: 16),
+
+        // 2. Sherpa Speech Settings
         const NativeSpeechSettingsCard(),
         const SizedBox(height: 16),
-        Text(
-          'Paneles del overlay',
-          style: Theme.of(context).textTheme.titleLarge,
-        ),
-        Card(
+
+        // 3. Overlay Panels Config
+        GsCard(
+          title: 'Paneles del Overlay',
+          subtitle:
+              'Activa o desactiva módulos visuales en la superposición HUD.',
+          icon: Icons.dashboard_customize_outlined,
+          padding: EdgeInsets.zero,
           child: Column(
             children: panels.entries.map((entry) {
               final hidden =
                   settings?.overlayHiddenPanels.contains(entry.key) ?? false;
-              return SwitchListTile(
-                title: Text(entry.value),
+              return GsToggleSwitch(
+                title: entry.value,
                 value: !hidden,
                 onChanged: backend.operationInProgress
                     ? null
@@ -175,69 +248,70 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           ),
         ),
         const SizedBox(height: 16),
-        Text('Salud', style: Theme.of(context).textTheme.titleLarge),
-        Card(
-          child: Column(
-            children: const ['tick', 'gank', 'cv', 'tts', 'publisher'].map((
-              name,
-            ) {
-              final component = backend.health?.components[name];
-              return ListTile(
-                leading: Icon(
-                  component?.alive == true
-                      ? Icons.check_circle
-                      : Icons.error_outline,
-                  color: component?.alive == true
-                      ? Colors.green
-                      : Colors.orange,
-                ),
-                title: Text(name),
-                subtitle: Text(component?.error ?? 'Sin errores'),
-              );
-            }).toList(),
-          ),
+
+        // 4. System Health Diagnostic Matrix
+        GsCard(
+          title: 'Diagnóstico de Componentes',
+          subtitle: 'Estado de servicios en proceso y canal de eventos.',
+          icon: Icons.health_and_safety_outlined,
+          child: GsHealthMatrix(components: healthComponents),
         ),
         const SizedBox(height: 16),
-        Text('Soporte local', style: Theme.of(context).textTheme.titleLarge),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              children: [
-                TextField(
-                  controller: _supportController,
-                  maxLines: 3,
-                  decoration: const InputDecoration(
-                    labelText: 'Nota del reporte',
-                    border: OutlineInputBorder(),
+
+        // 5. Support & Debugging
+        GsCard(
+          title: 'Soporte y Diagnóstico Local',
+          subtitle: 'Generación de paquete de depuración para resolución de incidencias.',
+          icon: Icons.contact_support_outlined,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextField(
+                controller: _supportController,
+                maxLines: 2,
+                decoration: const InputDecoration(
+                  labelText: 'Nota del reporte de soporte',
+                  hintText: 'Describe el problema o adjunta contexto…',
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  GsButton(
+                    label: 'Crear bundle',
+                    icon: Icons.folder_zip_outlined,
+                    variant: GsButtonVariant.secondary,
+                    loading: backend.operationInProgress,
+                    onPressed: backend.operationInProgress
+                        ? null
+                        : () => ref
+                              .read(companionControllerProvider.notifier)
+                              .createSupportBundle(),
+                  ),
+                  const SizedBox(width: 10),
+                  GsButton(
+                    label: 'Guardar reporte',
+                    icon: Icons.save_outlined,
+                    loading: backend.operationInProgress,
+                    onPressed: backend.operationInProgress
+                        ? null
+                        : () => ref
+                              .read(companionControllerProvider.notifier)
+                              .reportSupport(_supportController.text),
+                  ),
+                ],
+              ),
+              if (backend.supportResult.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                SelectableText(
+                  _mapDescription(backend.supportResult),
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: GsColors.textSecondary,
                   ),
                 ),
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 8,
-                  children: [
-                    OutlinedButton(
-                      onPressed: backend.operationInProgress
-                          ? null
-                          : () => ref
-                                .read(companionControllerProvider.notifier)
-                                .createSupportBundle(),
-                      child: const Text('Crear bundle'),
-                    ),
-                    FilledButton(
-                      onPressed: backend.operationInProgress
-                          ? null
-                          : () => ref
-                                .read(companionControllerProvider.notifier)
-                                .reportSupport(_supportController.text),
-                      child: const Text('Guardar reporte'),
-                    ),
-                  ],
-                ),
-                if (backend.supportResult.isNotEmpty)
-                  SelectableText(_mapDescription(backend.supportResult)),
               ],
-            ),
+            ],
           ),
         ),
       ],

@@ -611,10 +611,9 @@ packages:
   multiview_desktop:
     dependency: "direct main"
     description:
-      name: multiview_desktop
-      sha256: bd672ff9933726d017eea764e7479861f76df8461254d667059765bf5d46066c
-      url: "https://pub.dev"
-    source: hosted
+      path: "third_party/multiview_desktop"
+      relative: true
+    source: path
     version: "1.2.1"
   native_toolchain_c:
     dependency: transitive

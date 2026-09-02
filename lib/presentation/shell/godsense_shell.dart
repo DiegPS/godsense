@@ -18,7 +18,7 @@ class GodSenseApp extends ConsumerWidget {
   }
 }
 
-class GodSenseHome extends ConsumerWidget {
+class GodSenseHome extends ConsumerStatefulWidget {
   const GodSenseHome({super.key});
 
   static const destinations = [
@@ -55,15 +55,48 @@ class GodSenseHome extends ConsumerWidget {
   ];
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<GodSenseHome> createState() => _GodSenseHomeState();
+}
+
+class _GodSenseHomeState extends ConsumerState<GodSenseHome> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(
+        overlayWindowManager.setVisible(
+          context,
+          ref.read(overlayWindowVisibleProvider),
+        ),
+      );
+    });
+  }
+
+  void _onToggleEditing() {
+    final isEditing = ref.read(overlayLayoutProvider).editing;
+    if (!isEditing) {
+      ref.read(overlayLayoutProvider.notifier).setEditing(true);
+    } else {
+      ref.read(overlayLayoutProvider.notifier).setEditing(false);
+      unawaited(ref.read(overlayLayoutProvider.notifier).persist());
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final selectedPage = ref.watch(selectedPageProvider);
-    final overlayOpen = ref.watch(overlayOpenProvider);
     final backend = ref.watch(companionControllerProvider);
     final nativeLeague = ref.watch(nativeLeagueProvider);
     final overlayLayout = ref.watch(overlayLayoutProvider);
     ref.watch(nativeCalibrationProvider);
     ref.watch(nativeSpeechProvider);
     ref.watch(nativeVoiceCoachProvider);
+
+    ref.listen<bool>(overlayWindowVisibleProvider, (previous, visible) {
+      if (previous == visible) return;
+      unawaited(overlayWindowManager.setVisible(context, visible));
+    });
 
     ref.listen(companionControllerProvider, (previous, next) {
       final alert = next.alerts.firstOrNull;
@@ -174,7 +207,6 @@ class GodSenseHome extends ConsumerWidget {
             iconSize: calibration?.trackingIconSize ?? 28,
           );
     });
-    final isDesktop = MediaQuery.sizeOf(context).width >= 900;
 
     final content = switch (selectedPage) {
       0 => const OverviewPage(),
@@ -186,20 +218,18 @@ class GodSenseHome extends ConsumerWidget {
     };
 
     return Scaffold(
+      backgroundColor: const Color(0xFF07090E),
       body: Stack(
         children: [
           Column(
             children: [
               _GodSenseCustomTitleBar(
-                overlayOpen: overlayOpen,
+                selectedPage: selectedPage,
+                onSelectPage: (page) =>
+                    ref.read(selectedPageProvider.notifier).state = page,
                 overlayEditing: overlayLayout.editing,
-                onToggleOverlay: () => overlayWindowManager.toggle(context),
-                onToggleEditing: overlayOpen
-                    ? () => ref
-                          .read(overlayLayoutProvider.notifier)
-                          .toggleEditing()
-                    : null,
-                onResetPanels: overlayOpen
+                onToggleEditing: _onToggleEditing,
+                onResetPanels: overlayLayout.editing
                     ? () => ref.read(overlayLayoutProvider.notifier).reset()
                     : null,
                 onHelp: () async {
@@ -215,71 +245,21 @@ class GodSenseHome extends ConsumerWidget {
                     backend.connection == CompanionConnection.online ||
                     nativeLeague.liveGame != null,
               ),
-              Expanded(
-                child: Row(
-                  children: [
-                    if (isDesktop)
-                      NavigationRail(
-                        extended: MediaQuery.sizeOf(context).width >= 1100,
-                        selectedIndex: selectedPage,
-                        onDestinationSelected: (value) {
-                          ref.read(selectedPageProvider.notifier).state = value;
-                        },
-                        destinations: destinations,
-                      ),
-                    if (isDesktop) const VerticalDivider(width: 1),
-                    Expanded(child: content),
-                  ],
-                ),
-              ),
+              Expanded(child: content),
             ],
           ),
           const _FramelessWindowResizeBorder(),
         ],
       ),
-      bottomNavigationBar: isDesktop
-          ? null
-          : NavigationBar(
-              selectedIndex: selectedPage,
-              onDestinationSelected: (value) {
-                ref.read(selectedPageProvider.notifier).state = value;
-              },
-              destinations: const [
-                NavigationDestination(
-                  icon: Icon(Icons.dashboard_outlined),
-                  label: 'Overview',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.monitor_heart_outlined),
-                  label: 'Live',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.visibility_outlined),
-                  label: 'Vision',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.psychology_outlined),
-                  label: 'Coach',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.manage_search_outlined),
-                  label: 'Scout',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.settings_outlined),
-                  label: 'Settings',
-                ),
-              ],
-            ),
     );
   }
 }
 
 class _GodSenseCustomTitleBar extends StatelessWidget {
   const _GodSenseCustomTitleBar({
-    required this.overlayOpen,
+    required this.selectedPage,
+    required this.onSelectPage,
     required this.overlayEditing,
-    required this.onToggleOverlay,
     required this.onToggleEditing,
     required this.onResetPanels,
     required this.onHelp,
@@ -287,14 +267,23 @@ class _GodSenseCustomTitleBar extends StatelessWidget {
     required this.isOnline,
   });
 
-  final bool overlayOpen;
+  final int selectedPage;
+  final ValueChanged<int> onSelectPage;
   final bool overlayEditing;
-  final VoidCallback onToggleOverlay;
-  final VoidCallback? onToggleEditing;
+  final VoidCallback onToggleEditing;
   final VoidCallback? onResetPanels;
   final VoidCallback onHelp;
   final String sessionLabel;
   final bool isOnline;
+
+  static const _navItems = [
+    (icon: Icons.grid_view_rounded, label: 'Overview'),
+    (icon: Icons.sensors_rounded, label: 'Live'),
+    (icon: Icons.visibility_outlined, label: 'Vision'),
+    (icon: Icons.psychology_outlined, label: 'Coach'),
+    (icon: Icons.manage_search_rounded, label: 'Scout'),
+    (icon: Icons.tune_rounded, label: 'Settings'),
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -313,50 +302,56 @@ class _GodSenseCustomTitleBar extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   const SizedBox(width: 14),
-                  Container(
-                    width: 24,
-                    height: 24,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF0F172A),
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(
-                        color: const Color(0x3338BDF8),
-                        width: 1,
-                      ),
-                    ),
-                    child: const Center(
-                      child: Icon(
-                        Icons.shield_outlined,
-                        size: 13,
-                        color: Color(0xFF38BDF8),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
                   const Text(
                     'GodSense',
                     style: TextStyle(
                       fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.3,
-                      color: Color(0xFFF8FAFC),
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.5,
+                      color: Color(0xFF38BDF8),
                     ),
                   ),
-                  const SizedBox(width: 16),
+                  const SizedBox(width: 12),
+                  const SizedBox(
+                    height: 16,
+                    child: VerticalDivider(width: 1, color: Color(0x1AFFFFFF)),
+                  ),
+                  const SizedBox(width: 8),
                 ],
               ),
             ),
 
-            // 2. Center Status Capsule (Draggable)
+            // 2. Top Navigation Tabs Bar
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: List.generate(_navItems.length, (index) {
+                final item = _navItems[index];
+                final isSelected = selectedPage == index;
+                return Padding(
+                  padding: const EdgeInsets.only(right: 2),
+                  child: _TopNavTabButton(
+                    icon: item.icon,
+                    label: item.label,
+                    isSelected: isSelected,
+                    onTap: () => onSelectPage(index),
+                  ),
+                );
+              }),
+            ),
+
+            const SizedBox(width: 6),
+
+            // 3. Center Status Capsule (Draggable)
             Expanded(
               child: DragToMoveArea(
                 child: Row(
                   children: [
+                    const Spacer(),
                     Flexible(
                       child: Container(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 4,
+                          horizontal: 8,
+                          vertical: 3,
                         ),
                         decoration: BoxDecoration(
                           color: const Color(0xFF0D131C),
@@ -389,14 +384,14 @@ class _GodSenseCustomTitleBar extends StatelessWidget {
                                     : null,
                               ),
                             ),
-                            const SizedBox(width: 8),
+                            const SizedBox(width: 6),
                             Flexible(
                               child: Text(
                                 sessionLabel,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
-                                  fontSize: 11,
+                                  fontSize: 10,
                                   fontWeight: FontWeight.w500,
                                   color: isOnline
                                       ? const Color(0xFFE2E8F0)
@@ -408,51 +403,100 @@ class _GodSenseCustomTitleBar extends StatelessWidget {
                         ),
                       ),
                     ),
-                    const Spacer(),
+                    const SizedBox(width: 6),
                   ],
                 ),
               ),
             ),
 
-            // 3. Action Controls
+            // 4. Action Controls
             _TitleBarActionChip(
-              icon: overlayOpen
-                  ? Icons.layers_clear_outlined
-                  : Icons.layers_outlined,
-              label: overlayOpen ? 'Overlay Activo' : 'Overlay',
-              active: overlayOpen,
-              onPressed: onToggleOverlay,
+              icon: overlayEditing
+                  ? Icons.check_rounded
+                  : Icons.dashboard_customize_outlined,
+              label: overlayEditing ? 'Guardar HUD' : 'Editar HUD',
+              active: overlayEditing,
+              onPressed: onToggleEditing,
             ),
-            if (overlayOpen) ...[
-              const SizedBox(width: 4),
+            if (overlayEditing) ...[
+              const SizedBox(width: 2),
               _TitleBarIconButton(
-                icon: overlayEditing ? Icons.check : Icons.tune_outlined,
-                tooltip: overlayEditing ? 'Guardar HUD' : 'Editar HUD',
-                active: overlayEditing,
-                onPressed: onToggleEditing,
-              ),
-              const SizedBox(width: 4),
-              _TitleBarIconButton(
-                icon: Icons.restart_alt_outlined,
+                icon: Icons.restart_alt_rounded,
                 tooltip: 'Restablecer HUD',
                 onPressed: onResetPanels,
               ),
             ],
-            const SizedBox(width: 4),
+            const SizedBox(width: 2),
             _TitleBarIconButton(
-              icon: Icons.help_outline,
+              icon: Icons.help_outline_rounded,
               tooltip: 'Guía y atajos',
               onPressed: onHelp,
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 6),
             const SizedBox(
               height: 16,
               child: VerticalDivider(width: 1, color: Color(0x1AFFFFFF)),
             ),
-            const SizedBox(width: 4),
+            const SizedBox(width: 2),
 
-            // 4. Clean Window Controls (Minimize, Maximize, Close)
+            // 5. Clean Window Controls (Minimize, Maximize, Close)
             const _CustomWindowControlButtons(),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TopNavTabButton extends StatelessWidget {
+  const _TopNavTabButton({
+    required this.icon,
+    required this.label,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(6),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0x1F38BDF8) : Colors.transparent,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(
+            color: isSelected ? const Color(0x4D38BDF8) : Colors.transparent,
+            width: 1,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 13,
+              color: isSelected
+                  ? const Color(0xFF38BDF8)
+                  : const Color(0xFF94A3B8),
+            ),
+            const SizedBox(width: 5),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+                color: isSelected
+                    ? const Color(0xFF38BDF8)
+                    : const Color(0xFF94A3B8),
+              ),
+            ),
           ],
         ),
       ),
@@ -502,7 +546,7 @@ class _TitleBarActionChipState extends State<_TitleBarActionChip> {
                   ? const Color(0x8038BDF8)
                   : _hovered
                   ? const Color(0x4D38BDF8)
-                  : const Color(0x1FFFFFFF),
+                  : Colors.transparent,
               width: 1,
             ),
           ),
@@ -540,13 +584,11 @@ class _TitleBarIconButton extends StatefulWidget {
   const _TitleBarIconButton({
     required this.icon,
     required this.tooltip,
-    this.active = false,
     this.onPressed,
   });
 
   final IconData icon;
   final String tooltip;
-  final bool active;
   final VoidCallback? onPressed;
 
   @override
@@ -571,29 +613,27 @@ class _TitleBarIconButtonState extends State<_TitleBarIconButton> {
             width: 32,
             height: 32,
             decoration: BoxDecoration(
-              color: widget.active
-                  ? const Color(0x330284C7)
-                  : _hovered && enabled
+              color: _hovered && enabled
                   ? const Color(0x1F38BDF8)
                   : Colors.transparent,
               borderRadius: BorderRadius.circular(6),
               border: Border.all(
-                color: widget.active
-                    ? const Color(0x8038BDF8)
+                color: _hovered && enabled
+                    ? const Color(0x3338BDF8)
                     : Colors.transparent,
                 width: 1,
               ),
             ),
-            child: Icon(
-              widget.icon,
-              size: 16,
-              color: !enabled
-                  ? const Color(0xFF475569)
-                  : widget.active
-                  ? const Color(0xFF38BDF8)
-                  : _hovered
-                  ? Colors.white
-                  : const Color(0xFF94A3B8),
+            child: Center(
+              child: Icon(
+                widget.icon,
+                size: 16,
+                color: enabled
+                    ? _hovered
+                          ? const Color(0xFF38BDF8)
+                          : const Color(0xFF94A3B8)
+                    : const Color(0xFF475569),
+              ),
             ),
           ),
         ),

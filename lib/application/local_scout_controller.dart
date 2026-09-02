@@ -94,8 +94,14 @@ class LocalScoutController extends StateNotifier<LocalScoutState> {
   int _revision = 0;
 
   Future<void> loadAccount(LeagueAccountProfile? account) async {
+    final sameAccount =
+        account?.puuid == _connectedAccount?.puuid &&
+        account?.summonerId == _connectedAccount?.summonerId;
     _connectedAccount = account;
     if (_showingConnectedAccount) {
+      if (sameAccount && state.profile.isNotEmpty) {
+        return;
+      }
       await _showAccount(account, loadingLabel: 'Actualizando tu cuenta…');
     }
   }
@@ -224,9 +230,10 @@ class LocalScoutController extends StateNotifier<LocalScoutState> {
       puuid: account.puuid,
       championNames: _championNames,
     );
-    state = LocalScoutState(
+    state = state.copyWith(
       loading: loading,
       loadingLabel: loadingLabel,
+      clearLoadingLabel: !loading,
       profile: _profile(account, ranked, analytics),
       matches: matches
           .map((match) => _matchSummary(match, _championNames))
@@ -245,7 +252,6 @@ class LocalScoutController extends StateNotifier<LocalScoutState> {
     final account = _account;
     if (account == null) return;
     final revision = _revision;
-    state = state.copyWith(loading: true, clearError: true);
     try {
       final matches = await _loadMatches(account.puuid, limit: 100);
       if (revision != _revision) return;
@@ -256,12 +262,12 @@ class LocalScoutController extends StateNotifier<LocalScoutState> {
         throw StateError('La partida $gameId no está en caché.');
       }
       state = state.copyWith(
-        loading: false,
         selectedMatch: _matchDetail(match, _championNames),
+        clearError: true,
       );
     } catch (error) {
       if (revision != _revision) return;
-      state = state.copyWith(loading: false, lastError: error.toString());
+      state = state.copyWith(lastError: error.toString());
     }
   }
 

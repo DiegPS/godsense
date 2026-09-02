@@ -4,6 +4,7 @@ import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../app/godsense_app.dart';
 import '../application/native_speech_controller.dart';
 import '../infrastructure/speech/speech/live_captions_service.dart';
 import '../infrastructure/speech/speech/speech_model_catalog.dart';
@@ -21,40 +22,35 @@ class NativeSpeechSettingsCard extends ConsumerWidget {
 
     Future<void> update(dynamic next) => controller.updateSettings(next);
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Voz local · Sherpa-ONNX',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 4),
-            const Text(
-              'Push-to-Talk, transcripción y síntesis funcionan dentro de '
-              'GodSense. El audio no se sube a ningún servidor.',
-            ),
-            const SizedBox(height: 16),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Push-to-Talk local'),
-              subtitle: Text(_speechStatus(state)),
-              value: settings.pushToTalkEnabled,
-              onChanged: state.loading
-                  ? null
-                  : (value) =>
-                        update(settings.copyWith(pushToTalkEnabled: value)),
-            ),
-            Wrap(
-              spacing: 16,
-              runSpacing: 12,
+    return GsCard(
+      title: 'Voz local · Sherpa-ONNX',
+      subtitle: 'Push-to-Talk, transcripción y síntesis ejecutados 100% en proceso sin dependencias de red.',
+      icon: Icons.mic_external_on_rounded,
+      padding: EdgeInsets.zero,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          GsToggleSwitch(
+            title: 'Push-to-Talk local',
+            subtitle: _speechStatus(state),
+            icon: Icons.mic_none_rounded,
+            value: settings.pushToTalkEnabled,
+            onChanged: state.loading
+                ? null
+                : (value) =>
+                      update(settings.copyWith(pushToTalkEnabled: value)),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            child: Wrap(
+              spacing: 12,
+              runSpacing: 10,
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                _DropdownField<String>(
+                GsSelect<String>(
                   label: 'Tecla global',
                   value: settings.pushToTalkKey,
+                  width: 110,
                   items: const {
                     'delete': 'Delete',
                     'space': 'Space',
@@ -67,9 +63,10 @@ class NativeSpeechSettingsCard extends ConsumerWidget {
                   onChanged: (value) =>
                       update(settings.copyWith(pushToTalkKey: value)),
                 ),
-                _DropdownField<String>(
+                GsSelect<String>(
                   label: 'Idioma STT',
                   value: settings.sttLanguage,
+                  width: 120,
                   items: {
                     for (final language in SpeechModelCatalog.canary.languages)
                       language.code: language.label,
@@ -77,51 +74,119 @@ class NativeSpeechSettingsCard extends ConsumerWidget {
                   onChanged: (value) =>
                       update(settings.copyWith(sttLanguage: value)),
                 ),
-                FilterChip(
-                  label: const Text('Reducción de ruido GTCRN'),
-                  selected: settings.sttDenoise,
-                  onSelected: (value) =>
-                      update(settings.copyWith(sttDenoise: value)),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      'Filtro de audio',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: GsColors.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    GsPillToggle(
+                      label: 'Reducción de ruido GTCRN',
+                      icon: Icons.graphic_eq_rounded,
+                      selected: settings.sttDenoise,
+                      onToggle: (value) =>
+                          update(settings.copyWith(sttDenoise: value)),
+                    ),
+                  ],
                 ),
-                FilledButton.icon(
-                  onPressed: state.speech.phase == LiveCaptionsPhase.downloading
-                      ? null
-                      : controller.downloadSpeechModel,
-                  icon: const Icon(Icons.download_outlined),
-                  label: Text(
-                    'Descargar STT '
-                    '(${_megabytes(SpeechModelCatalog.canary.package.downloadBytes)})',
-                  ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      'Modelo de voz',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: GsColors.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    GsButton(
+                      label:
+                          'Descargar STT (${_megabytes(SpeechModelCatalog.canary.package.downloadBytes)})',
+                      icon: Icons.download_rounded,
+                      variant: GsButtonVariant.secondary,
+                      compact: true,
+                      loading:
+                          state.speech.phase == LiveCaptionsPhase.downloading,
+                      onPressed:
+                          state.speech.phase == LiveCaptionsPhase.downloading
+                          ? null
+                          : controller.downloadSpeechModel,
+                    ),
+                  ],
                 ),
               ],
             ),
-            if (state.speech.progress case final progress?) ...[
-              const SizedBox(height: 12),
-              LinearProgressIndicator(value: progress),
-            ],
-            if (state.transcript.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              SelectableText('Última transcripción: ${state.transcript}'),
-            ],
-            const Divider(height: 32),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Respuesta hablada local'),
-              subtitle: Text(state.tts.message),
-              value: settings.ttsEnabled,
-              onChanged: state.loading
-                  ? null
-                  : (value) => update(settings.copyWith(ttsEnabled: value)),
+          ),
+          if (state.speech.progress case final progress?) ...[
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+              child: LinearProgressIndicator(
+                value: progress,
+                backgroundColor: GsColors.surfaceElevated,
+                color: GsColors.cyan,
+              ),
             ),
-            Wrap(
-              spacing: 16,
-              runSpacing: 12,
+          ],
+          if (state.transcript.isNotEmpty) ...[
+            Container(
+              margin: const EdgeInsets.fromLTRB(14, 6, 14, 10),
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: GsColors.surfaceElevated,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.record_voice_over_outlined,
+                    size: 16,
+                    color: GsColors.cyan,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: SelectableText(
+                      'Última transcripción: "${state.transcript}"',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: GsColors.textPrimary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          const Divider(height: 1, color: Color(0x14FFFFFF)),
+          GsToggleSwitch(
+            title: 'Respuesta hablada local (TTS)',
+            subtitle: state.tts.message,
+            icon: Icons.volume_up_outlined,
+            value: settings.ttsEnabled,
+            onChanged: state.loading
+                ? null
+                : (value) => update(settings.copyWith(ttsEnabled: value)),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            child: Wrap(
+              spacing: 12,
+              runSpacing: 10,
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                _DropdownField<String>(
+                GsSelect<String>(
                   label: 'Modelo TTS',
                   value: selectedModel.id,
-                  width: 240,
+                  width: 200,
                   items: {
                     for (final model in TtsModelCatalog.models)
                       model.id: '${model.name} · ${model.description}',
@@ -140,10 +205,10 @@ class NativeSpeechSettingsCard extends ConsumerWidget {
                     );
                   },
                 ),
-                _DropdownField<String>(
+                GsSelect<String>(
                   label: 'Voz',
                   value: selectedModel.voice(settings.ttsVoice).id,
-                  width: 190,
+                  width: 140,
                   items: {
                     for (final voice in selectedModel.voices)
                       voice.id: voice.label,
@@ -151,11 +216,12 @@ class NativeSpeechSettingsCard extends ConsumerWidget {
                   onChanged: (value) =>
                       update(settings.copyWith(ttsVoice: value)),
                 ),
-                _DropdownField<String>(
+                GsSelect<String>(
                   label: 'Idioma TTS',
                   value: selectedModel.supportsLanguage(settings.ttsLanguage)
                       ? settings.ttsLanguage
                       : selectedModel.languages.first.code,
+                  width: 120,
                   items: {
                     for (final language in selectedModel.languages)
                       language.code: language.label,
@@ -165,31 +231,61 @@ class NativeSpeechSettingsCard extends ConsumerWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 12),
-            Row(
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+            child: Row(
               children: [
-                const SizedBox(width: 90, child: Text('Velocidad')),
+                const SizedBox(
+                  width: 80,
+                  child: Text(
+                    'Velocidad',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: GsColors.textSecondary,
+                    ),
+                  ),
+                ),
                 Expanded(
                   child: Slider(
                     value: settings.ttsSpeed,
                     min: 0.6,
                     max: 1.6,
                     divisions: 20,
+                    activeColor: GsColors.cyan,
+                    inactiveColor: GsColors.surfaceElevated,
                     label: settings.ttsSpeed.toStringAsFixed(2),
                     onChanged: (value) =>
                         update(settings.copyWith(ttsSpeed: value)),
                   ),
                 ),
+                SizedBox(
+                  width: 40,
+                  child: Text(
+                    '${settings.ttsSpeed.toStringAsFixed(2)}x',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: GsColors.cyan,
+                    ),
+                  ),
+                ),
               ],
             ),
-            if (selectedModel.needsReferenceAudio) ...[
-              const SizedBox(height: 8),
-              Wrap(
+          ),
+          if (selectedModel.needsReferenceAudio) ...[
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+              child: Wrap(
                 spacing: 12,
                 runSpacing: 8,
                 crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
-                  OutlinedButton.icon(
+                  GsButton(
+                    label: 'Elegir WAV autorizado',
+                    icon: Icons.audio_file_outlined,
+                    variant: GsButtonVariant.secondary,
+                    compact: true,
                     onPressed: () async {
                       const typeGroup = XTypeGroup(
                         label: 'WAV',
@@ -204,22 +300,30 @@ class NativeSpeechSettingsCard extends ConsumerWidget {
                         );
                       }
                     },
-                    icon: const Icon(Icons.audio_file_outlined),
-                    label: const Text('Elegir WAV autorizado'),
                   ),
                   SizedBox(
-                    width: 320,
+                    width: 300,
                     child: Text(
                       settings.referenceAudioPath.isEmpty
                           ? 'Usará la muestra incluida del modelo'
                           : settings.referenceAudioPath,
                       overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: GsColors.textSecondary,
+                      ),
                     ),
                   ),
                 ],
               ),
-              if (selectedModel.needsReferenceText)
-                TextFormField(
+            ),
+            if (selectedModel.needsReferenceText)
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 6,
+                ),
+                child: TextFormField(
                   initialValue: settings.referenceText,
                   decoration: const InputDecoration(
                     labelText: 'Transcripción exacta del WAV',
@@ -227,51 +331,70 @@ class NativeSpeechSettingsCard extends ConsumerWidget {
                   onFieldSubmitted: (value) =>
                       update(settings.copyWith(referenceText: value)),
                 ),
-            ],
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 12,
+              ),
+          ],
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 8, 14, 14),
+            child: Wrap(
+              spacing: 8,
               runSpacing: 8,
               children: [
-                FilledButton.icon(
+                GsButton(
+                  label:
+                      'Descargar ${selectedModel.name} (${_megabytes(selectedModel.downloadBytes)})',
+                  icon: Icons.download_rounded,
+                  compact: true,
+                  loading: state.tts.isLoading,
                   onPressed: state.tts.isLoading
                       ? null
                       : controller.downloadTtsModel,
-                  icon: const Icon(Icons.download_outlined),
-                  label: Text(
-                    'Descargar ${selectedModel.name} '
-                    '(${_megabytes(selectedModel.downloadBytes)})',
-                  ),
                 ),
-                OutlinedButton.icon(
+                GsButton(
+                  label: 'Probar voz',
+                  icon: Icons.volume_up_rounded,
+                  variant: GsButtonVariant.secondary,
+                  compact: true,
                   onPressed: state.tts.isLoading || state.ttsBusy
                       ? null
                       : controller.testTts,
-                  icon: const Icon(Icons.volume_up_outlined),
-                  label: const Text('Probar voz'),
                 ),
-                TextButton.icon(
+                GsButton(
+                  label: 'Borrar modelo',
+                  icon: Icons.delete_outline_rounded,
+                  variant: GsButtonVariant.ghost,
+                  compact: true,
                   onPressed: state.tts.isLoading
                       ? null
                       : () => controller.removeTtsModel(selectedModel.id),
-                  icon: const Icon(Icons.delete_outline),
-                  label: const Text('Borrar modelo'),
                 ),
               ],
             ),
-            if (state.tts.progress case final progress?) ...[
-              const SizedBox(height: 12),
-              LinearProgressIndicator(value: progress),
-            ],
-            if (state.error case final error?) ...[
-              const SizedBox(height: 12),
-              Text(
-                error,
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
+          ),
+          if (state.tts.progress case final progress?) ...[
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+              child: LinearProgressIndicator(
+                value: progress,
+                backgroundColor: GsColors.surfaceElevated,
+                color: GsColors.cyan,
               ),
-            ],
+            ),
           ],
-        ),
+          if (state.error case final error?) ...[
+            Container(
+              margin: const EdgeInsets.fromLTRB(14, 0, 14, 12),
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: GsColors.crimsonGlow,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(
+                error,
+                style: const TextStyle(color: GsColors.crimson, fontSize: 11),
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -290,41 +413,4 @@ class NativeSpeechSettingsCard extends ConsumerWidget {
   }
 
   String _megabytes(int bytes) => '${(bytes / 1024 / 1024).round()} MB';
-}
-
-class _DropdownField<T> extends StatelessWidget {
-  const _DropdownField({
-    required this.label,
-    required this.value,
-    required this.items,
-    required this.onChanged,
-    this.width = 170,
-  });
-
-  final String label;
-  final T value;
-  final Map<T, String> items;
-  final ValueChanged<T> onChanged;
-  final double width;
-
-  @override
-  Widget build(BuildContext context) => SizedBox(
-    width: width,
-    child: DropdownButtonFormField<T>(
-      initialValue: value,
-      isExpanded: true,
-      decoration: InputDecoration(labelText: label),
-      items: items.entries
-          .map(
-            (entry) => DropdownMenuItem<T>(
-              value: entry.key,
-              child: Text(entry.value, overflow: TextOverflow.ellipsis),
-            ),
-          )
-          .toList(growable: false),
-      onChanged: (next) {
-        if (next != null) onChanged(next);
-      },
-    ),
-  );
 }

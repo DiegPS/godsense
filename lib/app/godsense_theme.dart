@@ -1,52 +1,48 @@
 part of 'godsense_app.dart';
 
 ThemeData godsenseTheme() {
-  const bgDark = Color(0xFF07090E);
-  const surfaceDark = Color(0xFF0C1017);
-  const cardDark = Color(0xFF101722);
-  const primaryCyan = Color(0xFF38BDF8);
-
   return ThemeData(
     useMaterial3: true,
     brightness: Brightness.dark,
-    scaffoldBackgroundColor: bgDark,
-    canvasColor: surfaceDark,
+    scaffoldBackgroundColor: GsColors.canvas,
+    canvasColor: GsColors.surface,
     colorScheme: const ColorScheme.dark(
-      primary: primaryCyan,
+      primary: GsColors.cyan,
       onPrimary: Color(0xFF001F2A),
       primaryContainer: Color(0xFF0369A1),
-      onPrimaryContainer: Color(0xFFE0F2FE),
-      surface: surfaceDark,
-      onSurface: Color(0xFFF1F5F9),
-      surfaceContainerHigh: cardDark,
+      onPrimaryContainer: GsColors.cyanLight,
+      surface: GsColors.surface,
+      onSurface: GsColors.textPrimary,
+      surfaceContainerHigh: GsColors.surfaceElevated,
+      error: GsColors.crimson,
+      onError: Colors.white,
     ),
     cardTheme: CardThemeData(
-      color: cardDark,
+      color: GsColors.surface,
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(10),
-        side: const BorderSide(color: Color(0x2638BDF8), width: 1),
+        side: BorderSide.none,
       ),
     ),
-    dividerTheme: const DividerThemeData(
-      color: Color(0x1F38BDF8),
-      thickness: 1,
-    ),
-    navigationRailTheme: const NavigationRailThemeData(
-      backgroundColor: surfaceDark,
-      indicatorColor: Color(0x330284C7),
-      selectedIconTheme: IconThemeData(color: primaryCyan, size: 22),
-      unselectedIconTheme: IconThemeData(color: Color(0xFF64748B), size: 20),
-      selectedLabelTextStyle: TextStyle(
-        color: primaryCyan,
-        fontWeight: FontWeight.bold,
-        fontSize: 12,
-        letterSpacing: 0.5,
+    dividerTheme: const DividerThemeData(color: GsColors.border, thickness: 1),
+    inputDecorationTheme: InputDecorationTheme(
+      filled: true,
+      fillColor: GsColors.surfaceElevated,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: const BorderSide(color: GsColors.border),
       ),
-      unselectedLabelTextStyle: TextStyle(
-        color: Color(0xFF64748B),
-        fontSize: 12,
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: const BorderSide(color: GsColors.border),
       ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: const BorderSide(color: GsColors.cyan),
+      ),
+      labelStyle: const TextStyle(color: GsColors.textSecondary, fontSize: 12),
+      hintStyle: const TextStyle(color: GsColors.textMuted, fontSize: 12),
     ),
   );
 }
