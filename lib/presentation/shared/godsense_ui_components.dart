@@ -58,22 +58,16 @@ class GsCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final hasHeader = title != null || icon != null || action != null;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: backgroundColor ?? GsColors.surface,
+    return Material(
+      color: backgroundColor ?? GsColors.surface,
+      elevation: elevation,
+      shadowColor: Colors.black.withValues(alpha: 0.25),
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(10),
-        border: borderColor != null
-            ? Border.all(color: borderColor!, width: 1)
-            : null,
-        boxShadow: elevation > 0
-            ? [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.25),
-                  blurRadius: elevation * 4,
-                  offset: Offset(0, elevation * 2),
-                ),
-              ]
-            : null,
+        side: borderColor == null
+            ? BorderSide.none
+            : BorderSide(color: borderColor!, width: 1),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,

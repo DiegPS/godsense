@@ -94,20 +94,18 @@ class _OverlayGlassCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        // Fondo translúcido al 65% para que el juego y el mapa se vean claramente a través
-        color: const Color(0xA60B0E17),
+    return Material(
+      // Fondo translúcido para conservar la lectura sin ocultar el juego.
+      color: const Color(0xA60B0E17),
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color:
-              borderColor ??
-              const Color(0x4D38BDF8), // Borde cian sutil y nítido al 30%
+        side: BorderSide(
+          color: borderColor ?? const Color(0x4D38BDF8),
           width: 1,
         ),
       ),
-      padding: padding,
-      child: child,
+      child: Padding(padding: padding ?? EdgeInsets.zero, child: child),
     );
   }
 }

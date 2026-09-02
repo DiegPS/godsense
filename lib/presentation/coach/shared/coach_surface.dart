@@ -32,11 +32,12 @@ class CoachSurface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: CoachColors.surface,
+    return Material(
+      color: CoachColors.surface,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: CoachColors.border),
+        side: const BorderSide(color: CoachColors.border),
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),

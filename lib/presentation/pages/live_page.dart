@@ -629,53 +629,54 @@ class _LiveMatchup extends StatelessWidget {
             ),
             const SizedBox(height: 6),
             for (final ability in abilities)
-              Container(
-                margin: const EdgeInsets.only(bottom: 6),
-                decoration: BoxDecoration(
+              Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Material(
                   color: GsColors.surfaceElevated,
                   borderRadius: BorderRadius.circular(6),
-                ),
-                child: ExpansionTile(
-                  tilePadding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 2,
-                  ),
-                  leading: ClipRRect(
-                    borderRadius: BorderRadius.circular(4),
-                    child: _NetworkPortrait(
-                      url: ability['icon_url']?.toString(),
-                      size: 30,
-                      fallback: Icons.auto_awesome,
+                  clipBehavior: Clip.antiAlias,
+                  child: ExpansionTile(
+                    tilePadding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 2,
                     ),
-                  ),
-                  title: Text(
-                    '${ability['slot'] ?? ''} · ${ability['name'] ?? ''}',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: GsColors.textPrimary,
-                    ),
-                  ),
-                  subtitle: Text(
-                    'CD ${ability['cooldown'] ?? '—'} · Coste ${ability['cost'] ?? '—'} · '
-                    'Rango ${ability['range'] ?? '—'}',
-                    style: const TextStyle(
-                      fontSize: 10,
-                      color: GsColors.textSecondary,
-                    ),
-                  ),
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
-                      child: Text(
-                        ability['description']?.toString() ?? '',
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: GsColors.textSecondary,
-                        ),
+                    leading: ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: _NetworkPortrait(
+                        url: ability['icon_url']?.toString(),
+                        size: 30,
+                        fallback: Icons.auto_awesome,
                       ),
                     ),
-                  ],
+                    title: Text(
+                      '${ability['slot'] ?? ''} · ${ability['name'] ?? ''}',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: GsColors.textPrimary,
+                      ),
+                    ),
+                    subtitle: Text(
+                      'CD ${ability['cooldown'] ?? '—'} · Coste ${ability['cost'] ?? '—'} · '
+                      'Rango ${ability['range'] ?? '—'}',
+                      style: const TextStyle(
+                        fontSize: 10,
+                        color: GsColors.textSecondary,
+                      ),
+                    ),
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+                        child: Text(
+                          ability['description']?.toString() ?? '',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: GsColors.textSecondary,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
           ],
