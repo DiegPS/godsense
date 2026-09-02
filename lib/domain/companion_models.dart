@@ -150,6 +150,7 @@ class CalibrationState {
     this.defaultBounds,
     this.defaultIconSize,
     this.defaultTrustworthy = false,
+    this.provenance,
   });
 
   factory CalibrationState.fromJson(Map<String, dynamic> json) {
@@ -162,6 +163,7 @@ class CalibrationState {
       defaultBounds: _nullableMap(json['default_bounds']),
       defaultIconSize: (json['default_icon_size'] as num?)?.toDouble(),
       defaultTrustworthy: json['default_trustworthy'] == true,
+      provenance: _nullableMap(json['provenance']),
     );
   }
 
@@ -173,6 +175,7 @@ class CalibrationState {
   final Map<String, dynamic>? defaultBounds;
   final double? defaultIconSize;
   final bool defaultTrustworthy;
+  final Map<String, dynamic>? provenance;
 
   bool boundsAreUsable(Map<String, dynamic>? value) {
     if (value == null) return false;

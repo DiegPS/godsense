@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
@@ -6,6 +5,7 @@ import 'package:opencv_dart/opencv.dart' as cv;
 import 'package:win32/win32.dart';
 
 import 'win32_screen_capture.dart';
+import '../league/league_installation.dart';
 
 class NativeCalibrationResult {
   const NativeCalibrationResult({
@@ -29,10 +29,12 @@ class NativeMinimapCalibrator {
   final Win32ScreenCapture capture;
 
   NativeCalibrationResult detect() {
-    final config = _readGameConfig();
-    final displayWidth = config.width ?? GetSystemMetrics(SM_CXSCREEN);
-    final displayHeight = config.height ?? GetSystemMetrics(SM_CYSCREEN);
-    final scale = config.minimapScale ?? 1.3;
+    final config = LeagueConfigSource().read();
+    final displayWidth =
+        config['width']?.toInt() ?? GetSystemMetrics(SM_CXSCREEN);
+    final displayHeight =
+        config['height']?.toInt() ?? GetSystemMetrics(SM_CYSCREEN);
+    final scale = config['minimapscale']?.toDouble() ?? 1.3;
     final priorSize = (displayHeight * scale * 0.119).round().clamp(120, 900);
     final roiSide = math.min(
       math.min(displayWidth, displayHeight),
@@ -191,31 +193,4 @@ class NativeMinimapCalibrator {
   }
 
   int _deriveIconSize(int width) => (width * 0.088).round().clamp(16, 64);
-
-  ({int? width, int? height, double? minimapScale}) _readGameConfig() {
-    final paths = [
-      r'C:\Riot Games\League of Legends\Config\game.cfg',
-      if (Platform.environment['PROGRAMDATA'] != null)
-        '${Platform.environment['PROGRAMDATA']}\\Riot Games\\League of Legends\\Config\\game.cfg',
-    ];
-    for (final path in paths) {
-      final file = File(path);
-      if (!file.existsSync()) continue;
-      int? width;
-      int? height;
-      double? scale;
-      for (final rawLine in file.readAsLinesSync()) {
-        final line = rawLine.trim();
-        final separator = line.indexOf('=');
-        if (separator < 1) continue;
-        final key = line.substring(0, separator).trim().toLowerCase();
-        final value = line.substring(separator + 1).trim();
-        if (key == 'width') width = int.tryParse(value);
-        if (key == 'height') height = int.tryParse(value);
-        if (key == 'minimapscale') scale = double.tryParse(value);
-      }
-      return (width: width, height: height, minimapScale: scale);
-    }
-    return (width: null, height: null, minimapScale: null);
-  }
 }

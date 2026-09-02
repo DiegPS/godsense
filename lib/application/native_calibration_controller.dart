@@ -55,14 +55,61 @@ final nativeCalibrationProvider =
 class NativeCalibrationController
     extends StateNotifier<NativeCalibrationState> {
   NativeCalibrationController(this._repository)
-    : super(const NativeCalibrationState());
+    : super(const NativeCalibrationState()) {
+    _contextTimer = Timer.periodic(
+      const Duration(seconds: 10),
+      (_) => unawaited(refreshContext()),
+    );
+  }
 
   final CalibrationRepository _repository;
+  Timer? _contextTimer;
+  bool _refreshing = false;
+  bool _disposed = false;
+  int _revision = 0;
+
+  Future<void> refreshContext() async {
+    if (_disposed ||
+        _refreshing ||
+        state.loading ||
+        state.saving ||
+        state.calibration == null) {
+      return;
+    }
+    _refreshing = true;
+    final revision = _revision;
+    try {
+      final calibration = await _repository.load();
+      if (!_disposed &&
+          revision == _revision &&
+          calibration != null &&
+          calibration.recalibrationSuggested !=
+              state.calibration?.recalibrationSuggested) {
+        state = state.copyWith(calibration: calibration);
+      }
+    } catch (error) {
+      if (!_disposed) {
+        state = state.copyWith(
+          error: 'No se pudo comprobar la configuración: $error',
+        );
+      }
+    } finally {
+      _refreshing = false;
+    }
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    _contextTimer?.cancel();
+    super.dispose();
+  }
 
   Future<void> load() async {
     state = state.copyWith(loading: true, clearError: true);
     try {
       final calibration = await _repository.load();
+      if (_disposed) return;
       state = state.copyWith(
         loading: false,
         calibration: calibration,
@@ -70,6 +117,7 @@ class NativeCalibrationController
         clearError: true,
       );
     } catch (error) {
+      if (_disposed) return;
       state = state.copyWith(loading: false, error: error.toString());
     }
   }
@@ -85,6 +133,7 @@ class NativeCalibrationController
     int? iconSize,
     double confidence = 1,
   }) async {
+    _revision++;
     final normalized = _validateBounds(bounds);
     final resolvedIconSize =
         iconSize ??
@@ -102,27 +151,33 @@ class NativeCalibrationController
     state = state.copyWith(saving: true, clearError: true);
     try {
       await _repository.save(calibration);
+      final restored = await _repository.load();
+      if (_disposed) return;
       state = state.copyWith(
         saving: false,
-        calibration: calibration,
+        calibration: restored ?? calibration,
         clearError: true,
       );
     } catch (error) {
+      if (_disposed) return;
       state = state.copyWith(saving: false, error: error.toString());
       rethrow;
     }
   }
 
   Future<void> clear() async {
+    _revision++;
     state = state.copyWith(saving: true, clearError: true);
     try {
       await _repository.clear();
+      if (_disposed) return;
       state = state.copyWith(
         saving: false,
         clearCalibration: true,
         clearError: true,
       );
     } catch (error) {
+      if (_disposed) return;
       state = state.copyWith(saving: false, error: error.toString());
       rethrow;
     }

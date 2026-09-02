@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -6,9 +7,26 @@ import 'package:godsense/application/native_vision_controller.dart';
 import 'package:godsense/infrastructure/native_vision/dartcv_minimap_tracker.dart';
 import 'package:godsense/infrastructure/native_vision/vision_icon_cache.dart';
 import 'package:godsense/infrastructure/native_vision/win32_screen_capture.dart';
+import 'package:godsense/infrastructure/native_vision/vision_runtime.dart';
 import 'package:opencv_dart/opencv.dart' as cv;
 
 void main() {
+  test('worker captures GDI and shuts down cleanly', () async {
+    final worker = IsolateVisionRuntime();
+    try {
+      final capture = await worker.capture(
+        {'left': 0, 'top': 0, 'width': 64, 'height': 64},
+        28,
+        true,
+      );
+      expect(capture.width, 64);
+      expect(capture.frame.capturePng, isNotEmpty);
+    } finally {
+      worker.dispose();
+      await worker.closed;
+    }
+    await expectLater(worker.setTargets({}, 28), throwsStateError);
+  }, skip: !Platform.isWindows);
   test(
     '47px templates identify a champion through the real CV pipeline',
     () async {
@@ -56,8 +74,77 @@ void main() {
       );
       expect(frame.detections, isNotEmpty);
       expect(frame.detections.any((d) => d.championName == 'Vex'), isTrue);
+      final worker = IsolateVisionRuntime();
+      addTearDown(() async {
+        worker.dispose();
+        await worker.closed;
+      });
+      expect(
+        await worker.setTargets({
+          'Vex': [png],
+        }, size),
+        ['Vex'],
+      );
+      final isolated = await worker.process(
+        CapturedRegion(
+          width: dimension,
+          height: dimension,
+          bgra: bgra,
+          capturedAt: frame.capturedAt,
+          captureMicroseconds: 0,
+        ),
+        size,
+      );
+      expect(
+        isolated.detections.map((d) => d.championName),
+        frame.detections.map((d) => d.championName),
+      );
+      expect(
+        isolated.detections.map((d) => d.confidence),
+        frame.detections.map((d) => d.confidence),
+      );
+      expect(isolated.capturedAt, frame.capturedAt);
+      expect(
+        isolated.detections.every(
+          (d) => d.centerX == d.centerX.floorToDouble(),
+        ),
+        isTrue,
+      );
     },
   );
+
+  test(
+    'missing Kayn transformations retry even when base portrait loaded',
+    () async {
+      final tracker = _RecordingTracker();
+      final cache = _KaynCache();
+      var now = DateTime.utc(2026);
+      final controller = NativeVisionController(
+        tracker: tracker,
+        iconCache: cache,
+        clock: () => now,
+      );
+      addTearDown(controller.dispose);
+      await controller.configureTargets([_enemy('Kayn')], iconSize: 47);
+      expect(controller.state.loadedTargets, 1);
+      expect(controller.state.pendingVariants, isTrue);
+      expect(controller.state.recognitionReady, isFalse);
+      cache.variantsAvailable = true;
+      now = now.add(const Duration(seconds: 11));
+      await controller.configureTargets([_enemy('Kayn')], iconSize: 47);
+      expect(controller.state.pendingVariants, isFalse);
+      expect(
+        cache.requests.where((url) => url.contains('/rhaast/')),
+        hasLength(2),
+      );
+    },
+  );
+
+  test('running capture with no targets is not reported as ready', () {
+    const state = NativeVisionState(running: true, fps: 6, expectedTargets: 5);
+    expect(state.recognitionReady, isFalse);
+    expect(state.recognitionStatus, contains('Esperando retratos'));
+  });
 
   test('templates retain the exact odd calibration size', () async {
     final tracker = _RecordingTracker();
@@ -141,6 +228,17 @@ class _Cache extends VisionIconCache {
   Future<Uint8List?> load(String url) {
     requests.add(url);
     return pending ?? Future.value(Uint8List.fromList([1]));
+  }
+}
+
+class _KaynCache extends VisionIconCache {
+  bool variantsAvailable = false;
+  final requests = <String>[];
+  @override
+  Future<Uint8List?> load(String url) async {
+    requests.add(url);
+    if (url.contains('communitydragon') && !variantsAvailable) return null;
+    return Uint8List.fromList([1]);
   }
 }
 

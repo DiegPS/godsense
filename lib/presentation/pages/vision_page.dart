@@ -36,8 +36,8 @@ class VisionPage extends ConsumerWidget {
               ),
             ),
             GsBadge(
-              label: native.running ? 'VIGILANDO' : 'EN ESPERA',
-              variant: native.running
+              label: native.recognitionStatus,
+              variant: native.recognitionReady
                   ? GsBadgeVariant.success
                   : GsBadgeVariant.neutral,
             ),
@@ -56,23 +56,40 @@ class VisionPage extends ConsumerWidget {
             children: [
               GsMetricStat(
                 label: 'Minimapa',
-                value: calibration == null ? 'Sin configurar' : 'Configurado',
+                value: calibration == null
+                    ? 'Sin configurar'
+                    : calibration.recalibrationSuggested
+                    ? 'Recalibrar'
+                    : 'Configurado',
                 subtitle: calibration == null
                     ? 'Calibra para comenzar'
-                    : 'Área detectada correctamente',
+                    : calibration.recalibrationSuggested
+                    ? 'Cambió la configuración de League'
+                    : 'Área guardada',
                 icon: Icons.map_outlined,
-                valueColor: calibration == null
+                valueColor:
+                    calibration == null || calibration.recalibrationSuggested
                     ? GsColors.amber
                     : GsColors.emerald,
               ),
               GsMetricStat(
-                label: 'Enemigos visibles',
-                value: '${native.frame?.detections.length ?? 0}',
+                label: 'Enemigos identificados',
+                value: '${native.identified.length}',
                 subtitle: '$positionedEnemies con posición conocida',
                 icon: Icons.person_search_rounded,
                 valueColor: (native.frame?.detections.length ?? 0) > 0
                     ? GsColors.emerald
                     : GsColors.textMuted,
+              ),
+              GsMetricStat(
+                label: 'Reconocimiento',
+                value:
+                    '${native.loadedTargets}/${native.expectedTargets} retratos',
+                subtitle: native.recognitionStatus,
+                icon: Icons.radar_rounded,
+                valueColor: native.recognitionReady
+                    ? GsColors.emerald
+                    : GsColors.amber,
               ),
             ],
           ),

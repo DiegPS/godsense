@@ -242,6 +242,14 @@ class _GodSenseOverlayState extends ConsumerState<GodSenseOverlay> {
                         ),
                       ),
                     const Divider(color: Color(0x3338BDF8), height: 1),
+                    if (!nativeVision.recognitionReady)
+                      Padding(
+                        padding: const EdgeInsets.all(8),
+                        child: Text(
+                          nativeVision.recognitionStatus,
+                          style: const TextStyle(color: Color(0xFFFBBF24)),
+                        ),
+                      ),
                     for (final enemy in threats.take(5))
                       ListTile(
                         dense: true,

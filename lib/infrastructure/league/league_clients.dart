@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'lcu_probe_transport.dart';
+import 'league_installation.dart';
 
 class LcuCredentials {
   const LcuCredentials({
@@ -28,14 +29,23 @@ class LcuClient implements LcuReadTransport {
   final HttpClient _httpClient;
   final LcuCredentials? Function()? credentialsProvider;
   LcuCredentials? _credentials;
+  String? _activeDirectory;
+  DateTime? _lastDiscovery;
 
   LcuCredentials? discover() {
     final provider = credentialsProvider;
     if (provider != null) return _credentials = provider();
     final explicit = Platform.environment['GODSENSE_LCU_LOCKFILE'];
+    if (explicit == null &&
+        (_lastDiscovery == null ||
+            DateTime.now().difference(_lastDiscovery!).inSeconds >= 10)) {
+      _lastDiscovery = DateTime.now();
+      _activeDirectory = activeLeagueDirectory();
+    }
     final candidates = explicit != null && explicit.trim().isNotEmpty
         ? <String?>[explicit]
         : <String?>[
+            if (_activeDirectory != null) '$_activeDirectory\\lockfile',
             r'C:\Riot Games\League of Legends\lockfile',
             r'C:\Program Files\Riot Games\League of Legends\lockfile',
             if (Platform.environment['PROGRAMDATA'] != null)

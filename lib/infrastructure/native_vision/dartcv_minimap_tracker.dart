@@ -33,8 +33,8 @@ class NativeDetection {
   final double histogramScore;
   final double pixelMae;
 
-  double get centerX => x + width / 2;
-  double get centerY => y + height / 2;
+  double get centerX => (x + width ~/ 2).toDouble();
+  double get centerY => (y + height ~/ 2).toDouble();
 
   String regionFor(int frameWidth, int frameHeight) {
     return resolveMapLocation(
@@ -383,7 +383,12 @@ class DartCvMinimapTracker {
       }
       face.dispose();
     }
-    scored.sort((a, b) => b.combined.compareTo(a.combined));
+    scored.sort((a, b) {
+      final score = b.combined.compareTo(a.combined);
+      if (score != 0) return score;
+      final row = a.rectIndex.compareTo(b.rectIndex);
+      return row != 0 ? row : a.targetIndex.compareTo(b.targetIndex);
+    });
     final assignedRects = <int>{};
     final assignedTargets = <int>{};
     final assignments =

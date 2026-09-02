@@ -4,8 +4,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../domain/calibration_repository.dart';
 import '../../domain/companion_models.dart';
+import '../league/league_installation.dart';
 
 class SharedPreferencesCalibrationRepository implements CalibrationRepository {
+  SharedPreferencesCalibrationRepository({
+    Future<Map<String, num>> Function()? contextReader,
+  }) : _contextReader = contextReader ?? readLeagueCalibrationContext;
+  final Future<Map<String, num>> Function() _contextReader;
   static const _storageKey = 'native_minimap_calibration_v1';
 
   @override
@@ -24,7 +29,15 @@ class SharedPreferencesCalibrationRepository implements CalibrationRepository {
       );
       final calibration = CalibrationState(
         calibrated: true,
-        recalibrationSuggested: false,
+        recalibrationSuggested: calibrationContextChanged(
+          value['provenance'] is Map
+              ? Map<String, dynamic>.from(value['provenance'] as Map)
+              : null,
+          await _contextReader(),
+        ),
+        provenance: value['provenance'] is Map
+            ? Map<String, dynamic>.from(value['provenance'] as Map)
+            : null,
         bounds: normalizedBounds,
         iconSize: (value['icon_size'] as num?)?.toDouble(),
         confidence: (value['confidence'] as num?)?.toDouble(),
@@ -35,7 +48,7 @@ class SharedPreferencesCalibrationRepository implements CalibrationRepository {
       return calibration.boundsAreUsable(calibration.bounds)
           ? calibration
           : null;
-    } on FormatException {
+    } catch (_) {
       return null;
     }
   }
@@ -47,6 +60,7 @@ class SharedPreferencesCalibrationRepository implements CalibrationRepository {
       throw ArgumentError.value(bounds, 'bounds', 'Invalid minimap bounds.');
     }
     final preferences = await SharedPreferences.getInstance();
+    final context = await _contextReader();
     await preferences.setString(
       _storageKey,
       jsonEncode({
@@ -54,6 +68,7 @@ class SharedPreferencesCalibrationRepository implements CalibrationRepository {
         'icon_size': calibration.trackingIconSize,
         'confidence': calibration.confidence ?? 0,
         'saved_at': DateTime.now().toUtc().toIso8601String(),
+        'provenance': context,
       }),
     );
   }

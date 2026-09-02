@@ -180,6 +180,7 @@ class _GodSenseHomeState extends ConsumerState<GodSenseHome> {
           .read(nativeVisionProvider.notifier)
           .configure(
             enabled: forceNativeVision || (game != null && !game.gameEnded),
+            calibrationStale: calibration?.recalibrationSuggested ?? false,
             bounds: calibration?.trackingBounds,
             iconSize: calibration?.trackingIconSize ?? 28,
           );
@@ -203,6 +204,7 @@ class _GodSenseHomeState extends ConsumerState<GodSenseHome> {
           .read(nativeVisionProvider.notifier)
           .configure(
             enabled: forceNativeVision || (game != null && !game.gameEnded),
+            calibrationStale: calibration?.recalibrationSuggested ?? false,
             bounds: calibration?.trackingBounds,
             iconSize: calibration?.trackingIconSize ?? 28,
           );

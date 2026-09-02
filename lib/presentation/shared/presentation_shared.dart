@@ -51,6 +51,9 @@ String _formatTimestamp(DateTime timestamp) {
 
 String _calibrationDescription(CalibrationState? calibration) {
   if (calibration == null) return 'El minimapa todavía no está configurado.';
+  if (calibration.recalibrationSuggested) {
+    return 'Cambió la resolución o la escala del minimapa. Vuelve a calibrar para recuperar las alertas.';
+  }
   if (!calibration.calibrated && calibration.defaultBounds == null) {
     return 'Detecta el minimapa o introduce sus límites manualmente.';
   }

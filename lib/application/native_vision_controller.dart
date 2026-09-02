@@ -11,6 +11,7 @@ import '../infrastructure/native_vision/dartcv_minimap_tracker.dart';
 import '../infrastructure/native_vision/native_minimap_calibrator.dart';
 import '../infrastructure/native_vision/win32_screen_capture.dart';
 import '../infrastructure/native_vision/vision_icon_cache.dart';
+import '../infrastructure/native_vision/vision_runtime.dart';
 
 enum TrackerLogSource { native, legacy }
 
@@ -55,6 +56,10 @@ class NativeVisionState {
     this.calibrationProposal,
     this.events = const [],
     this.workingSetBytes = 0,
+    this.expectedTargets = 0,
+    this.loadedTargets = 0,
+    this.pendingVariants = false,
+    this.targetsLoading = false,
   });
 
   final bool running;
@@ -72,6 +77,29 @@ class NativeVisionState {
   final NativeCalibrationResult? calibrationProposal;
   final List<NativeTrackerEvent> events;
   final int workingSetBytes;
+  final int expectedTargets;
+  final int loadedTargets;
+  final bool pendingVariants;
+  final bool targetsLoading;
+  bool get recognitionReady =>
+      running &&
+      error == null &&
+      expectedTargets > 0 &&
+      loadedTargets == expectedTargets &&
+      !pendingVariants &&
+      !targetsLoading;
+  String get recognitionStatus {
+    if (error != null) return 'Revisar visión';
+    if (!running) return 'En espera';
+    if (expectedTargets == 0) return 'Esperando enemigos';
+    if (targetsLoading) return 'Preparando reconocimiento';
+    if (loadedTargets == 0) return 'Esperando retratos · reintentando';
+    if (loadedTargets < expectedTargets) {
+      return 'Reconocimiento parcial · $loadedTargets/$expectedTargets';
+    }
+    if (pendingVariants) return 'Faltan transformaciones · reintentando';
+    return 'Vigilando';
+  }
 
   NativeVisionState copyWith({
     bool? running,
@@ -90,12 +118,17 @@ class NativeVisionState {
     NativeCalibrationResult? calibrationProposal,
     List<NativeTrackerEvent>? events,
     int? workingSetBytes,
+    int? expectedTargets,
+    int? loadedTargets,
+    bool? pendingVariants,
+    bool? targetsLoading,
+    bool clearFrame = false,
   }) {
     return NativeVisionState(
       running: running ?? this.running,
       processing: processing ?? this.processing,
       fps: fps ?? this.fps,
-      frame: frame ?? this.frame,
+      frame: clearFrame ? null : frame ?? this.frame,
       bounds: bounds ?? this.bounds,
       logs: logs ?? this.logs,
       error: clearError ? null : error ?? this.error,
@@ -109,6 +142,10 @@ class NativeVisionState {
       calibrationProposal: calibrationProposal ?? this.calibrationProposal,
       events: events ?? this.events,
       workingSetBytes: workingSetBytes ?? this.workingSetBytes,
+      expectedTargets: expectedTargets ?? this.expectedTargets,
+      loadedTargets: loadedTargets ?? this.loadedTargets,
+      pendingVariants: pendingVariants ?? this.pendingVariants,
+      targetsLoading: targetsLoading ?? this.targetsLoading,
     );
   }
 }
@@ -175,13 +212,49 @@ class NativeVisionController extends StateNotifier<NativeVisionState> {
     Win32ScreenCapture? capture,
     DartCvMinimapTracker? tracker,
     VisionIconCache? iconCache,
-  }) : _capture = capture ?? Win32ScreenCapture(),
-       _tracker = tracker ?? DartCvMinimapTracker(),
+    VisionRuntime? runtime,
+    DateTime Function()? clock,
+  }) : _runtime =
+           runtime ??
+           (capture != null || tracker != null
+               ? LocalVisionRuntime(capture: capture, tracker: tracker)
+               : IsolateVisionRuntime()),
+       _clock = clock ?? DateTime.now,
        _iconCache = iconCache ?? VisionIconCache(),
        super(const NativeVisionState());
 
-  final Win32ScreenCapture _capture;
-  final DartCvMinimapTracker _tracker;
+  VisionRuntime _runtime;
+  final DateTime Function() _clock;
+  List<String> _loadedNames = const [];
+  int _frameEpoch = 0;
+  bool _captureInProgress = false;
+
+  void _recoverWorker() {
+    final runtime = _runtime;
+    if (_disposed || runtime is! IsolateVisionRuntime || !runtime.failed) {
+      return;
+    }
+    _runtime = IsolateVisionRuntime();
+    _targetGeneration++;
+    _targetSignature = '';
+    _targetIconSize = null;
+    _loadedNames = const [];
+    _resetTracking();
+    state = state.copyWith(loadedTargets: 0);
+  }
+
+  void _resetTracking() {
+    _frameEpoch++;
+    _activeGanks.clear();
+    _sightingStates.clear();
+    state = state.copyWith(
+      identified: const {},
+      lastKnown: const {},
+      events: const [],
+      clearFrame: true,
+    );
+  }
+
   Timer? _timer;
   int _framesSinceSample = 0;
   int _iconSize = 28;
@@ -215,13 +288,24 @@ class NativeVisionController extends StateNotifier<NativeVisionState> {
     required bool enabled,
     required Map<String, dynamic>? bounds,
     int iconSize = 28,
+    bool calibrationStale = false,
   }) {
+    if (_disposed) return;
+    _recoverWorker();
+    if (calibrationStale) {
+      stop();
+      state = state.copyWith(
+        error:
+            'Cambió la resolución o la escala del minimapa. Vuelve a calibrar.',
+      );
+      return;
+    }
     if (!enabled) {
       stop();
       return;
     }
     if (bounds == null) {
-      stop();
+      if (!_calibrating) stop();
       state = state.copyWith(error: 'Calibrando minimapa automáticamente…');
       final now = DateTime.now();
       if (!_calibrating &&
@@ -244,7 +328,10 @@ class NativeVisionController extends StateNotifier<NativeVisionState> {
       );
       return;
     }
-    state = state.copyWith(bounds: bounds);
+    if (!mapEquals(state.bounds, bounds) || _iconSize != iconSize) {
+      _resetTracking();
+    }
+    state = state.copyWith(bounds: Map.of(bounds));
     _iconSize = iconSize;
     if (state.running) return;
     state = state.copyWith(running: true, clearError: true);
@@ -286,13 +373,19 @@ class NativeVisionController extends StateNotifier<NativeVisionState> {
       _targetSignature = '';
       _targetAttempt = null;
       _targetIconSize = null;
-      _tracker.setTargets(const {}, iconSize: iconSize);
-      _activeGanks.clear();
-      _sightingStates.clear();
+      _loadedNames = const [];
+      _resetTracking();
       state = state.copyWith(
-        identified: const {},
-        lastKnown: const {},
-        events: const [],
+        expectedTargets: names.length,
+        loadedTargets: 0,
+        pendingVariants: false,
+      );
+      // Queue this before any new frame; stale in-flight frames are rejected by epoch.
+      unawaited(
+        _runtime.setTargets(const {}, iconSize).catchError((Object error) {
+          if (!_disposed) state = state.copyWith(error: error.toString());
+          return <String>[];
+        }),
       );
     }
     if (entries.isEmpty) return;
@@ -311,7 +404,7 @@ class NativeVisionController extends StateNotifier<NativeVisionState> {
     if (signature == _targetSignature || _loadingTargetSignature != null) {
       return;
     }
-    final now = DateTime.now();
+    final now = _clock();
     if (_targetAttempt != null &&
         now.difference(_targetAttempt!) < const Duration(seconds: 10)) {
       return;
@@ -319,8 +412,10 @@ class NativeVisionController extends StateNotifier<NativeVisionState> {
     _targetAttempt = now;
     final generation = _targetGeneration;
     _loadingTargetSignature = signature;
+    state = state.copyWith(targetsLoading: true);
 
     final icons = <String, List<Uint8List>>{};
+    var variantsMissing = false;
     try {
       await Future.wait(
         entries.map((entry) async {
@@ -342,26 +437,36 @@ class NativeVisionController extends StateNotifier<NativeVisionState> {
               'assassin/kayn_ass_circle.png',
             ]) {
               final bytes = await _iconCache.load('$base/$path');
-              if (bytes != null) icons[entry.name]!.add(bytes);
+              if (bytes != null) {
+                icons[entry.name]!.add(bytes);
+              } else {
+                variantsMissing = true;
+              }
             }
           }
         }),
       );
       if (_disposed || generation != _targetGeneration) return;
       _targetsUpdating = true;
-      _tracker.setTargets({
+      final loadedNames = await _runtime.setTargets({
         for (final entry in entries)
           if (icons.containsKey(entry.name)) entry.name: icons[entry.name]!,
-      }, iconSize: stableIconSize);
+      }, stableIconSize);
+      if (_disposed || generation != _targetGeneration) return;
       _targetIconSize = stableIconSize;
-      final loadedNames = _tracker.targetNames;
+      _loadedNames = loadedNames;
       final missing = names
           .where((name) => !loadedNames.contains(name))
           .toList();
       // A partial download is not a completed roster; retry missing assets.
-      _targetSignature = missing.isEmpty ? signature : '';
+      _targetSignature = missing.isEmpty && !variantsMissing ? signature : '';
       // Preserve lastKnown across target updates so champion tracking history is not lost!
-      state = state.copyWith(identified: const {});
+      state = state.copyWith(
+        identified: const {},
+        loadedTargets: loadedNames.length,
+        expectedTargets: names.length,
+        pendingVariants: variantsMissing,
+      );
       _appendLog(
         TrackerLogEntry(
           timestamp: DateTime.now(),
@@ -378,9 +483,11 @@ class NativeVisionController extends StateNotifier<NativeVisionState> {
           error: 'No se pudieron preparar los retratos: $error',
         );
       }
+      _recoverWorker();
     } finally {
       _targetsUpdating = false;
       _loadingTargetSignature = null;
+      if (!_disposed) state = state.copyWith(targetsLoading: false);
     }
   }
 
@@ -404,19 +511,25 @@ class NativeVisionController extends StateNotifier<NativeVisionState> {
   }
 
   Future<void> captureOnce(Map<String, dynamic> bounds) async {
+    if (_disposed) return;
+    if (!mapEquals(state.bounds, bounds)) _resetTracking();
     state = state.copyWith(bounds: bounds, clearError: true);
     await _captureAndProcess();
   }
 
   Future<void> detectCalibration() async {
+    if (_disposed) return;
+    _recoverWorker();
     if (state.processing) return;
+    final epoch = _frameEpoch;
     state = state.copyWith(processing: true, clearError: true);
     try {
-      final proposal = NativeMinimapCalibrator(_capture).detect();
+      final proposal = await _runtime.detectCalibration();
+      if (_disposed || epoch != _frameEpoch) return;
       final width = (proposal.bounds['width'] as num).toDouble();
       final height = (proposal.bounds['height'] as num).toDouble();
       final ratio = width / height;
-      if (ratio < 0.75 || ratio > 1.33) {
+      if (ratio < 0.75 || ratio > 1.33 || proposal.confidence < 0.25) {
         throw StateError(
           'Detector nativo propuso bounds inválidos '
           '${width.round()}x${height.round()}.',
@@ -428,14 +541,20 @@ class NativeVisionController extends StateNotifier<NativeVisionState> {
         clearError: true,
       );
     } catch (error) {
-      state = state.copyWith(processing: false, error: error.toString());
+      if (!_disposed) {
+        state = state.copyWith(processing: false, error: error.toString());
+      }
+    } finally {
+      if (!_disposed) state = state.copyWith(processing: false);
     }
   }
 
   Future<void> _autoDetectAndStart() async {
     _calibrating = true;
     try {
-      final proposal = NativeMinimapCalibrator(_capture).detect();
+      final epoch = _frameEpoch;
+      final proposal = await _runtime.detectCalibration();
+      if (_disposed || epoch != _frameEpoch) return;
       final width = (proposal.bounds['width'] as num).toDouble();
       final height = (proposal.bounds['height'] as num).toDouble();
       final ratio = width / height;
@@ -446,6 +565,7 @@ class NativeVisionController extends StateNotifier<NativeVisionState> {
           '${(proposal.confidence * 100).toStringAsFixed(1)}%.',
         );
       }
+      _resetTracking();
       state = state.copyWith(
         calibrationProposal: proposal,
         bounds: proposal.bounds,
@@ -471,20 +591,26 @@ class NativeVisionController extends StateNotifier<NativeVisionState> {
         ),
       );
     } catch (error) {
-      state = state.copyWith(error: error.toString());
+      if (!_disposed) state = state.copyWith(error: error.toString());
     } finally {
       _calibrating = false;
     }
   }
 
   void stop() {
+    _frameEpoch++;
     _timer?.cancel();
     _timer = null;
-    if (state.running) state = state.copyWith(running: false, fps: 0);
+    if (state.running) {
+      _resetTracking();
+      state = state.copyWith(running: false, fps: 0);
+    }
   }
 
   Future<void> _captureAndProcess() async {
+    _recoverWorker();
     if (_disposed ||
+        _captureInProgress ||
         state.processing ||
         _targetsUpdating ||
         (_targetIconSize != null && _targetIconSize != _iconSize)) {
@@ -492,24 +618,19 @@ class NativeVisionController extends StateNotifier<NativeVisionState> {
     }
     final bounds = state.bounds;
     if (bounds == null) return;
+    final epoch = _frameEpoch;
+    _captureInProgress = true;
     state = state.copyWith(processing: true);
     try {
-      final capture = _capture.capture(
-        left: (bounds['left'] as num?)?.round() ?? 0,
-        top: (bounds['top'] as num?)?.round() ?? 0,
-        width: (bounds['width'] as num?)?.round() ?? 0,
-        height: (bounds['height'] as num?)?.round() ?? 0,
-      );
       final previousFrame = state.frame;
       final generatePreview = previousFrame == null || _previewFrame++ % 6 == 0;
-      final frame = _tracker.process(
-        capture,
-        iconSize: _iconSize,
-        generatePreview: generatePreview,
-        previousCapturePng: previousFrame?.capturePng,
-        previousMaskPng: previousFrame?.maskPng,
-        previousAnnotatedPng: previousFrame?.annotatedPng,
+      final capture = await _runtime.capture(
+        Map.of(bounds),
+        _iconSize,
+        generatePreview,
       );
+      if (_disposed || epoch != _frameEpoch) return;
+      final frame = capture.frame;
       _cvSamples.add(frame.cvMicroseconds);
       _captureSamples.add(capture.captureMicroseconds);
       if (_cvSamples.length > 120) _cvSamples.removeAt(0);
@@ -525,14 +646,14 @@ class NativeVisionController extends StateNotifier<NativeVisionState> {
       if (++_performanceLogFrame % 60 == 0) {
         _appendLog(
           TrackerLogEntry(
-            timestamp: frame.processedAt,
+            timestamp: frame.capturedAt,
             source: TrackerLogSource.native,
             event: 'performance',
             message:
                 'GDI avg=${averageCapture.toStringAsFixed(2)} ms · CV avg=${averageCv.toStringAsFixed(2)} ms · '
                 'CV p95=${p95Cv.toStringAsFixed(2)} ms · '
                 'identified=${frame.detections.where((d) => d.championName != null).length}/${frame.detections.length} · '
-                'templates=${_tracker.targetNames.length} at ${_targetIconSize ?? 0}px · captureIcon=${_iconSize}px · '
+                'templates=${_loadedNames.length} at ${_targetIconSize ?? 0}px · captureIcon=${_iconSize}px · '
                 'stages=${frame.stageMicroseconds.map((key, value) => MapEntry(key, (value / 1000).toStringAsFixed(2)))}',
             detectionCount: frame.detections.length,
           ),
@@ -542,7 +663,7 @@ class NativeVisionController extends StateNotifier<NativeVisionState> {
         _loggedCaptureStart = true;
         _appendLog(
           TrackerLogEntry(
-            timestamp: frame.processedAt,
+            timestamp: frame.capturedAt,
             source: TrackerLogSource.native,
             event: 'capture_started',
             message:
@@ -565,7 +686,7 @@ class NativeVisionController extends StateNotifier<NativeVisionState> {
       final lastKnown = {...state.lastKnown};
       identified.removeWhere(
         (_, value) =>
-            frame.processedAt.difference(value.lastSeen).inMilliseconds > 2000,
+            frame.capturedAt.difference(value.lastSeen).inMilliseconds > 2000,
       );
       final frameWidth = (bounds['width'] as num?)?.round() ?? 1;
       final frameHeight = (bounds['height'] as num?)?.round() ?? 1;
@@ -578,13 +699,13 @@ class NativeVisionController extends StateNotifier<NativeVisionState> {
           x: detection.centerX,
           y: detection.centerY,
           confidence: detection.confidence,
-          lastSeen: frame.processedAt,
+          lastSeen: frame.capturedAt,
         );
         lastKnown[name] = identified[name]!;
       }
       final events = _deriveEvents(
         identified,
-        frame.processedAt,
+        frame.capturedAt,
         frameWidth,
         frameHeight,
       );
@@ -602,6 +723,7 @@ class NativeVisionController extends StateNotifier<NativeVisionState> {
         clearError: true,
       );
     } catch (error, stackTrace) {
+      if (_disposed || epoch != _frameEpoch) return;
       final message = error.toString();
       final now = DateTime.now();
       if (_lastErrorMessage != message ||
@@ -612,6 +734,9 @@ class NativeVisionController extends StateNotifier<NativeVisionState> {
         _lastErrorLoggedAt = now;
       }
       state = state.copyWith(processing: false, error: error.toString());
+    } finally {
+      _captureInProgress = false;
+      if (!_disposed) state = state.copyWith(processing: false);
     }
   }
 
@@ -779,8 +904,7 @@ class NativeVisionController extends StateNotifier<NativeVisionState> {
     _disposed = true;
     _targetGeneration++;
     stop();
-    _tracker.dispose();
-    _capture.dispose();
+    _runtime.dispose();
     super.dispose();
   }
 }
