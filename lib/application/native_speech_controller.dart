@@ -18,6 +18,9 @@ class NativeSpeechState {
     this.speech = const LiveCaptionsState(),
     this.tts = const TtsLoadState(),
     this.ttsBusy = false,
+    this.modelsChecked = false,
+    this.speechModelInstalled = false,
+    this.ttsModelInstalled = false,
     this.pushToTalkPressed = false,
     this.transcript = '',
     this.lastTranscriptAt,
@@ -29,6 +32,9 @@ class NativeSpeechState {
   final LiveCaptionsState speech;
   final TtsLoadState tts;
   final bool ttsBusy;
+  final bool modelsChecked;
+  final bool speechModelInstalled;
+  final bool ttsModelInstalled;
   final bool pushToTalkPressed;
   final String transcript;
   final DateTime? lastTranscriptAt;
@@ -40,6 +46,9 @@ class NativeSpeechState {
     LiveCaptionsState? speech,
     TtsLoadState? tts,
     bool? ttsBusy,
+    bool? modelsChecked,
+    bool? speechModelInstalled,
+    bool? ttsModelInstalled,
     bool? pushToTalkPressed,
     String? transcript,
     DateTime? lastTranscriptAt,
@@ -51,6 +60,9 @@ class NativeSpeechState {
     speech: speech ?? this.speech,
     tts: tts ?? this.tts,
     ttsBusy: ttsBusy ?? this.ttsBusy,
+    modelsChecked: modelsChecked ?? this.modelsChecked,
+    speechModelInstalled: speechModelInstalled ?? this.speechModelInstalled,
+    ttsModelInstalled: ttsModelInstalled ?? this.ttsModelInstalled,
     pushToTalkPressed: pushToTalkPressed ?? this.pushToTalkPressed,
     transcript: transcript ?? this.transcript,
     lastTranscriptAt: lastTranscriptAt ?? this.lastTranscriptAt,
@@ -133,9 +145,20 @@ class NativeSpeechController extends StateNotifier<NativeSpeechState> {
       state = state.copyWith(
         loading: false,
         settings: settings,
+        modelsChecked: false,
         clearError: true,
       );
       _configureHotkey(settings);
+      final installed = await Future.wait([
+        _speech.isModelInstalled(),
+        _tts.isModelInstalled(settings.ttsModelId),
+      ]);
+      if (_disposed) return;
+      state = state.copyWith(
+        modelsChecked: true,
+        speechModelInstalled: installed[0],
+        ttsModelInstalled: installed[1],
+      );
       await _configureTts(settings);
     } catch (error) {
       if (!_disposed) {
@@ -145,6 +168,7 @@ class NativeSpeechController extends StateNotifier<NativeSpeechState> {
   }
 
   Future<void> updateSettings(NativeSpeechSettings settings) async {
+    final previousState = state;
     final model = TtsModelCatalog.byId(settings.ttsModelId);
     final normalized = settings.copyWith(
       ttsModelId: model.id,
@@ -155,10 +179,32 @@ class NativeSpeechController extends StateNotifier<NativeSpeechState> {
       ttsSpeed: settings.ttsSpeed.clamp(0.6, 1.6),
       ttsSteps: settings.ttsSteps.clamp(2, 16),
     );
-    state = state.copyWith(settings: normalized, clearError: true);
+    final modelChanged =
+        normalized.ttsModelId != previousState.settings.ttsModelId;
+    final needsInstallCheck = modelChanged || !previousState.modelsChecked;
+    state = state.copyWith(
+      settings: normalized,
+      modelsChecked: needsInstallCheck ? false : previousState.modelsChecked,
+      clearError: true,
+    );
     try {
       await _repository.save(normalized);
       _configureHotkey(normalized);
+      final installed = needsInstallCheck
+          ? await Future.wait([
+              _speech.isModelInstalled(),
+              _tts.isModelInstalled(normalized.ttsModelId),
+            ])
+          : [
+              previousState.speechModelInstalled,
+              previousState.ttsModelInstalled,
+            ];
+      if (_disposed) return;
+      state = state.copyWith(
+        modelsChecked: true,
+        speechModelInstalled: installed[0],
+        ttsModelInstalled: installed[1],
+      );
       await _configureTts(normalized);
     } catch (error) {
       state = state.copyWith(error: error.toString());
@@ -211,11 +257,29 @@ class NativeSpeechController extends StateNotifier<NativeSpeechState> {
     }
   }
 
-  Future<void> downloadSpeechModel() => _speech.prepareModel();
+  Future<void> downloadSpeechModel() async {
+    await _speech.prepareModel();
+    if (_disposed) return;
+    state = state.copyWith(
+      modelsChecked: true,
+      speechModelInstalled: await _speech.isModelInstalled(),
+    );
+  }
 
-  Future<void> downloadTtsModel() => _tts.prepareModel();
+  Future<void> downloadTtsModel() async {
+    await _tts.prepareModel();
+    if (_disposed) return;
+    state = state.copyWith(
+      modelsChecked: true,
+      ttsModelInstalled: await _tts.isModelInstalled(state.settings.ttsModelId),
+    );
+  }
 
-  Future<void> removeTtsModel(String modelId) => _tts.removeModel(modelId);
+  Future<void> removeTtsModel(String modelId) async {
+    await _tts.removeModel(modelId);
+    if (_disposed || modelId != state.settings.ttsModelId) return;
+    state = state.copyWith(ttsModelInstalled: false, modelsChecked: true);
+  }
 
   void speak(String text) {
     if (!state.settings.ttsEnabled) return;
@@ -225,8 +289,9 @@ class NativeSpeechController extends StateNotifier<NativeSpeechState> {
   Future<void> testTts([
     String text = 'GodSense está listo para ayudarte.',
   ]) async {
+    if (!state.ttsModelInstalled) return;
     await _configureTts(state.settings.copyWith(ttsEnabled: true));
-    _tts.speak(text, allowDownload: true);
+    _tts.speak(text);
   }
 
   void _configureHotkey(NativeSpeechSettings settings) => _hotkey.configure(

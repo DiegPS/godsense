@@ -124,6 +124,9 @@ class LiveCaptionsService {
 
   LiveCaptionsState get currentState => _state;
 
+  Future<bool> isModelInstalled() async =>
+      await _modelCache.installed(SpeechModelCatalog.canary.package) != null;
+
   Future<void> updateConfig({
     required bool enabled,
     required String sourceLanguage,

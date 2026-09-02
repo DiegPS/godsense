@@ -110,19 +110,24 @@ class NativeSpeechSettingsCard extends ConsumerWidget {
                       ),
                     ),
                     const SizedBox(height: 4),
-                    GsButton(
-                      label:
-                          'Descargar reconocimiento (${_megabytes(SpeechModelCatalog.canary.package.downloadBytes)})',
-                      icon: Icons.download_rounded,
-                      variant: GsButtonVariant.secondary,
-                      compact: true,
-                      loading:
-                          state.speech.phase == LiveCaptionsPhase.downloading,
-                      onPressed:
-                          state.speech.phase == LiveCaptionsPhase.downloading
-                          ? null
-                          : controller.downloadSpeechModel,
-                    ),
+                    if (!state.modelsChecked)
+                      const _ModelAvailability(checking: true)
+                    else if (state.speechModelInstalled)
+                      const _ModelAvailability()
+                    else
+                      GsButton(
+                        label:
+                            'Descargar (${_megabytes(SpeechModelCatalog.canary.package.downloadBytes)})',
+                        icon: Icons.download_rounded,
+                        variant: GsButtonVariant.secondary,
+                        compact: true,
+                        loading:
+                            state.speech.phase == LiveCaptionsPhase.downloading,
+                        onPressed:
+                            state.speech.phase == LiveCaptionsPhase.downloading
+                            ? null
+                            : controller.downloadSpeechModel,
+                      ),
                   ],
                 ),
               ],
@@ -340,34 +345,39 @@ class NativeSpeechSettingsCard extends ConsumerWidget {
               spacing: 8,
               runSpacing: 8,
               children: [
-                GsButton(
-                  label:
-                      'Descargar ${selectedModel.name} (${_megabytes(selectedModel.downloadBytes)})',
-                  icon: Icons.download_rounded,
-                  compact: true,
-                  loading: state.tts.isLoading,
-                  onPressed: state.tts.isLoading
-                      ? null
-                      : controller.downloadTtsModel,
-                ),
-                GsButton(
-                  label: 'Probar voz',
-                  icon: Icons.volume_up_rounded,
-                  variant: GsButtonVariant.secondary,
-                  compact: true,
-                  onPressed: state.tts.isLoading || state.ttsBusy
-                      ? null
-                      : controller.testTts,
-                ),
-                GsButton(
-                  label: 'Borrar modelo',
-                  icon: Icons.delete_outline_rounded,
-                  variant: GsButtonVariant.ghost,
-                  compact: true,
-                  onPressed: state.tts.isLoading
-                      ? null
-                      : () => controller.removeTtsModel(selectedModel.id),
-                ),
+                if (!state.modelsChecked)
+                  const _ModelAvailability(checking: true)
+                else if (!state.ttsModelInstalled)
+                  GsButton(
+                    label:
+                        'Descargar voz (${_megabytes(selectedModel.downloadBytes)})',
+                    icon: Icons.download_rounded,
+                    compact: true,
+                    loading: state.tts.isLoading,
+                    onPressed: state.tts.isLoading
+                        ? null
+                        : controller.downloadTtsModel,
+                  )
+                else ...[
+                  GsButton(
+                    label: 'Probar voz',
+                    icon: Icons.volume_up_rounded,
+                    variant: GsButtonVariant.secondary,
+                    compact: true,
+                    onPressed: state.tts.isLoading || state.ttsBusy
+                        ? null
+                        : controller.testTts,
+                  ),
+                  GsButton(
+                    label: 'Eliminar voz descargada',
+                    icon: Icons.delete_outline_rounded,
+                    variant: GsButtonVariant.ghost,
+                    compact: true,
+                    onPressed: state.tts.isLoading
+                        ? null
+                        : () => controller.removeTtsModel(selectedModel.id),
+                  ),
+                ],
               ],
             ),
           ),
@@ -401,6 +411,10 @@ class NativeSpeechSettingsCard extends ConsumerWidget {
   }
 
   String _speechStatus(NativeSpeechState state) {
+    if (!state.modelsChecked) return 'Comprobando el reconocimiento de voz…';
+    if (!state.speechModelInstalled) {
+      return 'Necesita una descarga antes de poder escucharte.';
+    }
     if (state.pushToTalkPressed) return 'Suelta la tecla para transcribir.';
     return switch (state.speech.phase) {
       LiveCaptionsPhase.missingModel =>
@@ -415,16 +429,56 @@ class NativeSpeechSettingsCard extends ConsumerWidget {
     };
   }
 
-  String _ttsStatus(NativeSpeechState state) => switch (state.tts.phase) {
-    TtsLoadPhase.idle =>
-      state.settings.ttsEnabled
-          ? 'La voz se preparará cuando la necesites.'
-          : 'Actívala para escuchar las respuestas.',
-    TtsLoadPhase.checking || TtsLoadPhase.loading => 'Preparando la voz…',
-    TtsLoadPhase.downloading => 'Descargando la voz…',
-    TtsLoadPhase.ready => 'Lista para responder.',
-    TtsLoadPhase.error => 'La voz necesita atención.',
-  };
+  String _ttsStatus(NativeSpeechState state) {
+    if (!state.modelsChecked) return 'Comprobando las voces disponibles…';
+    if (!state.ttsModelInstalled) {
+      return 'Descarga esta voz para escuchar las respuestas.';
+    }
+    return switch (state.tts.phase) {
+      TtsLoadPhase.idle =>
+        state.settings.ttsEnabled
+            ? 'La voz se preparará cuando la necesites.'
+            : 'Actívala para escuchar las respuestas.',
+      TtsLoadPhase.checking || TtsLoadPhase.loading => 'Preparando la voz…',
+      TtsLoadPhase.downloading => 'Descargando la voz…',
+      TtsLoadPhase.ready => 'Lista para responder.',
+      TtsLoadPhase.error => 'La voz necesita atención.',
+    };
+  }
 
   String _megabytes(int bytes) => '${(bytes / 1024 / 1024).round()} MB';
+}
+
+class _ModelAvailability extends StatelessWidget {
+  const _ModelAvailability({this.checking = false});
+
+  final bool checking;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      if (checking)
+        const SizedBox(
+          width: 14,
+          height: 14,
+          child: CircularProgressIndicator(strokeWidth: 2),
+        )
+      else
+        const Icon(
+          Icons.check_circle_rounded,
+          size: 16,
+          color: GsColors.emerald,
+        ),
+      const SizedBox(width: 6),
+      Text(
+        checking ? 'Comprobando…' : 'Instalado',
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          color: checking ? GsColors.textSecondary : GsColors.emerald,
+        ),
+      ),
+    ],
+  );
 }
