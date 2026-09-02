@@ -277,12 +277,12 @@ class _GodSenseCustomTitleBar extends StatelessWidget {
   final bool isOnline;
 
   static const _navItems = [
-    (icon: Icons.grid_view_rounded, label: 'Overview'),
-    (icon: Icons.sensors_rounded, label: 'Live'),
-    (icon: Icons.visibility_outlined, label: 'Vision'),
+    (icon: Icons.grid_view_rounded, label: 'Inicio'),
+    (icon: Icons.sensors_rounded, label: 'En vivo'),
+    (icon: Icons.visibility_outlined, label: 'Mapa'),
     (icon: Icons.psychology_outlined, label: 'Coach'),
     (icon: Icons.manage_search_rounded, label: 'Scout'),
-    (icon: Icons.tune_rounded, label: 'Settings'),
+    (icon: Icons.tune_rounded, label: 'Ajustes'),
   ];
 
   @override
