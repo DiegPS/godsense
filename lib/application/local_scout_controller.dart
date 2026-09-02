@@ -24,6 +24,7 @@ typedef LoadChampionNames = Future<Map<int, String>> Function();
 class LocalScoutState {
   const LocalScoutState({
     this.loading = false,
+    this.loadingLabel,
     this.profile = const {},
     this.matches = const [],
     this.selectedMatch = const {},
@@ -31,6 +32,7 @@ class LocalScoutState {
   });
 
   final bool loading;
+  final String? loadingLabel;
   final Map<String, dynamic> profile;
   final List<Map<String, dynamic>> matches;
   final Map<String, dynamic> selectedMatch;
@@ -38,14 +40,17 @@ class LocalScoutState {
 
   LocalScoutState copyWith({
     bool? loading,
+    String? loadingLabel,
     Map<String, dynamic>? profile,
     List<Map<String, dynamic>>? matches,
     Map<String, dynamic>? selectedMatch,
     bool clearSelection = false,
     String? lastError,
     bool clearError = false,
+    bool clearLoadingLabel = false,
   }) => LocalScoutState(
     loading: loading ?? this.loading,
+    loadingLabel: clearLoadingLabel ? null : loadingLabel ?? this.loadingLabel,
     profile: profile ?? this.profile,
     matches: matches ?? this.matches,
     selectedMatch: clearSelection
@@ -78,21 +83,31 @@ class LocalScoutController extends StateNotifier<LocalScoutState> {
   Map<int, String> _championNames = const {};
   LeagueAccountProfile? _account;
   LeagueAccountProfile? _connectedAccount;
+  bool _showingConnectedAccount = true;
   int _revision = 0;
 
   Future<void> loadAccount(LeagueAccountProfile? account) async {
     _connectedAccount = account;
-    await _showAccount(account);
+    if (_showingConnectedAccount) {
+      await _showAccount(account, loadingLabel: 'Actualizando tu cuenta…');
+    }
   }
 
-  Future<void> _showAccount(LeagueAccountProfile? account) async {
+  Future<void> _showAccount(
+    LeagueAccountProfile? account, {
+    required String loadingLabel,
+  }) async {
     _account = account;
     final revision = ++_revision;
     if (account == null) {
       state = const LocalScoutState();
       return;
     }
-    state = state.copyWith(loading: true, clearError: true);
+    state = state.copyWith(
+      loading: true,
+      loadingLabel: loadingLabel,
+      clearError: true,
+    );
     try {
       final results = await Future.wait<Object?>([
         _loadMatches(account.puuid, limit: 30),
@@ -116,7 +131,11 @@ class LocalScoutController extends StateNotifier<LocalScoutState> {
       );
     } catch (error) {
       if (revision != _revision) return;
-      state = state.copyWith(loading: false, lastError: error.toString());
+      state = state.copyWith(
+        loading: false,
+        lastError: error.toString(),
+        clearLoadingLabel: true,
+      );
     }
   }
 
@@ -129,12 +148,23 @@ class LocalScoutController extends StateNotifier<LocalScoutState> {
       state = state.copyWith(lastError: 'La búsqueda LCU no está disponible.');
       return;
     }
+    final wasShowingConnectedAccount = _showingConnectedAccount;
+    final previousAccount = _account;
+    _showingConnectedAccount = false;
     final revision = ++_revision;
-    state = state.copyWith(loading: true, clearError: true);
+    state = state.copyWith(
+      loading: true,
+      loadingLabel: 'Buscando $gameName#$tagLine y sincronizando partidas…',
+      clearError: true,
+    );
     try {
       final account = await resolver(gameName: gameName, tagLine: tagLine);
       if (revision != _revision) return;
       _account = account;
+      state = state.copyWith(
+        loading: true,
+        loadingLabel: 'Preparando el perfil de $gameName#$tagLine…',
+      );
       final results = await Future.wait<Object?>([
         _loadMatches(account.puuid, limit: 30),
         _loadRanked(account.puuid),
@@ -157,11 +187,20 @@ class LocalScoutController extends StateNotifier<LocalScoutState> {
       );
     } catch (error) {
       if (revision != _revision) return;
-      state = state.copyWith(loading: false, lastError: error.toString());
+      _showingConnectedAccount = wasShowingConnectedAccount;
+      _account = previousAccount;
+      state = state.copyWith(
+        loading: false,
+        lastError: error.toString(),
+        clearLoadingLabel: true,
+      );
     }
   }
 
-  Future<void> useConnectedAccount() => _showAccount(_connectedAccount);
+  Future<void> useConnectedAccount() {
+    _showingConnectedAccount = true;
+    return _showAccount(_connectedAccount, loadingLabel: 'Cargando tu cuenta…');
+  }
 
   Future<Map<int, String>> _loadChampionNamesSafely() async {
     try {
@@ -171,7 +210,12 @@ class LocalScoutController extends StateNotifier<LocalScoutState> {
     }
   }
 
-  Future<void> refresh() => loadAccount(_account);
+  Future<void> refresh() => _showAccount(
+    _account,
+    loadingLabel: _showingConnectedAccount
+        ? 'Actualizando tu cuenta…'
+        : 'Actualizando el perfil buscado…',
+  );
 
   Future<void> selectMatch(int gameId) async {
     final account = _account;

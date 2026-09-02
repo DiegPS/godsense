@@ -109,7 +109,20 @@ class _ScoutPageState extends ConsumerState<ScoutPage> {
           ),
         ),
         const SizedBox(height: 16),
-        if (state.loading) const LinearProgressIndicator(),
+        if (state.loading) ...[
+          Semantics(
+            liveRegion: true,
+            label: state.loadingLabel ?? 'Cargando Scout',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const LinearProgressIndicator(),
+                const SizedBox(height: 8),
+                Text(state.loadingLabel ?? 'Cargando Scout…'),
+              ],
+            ),
+          ),
+        ],
         if (state.loading) const SizedBox(height: 12),
         if (profile.isEmpty && !state.loading)
           const Card(

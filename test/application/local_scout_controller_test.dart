@@ -160,6 +160,40 @@ void main() {
       expect(controller.state.matches, hasLength(1));
     },
   );
+
+  test(
+    'keeps the searched profile visible during connected account refreshes',
+    () async {
+      await controller.loadAccount(_account());
+      await controller.searchRiotId(gameName: 'Rival', tagLine: 'LAN');
+
+      await controller.loadAccount(
+        LeagueAccountProfile(
+          puuid: Puuid('player'),
+          platformId: PlatformId('LA1'),
+          riotId: const RiotId(gameName: 'Diego actualizado', tagLine: 'LAN'),
+          firstSeenAt: DateTime.utc(2026, 9, 1),
+          lastSeenAt: DateTime.utc(2026, 9, 4),
+        ),
+      );
+
+      expect(controller.state.profile['game_name'], 'Rival');
+
+      await controller.useConnectedAccount();
+      expect(controller.state.profile['game_name'], 'Diego actualizado');
+    },
+  );
+
+  test('refreshing a search does not replace the connected account', () async {
+    await controller.loadAccount(_account());
+    await controller.searchRiotId(gameName: 'Rival', tagLine: 'LAN');
+
+    await controller.refresh();
+    expect(controller.state.profile['game_name'], 'Rival');
+
+    await controller.useConnectedAccount();
+    expect(controller.state.profile['game_name'], 'Diego');
+  });
 }
 
 LeagueAccountProfile _account() => LeagueAccountProfile(
