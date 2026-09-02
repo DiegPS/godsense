@@ -410,6 +410,14 @@ class _GodSenseCustomTitleBar extends StatelessWidget {
             ),
 
             // 4. Action Controls
+            if (overlayEditing) ...[
+              _TitleBarIconButton(
+                icon: Icons.restart_alt_rounded,
+                tooltip: 'Restablecer HUD',
+                onPressed: onResetPanels,
+              ),
+              const SizedBox(width: 2),
+            ],
             _TitleBarActionChip(
               icon: overlayEditing
                   ? Icons.check_rounded
@@ -418,14 +426,6 @@ class _GodSenseCustomTitleBar extends StatelessWidget {
               active: overlayEditing,
               onPressed: onToggleEditing,
             ),
-            if (overlayEditing) ...[
-              const SizedBox(width: 2),
-              _TitleBarIconButton(
-                icon: Icons.restart_alt_rounded,
-                tooltip: 'Restablecer HUD',
-                onPressed: onResetPanels,
-              ),
-            ],
             const SizedBox(width: 2),
             _TitleBarIconButton(
               icon: Icons.help_outline_rounded,
