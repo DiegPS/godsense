@@ -6,12 +6,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:multiview_desktop/multiview_desktop.dart';
 
+import '../application/account_context_coordinator.dart';
 import '../application/dependencies.dart';
 import '../application/cv_corpus_comparator.dart';
 import '../application/native_calibration_controller.dart';
 import '../application/native_league_controller.dart';
 import '../application/native_speech_controller.dart';
 import '../application/native_vision_controller.dart';
+import '../application/local_scout_controller.dart';
 import '../application/overlay_layout_controller.dart';
 import '../application/overlay_parity_logger.dart';
 import '../domain/companion_models.dart';

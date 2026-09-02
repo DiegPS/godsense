@@ -10,6 +10,7 @@ class ScoutPage extends ConsumerStatefulWidget {
 class _ScoutPageState extends ConsumerState<ScoutPage> {
   final _gameName = TextEditingController();
   final _tagLine = TextEditingController(text: 'LAN');
+  final Set<int> _expandedMatchIds = {};
 
   @override
   void dispose() {
@@ -18,397 +19,1113 @@ class _ScoutPageState extends ConsumerState<ScoutPage> {
     super.dispose();
   }
 
+  void _toggleExpand(int matchId) {
+    setState(() {
+      if (_expandedMatchIds.contains(matchId)) {
+        _expandedMatchIds.remove(matchId);
+      } else {
+        _expandedMatchIds.add(matchId);
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(localScoutProvider);
-    final profile = state.profile;
-    final matches = state.matches;
-    final detail = state.selectedMatch;
+    final subject = state.subjectAccount;
+    final analytics = state.analytics;
+    final matches = state.typedMatches;
+    final activeContextState = ref.watch(nativeLeagueProvider).accountContext;
 
-    return ListView(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-      children: [
-        Row(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWide = constraints.maxWidth >= 1020;
+
+        return ListView(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
           children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Scout',
-                    style: Theme.of(context).textTheme.headlineMedium,
-                  ),
-                  const Text(
-                    'Busca cualquier Riot ID desde el cliente y conserva su historial localmente.',
-                    style: TextStyle(fontSize: 13, color: Color(0xFF94A3B8)),
-                  ),
-                ],
-              ),
-            ),
-            IconButton.outlined(
-              tooltip: 'Actualizar historial local',
-              style: IconButton.styleFrom(
-                side: const BorderSide(color: Color(0x1AFFFFFF)),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-              onPressed: state.loading
-                  ? null
-                  : () => ref.read(localScoutProvider.notifier).refresh(),
-              icon: const Icon(
-                Icons.refresh_rounded,
-                size: 18,
-                color: Color(0xFF94A3B8),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-
-        // 1. Modern Floating Search Console
-        Container(
-          decoration: BoxDecoration(
-            color: GsColors.surface,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x14000000),
-                blurRadius: 12,
-                offset: Offset(0, 4),
-              ),
-            ],
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(11),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+            // Page Title Header
+            Row(
               children: [
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Wrap(
-                    spacing: 10,
-                    runSpacing: 10,
-                    crossAxisAlignment: WrapCrossAlignment.center,
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      SizedBox(
-                        width: 220,
-                        child: TextField(
-                          controller: _gameName,
-                          textInputAction: TextInputAction.next,
-                          style: const TextStyle(
-                            fontSize: 13,
-                            color: GsColors.textPrimary,
-                          ),
-                          decoration: InputDecoration(
-                            isDense: true,
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 10,
-                            ),
-                            labelText: 'Nombre de Riot',
-                            hintText: 'Invocador…',
-                            hintStyle: const TextStyle(
-                              fontSize: 13,
-                              color: GsColors.textMuted,
-                            ),
-                            filled: true,
-                            fillColor: GsColors.surfaceElevated,
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide: BorderSide.none,
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide: const BorderSide(
-                                color: GsColors.cyan,
-                              ),
-                            ),
-                          ),
+                      Text(
+                        'Scout',
+                        style: Theme.of(context).textTheme.headlineMedium,
+                      ),
+                      const Text(
+                        'Analítica competitiva, historial local y proyección de rendimiento por partida.',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: GsColors.textSecondary,
                         ),
-                      ),
-                      SizedBox(
-                        width: 100,
-                        child: TextField(
-                          controller: _tagLine,
-                          textInputAction: TextInputAction.search,
-                          onSubmitted: state.loading ? null : (_) => _search(),
-                          style: const TextStyle(
-                            fontSize: 13,
-                            color: GsColors.textPrimary,
-                          ),
-                          decoration: InputDecoration(
-                            isDense: true,
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 10,
-                            ),
-                            labelText: 'Tag',
-                            prefixText: '# ',
-                            prefixStyle: const TextStyle(
-                              color: GsColors.cyan,
-                              fontWeight: FontWeight.bold,
-                            ),
-                            filled: true,
-                            fillColor: GsColors.surfaceElevated,
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide: BorderSide.none,
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide: const BorderSide(
-                                color: GsColors.cyan,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      GsButton(
-                        label: 'Buscar',
-                        icon: Icons.search_rounded,
-                        onPressed: state.loading ? null : _search,
-                      ),
-                      GsButton(
-                        label: 'Mi Cuenta',
-                        icon: Icons.account_circle_outlined,
-                        variant: GsButtonVariant.secondary,
-                        onPressed: state.loading
-                            ? null
-                            : () => ref
-                                  .read(localScoutProvider.notifier)
-                                  .useConnectedAccount(),
                       ),
                     ],
                   ),
                 ),
-                if (state.loading) ...[
-                  const LinearProgressIndicator(
-                    minHeight: 2,
-                    backgroundColor: Colors.transparent,
-                    color: GsColors.cyan,
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 6,
-                    ),
-                    color: GsColors.cyanGlow,
-                    child: Row(
-                      children: [
-                        const SizedBox(
-                          width: 12,
-                          height: 12,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: GsColors.cyan,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          state.loadingLabel ??
-                              'Consultando datos del invocador…',
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w500,
-                            color: GsColors.cyan,
-                          ),
-                        ),
-                      ],
+                IconButton.outlined(
+                  tooltip: 'Actualizar historial local',
+                  style: IconButton.styleFrom(
+                    side: BorderSide.none,
+                    backgroundColor: GsColors.surfaceElevated,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
                     ),
                   ),
-                ],
-              ],
-            ),
-          ),
-        ),
-
-        const SizedBox(height: 16),
-
-        // 3. Empty Profile State
-        if (profile.isEmpty && !state.loading)
-          Container(
-            padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 24),
-            decoration: BoxDecoration(
-              color: GsColors.surface,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: const BoxDecoration(
-                    color: GsColors.cyanGlow,
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.travel_explore_rounded,
-                    size: 36,
+                  onPressed: state.loading
+                      ? null
+                      : () => ref.read(localScoutProvider.notifier).refresh(),
+                  icon: const Icon(
+                    Icons.refresh_rounded,
+                    size: 18,
                     color: GsColors.cyan,
                   ),
                 ),
-                const SizedBox(height: 14),
-                const Text(
-                  'Conecta una cuenta de League',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: GsColors.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                const Text(
-                  'GodSense mostrará aquí su rango e historial sincronizado cuando busques un Riot ID o conectes tu cliente.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 13, color: GsColors.textSecondary),
-                ),
               ],
             ),
-          ),
+            const SizedBox(height: 16),
 
-        // 4. Player Profile Card
-        if (profile.isNotEmpty) ...[
-          _ScoutProfileCard(profile: profile),
-          const SizedBox(height: 20),
+            // 1. Search Console Bar
+            _buildSearchConsole(state),
+            const SizedBox(height: 16),
 
-          // Matches Section Header
-          Row(
-            children: [
-              const Icon(Icons.history_rounded, size: 18, color: GsColors.cyan),
-              const SizedBox(width: 8),
-              const Expanded(
-                child: Text(
-                  'Partidas Recientes Analizadas',
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.3,
-                    color: GsColors.textPrimary,
-                  ),
+            // 2. Empty State when no profile is available
+            if (subject == null && state.profile.isEmpty && !state.loading)
+              _buildEmptyState(),
+
+            // 3. Hero Profile Header
+            if (subject != null || state.profile.isNotEmpty) ...[
+              _buildHeroProfileHeader(state, analytics),
+              const SizedBox(height: 20),
+
+              // 4. Main Body: Split or Stacked based on Width
+              if (isWide)
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Left Column (Sidebar: Linked account & Relationships)
+                    SizedBox(
+                      width: 320,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _buildLinkedAccountCard(activeContextState),
+                          const SizedBox(height: 16),
+                          if (analytics != null &&
+                              analytics.recentTeammates.isNotEmpty) ...[
+                            _buildRelationshipTable(
+                              title: 'Compañeros Recientes',
+                              subtitle: 'Aliados en partidas analizadas',
+                              icon: Icons.group_outlined,
+                              relationships: analytics.recentTeammates,
+                            ),
+                            const SizedBox(height: 16),
+                          ],
+                          if (analytics != null &&
+                              analytics.recentOpponents.isNotEmpty) ...[
+                            _buildRelationshipTable(
+                              title: 'Rivales Recientes',
+                              subtitle:
+                                  'Enfrentamientos en partidas analizadas',
+                              icon: Icons.sports_kabaddi_outlined,
+                              relationships: analytics.recentOpponents,
+                            ),
+                            const SizedBox(height: 16),
+                          ],
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 20),
+
+                    // Right Main Column (Performance Summary & Match History)
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          if (analytics != null) ...[
+                            _buildPerformanceSummary(analytics),
+                            const SizedBox(height: 20),
+                          ],
+                          _buildMatchHistorySection(matches, state),
+                        ],
+                      ),
+                    ),
+                  ],
+                )
+              else
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _buildLinkedAccountCard(activeContextState),
+                    const SizedBox(height: 16),
+                    if (analytics != null) ...[
+                      _buildPerformanceSummary(analytics),
+                      const SizedBox(height: 16),
+                    ],
+                    if (analytics != null &&
+                        analytics.recentTeammates.isNotEmpty) ...[
+                      _buildRelationshipTable(
+                        title: 'Compañeros Recientes',
+                        subtitle: 'Aliados en partidas analizadas',
+                        icon: Icons.group_outlined,
+                        relationships: analytics.recentTeammates,
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                    _buildMatchHistorySection(matches, state),
+                  ],
                 ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                '${matches.length} partidas en registro local',
-                style: const TextStyle(fontSize: 12, color: GsColors.textMuted),
+            ],
+
+            if (state.lastError != null) ...[
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: GsColors.crimsonGlow,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.error_outline_rounded,
+                      size: 16,
+                      color: GsColors.crimson,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        state.lastError!,
+                        style: const TextStyle(
+                          color: GsColors.crimson,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ],
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildSearchConsole(LocalScoutState state) {
+    return Container(
+      decoration: BoxDecoration(
+        color: GsColors.surface,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x14000000),
+            blurRadius: 12,
+            offset: Offset(0, 4),
           ),
-          const SizedBox(height: 10),
-
-          if (matches.isEmpty)
-            Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: GsColors.surface,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: const Center(
-                child: Text(
-                  'Sin partidas registradas para este invocador.',
-                  style: TextStyle(color: GsColors.textMuted),
-                ),
-              ),
-            )
-          else
-            Column(
-              children: matches.map((match) {
-                final champion = match['champion'] is Map
-                    ? Map<String, dynamic>.from(match['champion'] as Map)
-                    : const <String, dynamic>{};
-                final matchId = (match['match_id'] as num?)?.toInt();
-                final isWin = (match['result']?.toString().toUpperCase() ?? '')
-                    .contains('WIN');
-
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: _ScoutMatchCard(
-                    match: match,
-                    champion: champion,
-                    isWin: isWin,
-                    onTap: matchId == null
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(11),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  SizedBox(
+                    width: 220,
+                    child: TextField(
+                      controller: _gameName,
+                      textInputAction: TextInputAction.next,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: GsColors.textPrimary,
+                      ),
+                      decoration: InputDecoration(
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 10,
+                        ),
+                        labelText: 'Nombre de Riot',
+                        hintText: 'Invocador…',
+                        hintStyle: const TextStyle(
+                          fontSize: 13,
+                          color: GsColors.textMuted,
+                        ),
+                        filled: true,
+                        fillColor: GsColors.surfaceElevated,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide.none,
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: const BorderSide(color: GsColors.cyan),
+                        ),
+                      ),
+                    ),
+                  ),
+                  SizedBox(
+                    width: 100,
+                    child: TextField(
+                      controller: _tagLine,
+                      textInputAction: TextInputAction.search,
+                      onSubmitted: state.loading ? null : (_) => _search(),
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: GsColors.textPrimary,
+                      ),
+                      decoration: InputDecoration(
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
+                        labelText: 'Tag',
+                        prefixText: '# ',
+                        prefixStyle: const TextStyle(
+                          color: GsColors.cyan,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        filled: true,
+                        fillColor: GsColors.surfaceElevated,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide.none,
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: const BorderSide(color: GsColors.cyan),
+                        ),
+                      ),
+                    ),
+                  ),
+                  GsButton(
+                    label: 'Buscar',
+                    icon: Icons.search_rounded,
+                    onPressed: state.loading ? null : _search,
+                  ),
+                  GsButton(
+                    label: 'Mi Cuenta',
+                    icon: Icons.account_circle_outlined,
+                    variant: GsButtonVariant.secondary,
+                    onPressed: state.loading
                         ? null
                         : () => ref
                               .read(localScoutProvider.notifier)
-                              .selectMatch(matchId),
+                              .useConnectedAccount(),
                   ),
-                );
-              }).toList(),
+                ],
+              ),
             ),
-        ],
-
-        // 5. Match Detail View
-        if (detail.isNotEmpty) ...[
-          const SizedBox(height: 24),
-          Row(
-            children: [
-              const Icon(
-                Icons.scoreboard_outlined,
-                size: 18,
+            if (state.loading) ...[
+              const LinearProgressIndicator(
+                minHeight: 2,
+                backgroundColor: Colors.transparent,
                 color: GsColors.cyan,
               ),
-              const SizedBox(width: 8),
-              const Expanded(
-                child: Text(
-                  'Scorecard 5v5 y Estadísticas de Partida',
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color: GsColors.textPrimary,
-                  ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 6,
                 ),
-              ),
-              IconButton(
-                icon: const Icon(
-                  Icons.close_rounded,
-                  size: 18,
-                  color: GsColors.textSecondary,
-                ),
-                tooltip: 'Cerrar detalle',
-                onPressed: () => ref
-                    .read(localScoutProvider.notifier)
-                    .selectMatch(
-                      (detail['match_id'] as num?)?.toInt() ??
-                          (detail['game_id'] as num?)?.toInt() ??
-                          0,
+                color: GsColors.cyanGlow,
+                child: Row(
+                  children: [
+                    const SizedBox(
+                      width: 12,
+                      height: 12,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: GsColors.cyan,
+                      ),
                     ),
+                    const SizedBox(width: 8),
+                    Text(
+                      state.loadingLabel ?? 'Consultando datos del invocador…',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                        color: GsColors.cyan,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ],
-          ),
-          const SizedBox(height: 10),
-          _ScoutMatchDetail(detail: detail),
-        ],
+          ],
+        ),
+      ),
+    );
+  }
 
-        if (state.lastError != null) ...[
-          const SizedBox(height: 16),
+  Widget _buildEmptyState() {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 24),
+      decoration: BoxDecoration(
+        color: GsColors.surface,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
           Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: GsColors.crimsonGlow,
-              borderRadius: BorderRadius.circular(8),
+            padding: const EdgeInsets.all(16),
+            decoration: const BoxDecoration(
+              color: GsColors.cyanGlow,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.travel_explore_rounded,
+              size: 36,
+              color: GsColors.cyan,
+            ),
+          ),
+          const SizedBox(height: 14),
+          const Text(
+            'Conecta una cuenta de League',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: GsColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'GodSense mostrará aquí su rango e historial sincronizado cuando busques un Riot ID o conectes tu cliente.',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 13, color: GsColors.textSecondary),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHeroProfileHeader(
+    LocalScoutState state,
+    ScoutProfileAnalytics? analytics,
+  ) {
+    final legacy = state.profile;
+    final name =
+        state.subjectAccount?.riotId?.gameName ??
+        legacy['game_name'] ??
+        'Invocador';
+    final tag =
+        state.subjectAccount?.riotId?.tagLine ?? legacy['tag_line'] ?? 'LAN';
+    final iconUrl = state.subjectAccount?.profileIconId != null
+        ? 'https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1/profile-icons/${state.subjectAccount!.profileIconId}.jpg'
+        : legacy['icon_url']?.toString();
+
+    final rankMap = legacy['rank'] is Map ? legacy['rank'] as Map : const {};
+    final tier = rankMap['tier']?.toString() ?? 'UNRANKED';
+    final division = rankMap['division']?.toString() ?? '';
+    final lp = (rankMap['lp'] as num?)?.toInt() ?? 0;
+
+    final recentForm = analytics?.recentForm ?? const <bool>[];
+    final formWins = recentForm.where((w) => w).length;
+    final formLosses = recentForm.length - formWins;
+    final formWr = recentForm.isEmpty
+        ? 0
+        : (formWins * 100 / recentForm.length).round();
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: GsColors.surface,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x14000000),
+            blurRadius: 12,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              // Avatar with Level Badge Overlay
+              Stack(
+                clipBehavior: Clip.none,
+                alignment: Alignment.bottomCenter,
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: _NetworkPortrait(url: iconUrl, size: 68),
+                  ),
+                  Positioned(
+                    bottom: -6,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 1,
+                      ),
+                      decoration: BoxDecoration(
+                        color: GsColors.canvas,
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(color: GsColors.border, width: 1),
+                      ),
+                      child: const Text(
+                        'LVL',
+                        style: TextStyle(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w800,
+                          color: GsColors.cyan,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(width: 18),
+
+              // Name, Tag & Rank Pill
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '$name#$tag',
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.3,
+                        color: GsColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 6,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: GsColors.cyanGlow,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            '$tier $division · $lp LP',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: GsColors.cyan,
+                            ),
+                          ),
+                        ),
+                        if (analytics != null &&
+                            analytics.roleDistribution.isNotEmpty)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: GsColors.surfaceElevated,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              '${analytics.roleDistribution.first.role.label} Main · ${analytics.roleDistribution.first.percentage.toStringAsFixed(0)}%',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: GsColors.textSecondary,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+
+              // Recent Form Matrix (Últimas 10 partidas)
+              if (recentForm.isNotEmpty)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: GsColors.surfaceElevated,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      const Text(
+                        'FORMA RECIENTE (ÚLTIMAS 10)',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.5,
+                          color: GsColors.textMuted,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Wrap(
+                        spacing: 4,
+                        runSpacing: 4,
+                        children: recentForm.map((won) {
+                          return Container(
+                            width: 18,
+                            height: 18,
+                            decoration: BoxDecoration(
+                              color: won
+                                  ? GsColors.emeraldGlow
+                                  : GsColors.crimsonGlow,
+                              borderRadius: BorderRadius.circular(3),
+                            ),
+                            child: Center(
+                              child: Text(
+                                won ? 'W' : 'L',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w800,
+                                  color: won
+                                      ? GsColors.emerald
+                                      : GsColors.crimson,
+                                ),
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${formWins}W - ${formLosses}L · $formWr% WR',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: formWr >= 50
+                              ? GsColors.emerald
+                              : GsColors.crimson,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLinkedAccountCard(AccountContextState? activeContextState) {
+    final account = activeContextState?.context?.account;
+
+    return GsCard(
+      title: 'Cuenta Conectada',
+      icon: Icons.link_rounded,
+      padding: const EdgeInsets.all(14),
+      child: account != null
+          ? Row(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: _NetworkPortrait(
+                    url: account.profileIconId != null
+                        ? 'https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1/profile-icons/${account.profileIconId}.jpg'
+                        : null,
+                    size: 40,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${account.riotId?.gameName ?? 'Invocador'}#${account.riotId?.tagLine ?? 'LAN'}',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: GsColors.textPrimary,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 2),
+                      Row(
+                        children: [
+                          Container(
+                            width: 6,
+                            height: 6,
+                            decoration: BoxDecoration(
+                              color: activeContextState?.lcuConnected == true
+                                  ? GsColors.emerald
+                                  : GsColors.textMuted,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            activeContextState?.lcuConnected == true
+                                ? 'Cliente Local Activo'
+                                : 'Desconectado',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: GsColors.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            )
+          : const Padding(
+              padding: EdgeInsets.symmetric(vertical: 4),
+              child: Text(
+                'Sin cliente local conectado.',
+                style: TextStyle(fontSize: 12, color: GsColors.textMuted),
+              ),
+            ),
+    );
+  }
+
+  Widget _buildRelationshipTable({
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required List<ScoutRelationshipStats> relationships,
+  }) {
+    return GsCard(
+      title: title,
+      subtitle: subtitle,
+      icon: icon,
+      padding: EdgeInsets.zero,
+      child: Column(
+        children: relationships.take(5).map((rel) {
+          return Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            decoration: const BoxDecoration(
+              border: Border(
+                bottom: BorderSide(color: Color(0x14FFFFFF), width: 1),
+              ),
             ),
             child: Row(
               children: [
-                const Icon(
-                  Icons.error_outline_rounded,
-                  size: 16,
-                  color: GsColors.crimson,
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: _NetworkPortrait(url: rel.iconUrl, size: 28),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 10),
                 Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        rel.summonerName,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: GsColors.textPrimary,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Text(
+                        '${rel.games} partidas (${rel.wins}W - ${rel.losses}L)',
+                        style: const TextStyle(
+                          fontSize: 10,
+                          color: GsColors.textMuted,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: rel.winrate >= 50
+                        ? GsColors.emeraldGlow
+                        : GsColors.crimsonGlow,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
                   child: Text(
-                    state.lastError!,
-                    style: const TextStyle(
-                      color: GsColors.crimson,
-                      fontSize: 12,
+                    '${rel.winrate.toStringAsFixed(0)}%',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: rel.winrate >= 50
+                          ? GsColors.emerald
+                          : GsColors.crimson,
                     ),
                   ),
                 ),
               ],
             ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildPerformanceSummary(ScoutProfileAnalytics analytics) {
+    final kpis = analytics.kpis;
+
+    return GsCard(
+      title: 'Resumen de Rendimiento',
+      subtitle:
+          'Calculado sobre ${kpis.sampleSize} partidas disponibles en registro local.',
+      icon: Icons.query_stats_rounded,
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // 8 KPI Grid
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: [
+              _buildKpiTile(
+                'RECENT WIN RATE',
+                '${kpis.recentWinRate.toStringAsFixed(1)}%',
+                '${kpis.wins}W · ${kpis.losses}L',
+                GsColors.emerald,
+              ),
+              _buildKpiTile(
+                'AVERAGE KDA',
+                kpis.avgKda?.toStringAsFixed(2) ?? 'Sin datos',
+                'Ratio K+A/D',
+                GsColors.cyan,
+              ),
+              _buildKpiTile(
+                'AVERAGE DAMAGE',
+                _formatK(kpis.avgDamage),
+                'A campeones',
+                GsColors.textPrimary,
+              ),
+              _buildKpiTile(
+                'KILL PARTICIPATION',
+                kpis.killParticipation != null
+                    ? '${kpis.killParticipation!.toStringAsFixed(1)}%'
+                    : 'Sin datos',
+                'Bajas de equipo',
+                GsColors.textPrimary,
+              ),
+              _buildKpiTile(
+                'OBJECTIVE DAMAGE',
+                _formatK(kpis.avgObjectiveDamage),
+                'Daño medio/partida',
+                GsColors.textPrimary,
+              ),
+              _buildKpiTile(
+                'AVG GOLD / MIN',
+                kpis.avgGoldPerMin?.toStringAsFixed(0) ?? 'Sin datos',
+                'Oro ganado',
+                GsColors.textPrimary,
+              ),
+              _buildKpiTile(
+                'AVG CS / MIN',
+                kpis.avgCsPerMin?.toStringAsFixed(1) ?? 'Sin datos',
+                'Línea + jungla',
+                GsColors.textPrimary,
+              ),
+              _buildKpiTile(
+                'AVG VISION / MIN',
+                kpis.avgVisionPerMin?.toStringAsFixed(2) ?? 'Sin datos',
+                'Puntos de visión',
+                GsColors.textPrimary,
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          const Divider(height: 1, color: Color(0x14FFFFFF)),
+          const SizedBox(height: 16),
+
+          // Two Breakdown Columns: Top Champions & Lanes Played
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Top Champions
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'TOP CAMPEONES',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.5,
+                        color: GsColors.textMuted,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    ...analytics.topChampions.map((champ) {
+                      final ratio = analytics.gamesCount == 0
+                          ? 0.0
+                          : champ.games / analytics.gamesCount;
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Row(
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(6),
+                              child: _NetworkPortrait(
+                                url: champ.iconUrl,
+                                size: 28,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            SizedBox(
+                              width: 70,
+                              child: Text(
+                                champ.name,
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: GsColors.textPrimary,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            Expanded(
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(3),
+                                child: LinearProgressIndicator(
+                                  value: ratio,
+                                  minHeight: 6,
+                                  backgroundColor: GsColors.surfaceElevated,
+                                  color: champ.winrate >= 50
+                                      ? GsColors.emerald
+                                      : GsColors.crimson,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            SizedBox(
+                              width: 75,
+                              child: Text(
+                                '${champ.kda.toStringAsFixed(1)} KDA · ${champ.winrate.toStringAsFixed(0)}%',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: champ.winrate >= 50
+                                      ? GsColors.emerald
+                                      : GsColors.crimson,
+                                ),
+                                textAlign: TextAlign.right,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 24),
+
+              // Lanes Played
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'DISTRIBUCIÓN DE LÍNEAS',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.5,
+                        color: GsColors.textMuted,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    ...analytics.roleDistribution.map((role) {
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Row(
+                          children: [
+                            Icon(
+                              _roleIcon(role.role),
+                              size: 16,
+                              color: GsColors.cyan,
+                            ),
+                            const SizedBox(width: 8),
+                            SizedBox(
+                              width: 70,
+                              child: Text(
+                                role.role.label,
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: GsColors.textPrimary,
+                                ),
+                              ),
+                            ),
+                            Expanded(
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(3),
+                                child: LinearProgressIndicator(
+                                  value: (role.percentage / 100).clamp(
+                                    0.0,
+                                    1.0,
+                                  ),
+                                  minHeight: 6,
+                                  backgroundColor: GsColors.surfaceElevated,
+                                  color: GsColors.cyan,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            SizedBox(
+                              width: 75,
+                              child: Text(
+                                '${role.games}G · ${role.winrate.toStringAsFixed(0)}% WR',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: role.winrate >= 50
+                                      ? GsColors.emerald
+                                      : GsColors.crimson,
+                                ),
+                                textAlign: TextAlign.right,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }),
+                  ],
+                ),
+              ),
+            ],
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildKpiTile(
+    String label,
+    String value,
+    String sub,
+    Color valueColor,
+  ) {
+    return Container(
+      width: 140,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: GsColors.surfaceElevated,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 9,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.4,
+              color: GsColors.textMuted,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+              color: valueColor,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            sub,
+            style: const TextStyle(fontSize: 10, color: GsColors.textSecondary),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMatchHistorySection(
+    List<ScoutMatchSummary> matches,
+    LocalScoutState state,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            const Icon(Icons.history_rounded, size: 18, color: GsColors.cyan),
+            const SizedBox(width: 8),
+            const Expanded(
+              child: Text(
+                'Historial de Partidas Combinado',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: GsColors.textPrimary,
+                ),
+              ),
+            ),
+            Text(
+              '${matches.length} partidas cargadas',
+              style: const TextStyle(fontSize: 12, color: GsColors.textMuted),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+
+        if (matches.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(32),
+            decoration: BoxDecoration(
+              color: GsColors.surface,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Center(
+              child: Text(
+                'Sin partidas registradas para este invocador.',
+                style: TextStyle(color: GsColors.textMuted),
+              ),
+            ),
+          )
+        else
+          Column(
+            children: matches.map((match) {
+              final isExpanded = _expandedMatchIds.contains(match.matchId);
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: _ModernMatchCard(
+                  match: match,
+                  isExpanded: isExpanded,
+                  onToggleExpand: () {
+                    _toggleExpand(match.matchId);
+                    if (!match.hasFullDetails) {
+                      ref
+                          .read(localScoutProvider.notifier)
+                          .selectMatch(match.matchId);
+                    }
+                  },
+                ),
+              );
+            }).toList(),
+          ),
       ],
     );
   }
@@ -421,629 +1138,454 @@ class _ScoutPageState extends ConsumerState<ScoutPage> {
         .read(localScoutProvider.notifier)
         .searchRiotId(gameName: gameName, tagLine: tagLine);
   }
+
+  IconData _roleIcon(ScoutRole role) => switch (role) {
+    ScoutRole.top => Icons.shield_outlined,
+    ScoutRole.jungle => Icons.forest_outlined,
+    ScoutRole.mid => Icons.bolt_outlined,
+    ScoutRole.bottom => Icons.ads_click_outlined,
+    ScoutRole.support => Icons.favorite_border_rounded,
+    _ => Icons.help_outline_rounded,
+  };
+
+  String _formatK(num? val) {
+    if (val == null || val == 0) return 'Sin datos';
+    if (val >= 1000) return '${(val / 1000).toStringAsFixed(1)}K';
+    return val.toStringAsFixed(0);
+  }
 }
 
-class _ScoutProfileCard extends StatelessWidget {
-  const _ScoutProfileCard({required this.profile});
+class _ModernMatchCard extends StatelessWidget {
+  const _ModernMatchCard({
+    required this.match,
+    required this.isExpanded,
+    required this.onToggleExpand,
+  });
 
-  final Map<String, dynamic> profile;
+  final ScoutMatchSummary match;
+  final bool isExpanded;
+  final VoidCallback onToggleExpand;
 
   @override
   Widget build(BuildContext context) {
-    final rank = profile['rank'] is Map
-        ? Map<String, dynamic>.from(profile['rank'] as Map)
-        : const <String, dynamic>{};
-    final badges = _asMapList(profile['badges']);
-    final gpi = _asMapList(profile['gpi']);
-    final signatures = _asMapList(profile['signature_champions']);
-    final winrate = (rank['winrate'] as num?)?.toDouble() ?? 0.0;
+    final isWin = match.isWin;
+    final score = match.performanceScore?.value ?? 50;
 
     return Container(
-      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: GsColors.surface,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(10),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Row 1: Profile Top Info (Avatar, Name, Rank Badge, KPIs)
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              // Avatar
-              ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: _NetworkPortrait(
-                  url: profile['icon_url']?.toString(),
-                  size: 64,
-                ),
-              ),
-              const SizedBox(width: 16),
-
-              // Summoner Name & Server
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: Column(
+          children: [
+            // Collapsed Row
+            InkWell(
+              onTap: onToggleExpand,
+              child: IntrinsicHeight(
+                child: Row(
                   children: [
-                    Text(
-                      '${profile['game_name'] ?? 'Invocador'}#${profile['tag_line'] ?? 'LAN'}',
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.3,
-                        color: GsColors.textPrimary,
-                      ),
+                    // Solid Left Accent Stripe
+                    Container(
+                      width: 5,
+                      color: isWin ? GsColors.emerald : GsColors.crimson,
                     ),
-                    const SizedBox(height: 6),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 4,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: GsColors.cyanGlow,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(
-                            '${rank['tier'] ?? 'UNRANKED'} ${rank['division'] ?? ''}',
-                            style: const TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                              color: GsColors.cyan,
-                            ),
-                          ),
-                        ),
-                        Text(
-                          '${rank['lp'] ?? 0} LP · ${profile['sample_size'] ?? 0} partidas analizadas',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: GsColors.textSecondary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
+                    const SizedBox(width: 14),
 
-              // Win Rate Visual Ring/Card
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 10,
-                ),
-                decoration: BoxDecoration(
-                  color: GsColors.surfaceElevated,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Column(
-                  children: [
-                    Text(
-                      '${winrate.toStringAsFixed(1)}% WR',
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w800,
-                        color: winrate >= 50
-                            ? GsColors.emerald
-                            : GsColors.crimson,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    const Text(
-                      'Rendimiento Global',
-                      style: TextStyle(fontSize: 10, color: GsColors.textMuted),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-
-          // Row 2: Badges & GPI Capability Tags
-          if (badges.isNotEmpty || gpi.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            const Divider(color: Color(0x14FFFFFF), height: 1),
-            const SizedBox(height: 14),
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: [
-                ...badges.map(
-                  (badge) => Tooltip(
-                    message: badge['description']?.toString() ?? '',
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: GsColors.cyanGlow,
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
+                    // Result & Queue Info
+                    SizedBox(
+                      width: 130,
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Icon(
-                            Icons.verified_outlined,
-                            size: 12,
-                            color: GsColors.cyan,
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                isWin
+                                    ? Icons.check_circle_rounded
+                                    : Icons.cancel_rounded,
+                                size: 13,
+                                color: isWin
+                                    ? GsColors.emerald
+                                    : GsColors.crimson,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                isWin ? 'VICTORIA' : 'DERROTA',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 0.3,
+                                  color: isWin
+                                      ? GsColors.emerald
+                                      : GsColors.crimson,
+                                ),
+                              ),
+                            ],
                           ),
-                          const SizedBox(width: 5),
+                          const SizedBox(height: 2),
                           Text(
-                            badge['name']?.toString() ?? 'Badge',
+                            match.queueLabel,
                             style: const TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: GsColors.cyanLight,
+                              fontSize: 10,
+                              color: GsColors.textMuted,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          Text(
+                            '${match.durationMinutes.toStringAsFixed(0)} min',
+                            style: const TextStyle(
+                              fontSize: 10,
+                              color: GsColors.textSecondary,
                             ),
                           ),
                         ],
                       ),
                     ),
-                  ),
-                ),
-                ...gpi.map(
-                  (item) => Tooltip(
-                    message: item['unit']?.toString() ?? '',
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: GsColors.surfaceElevated,
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        '${item['category']}: ${item['value']}',
-                        style: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w500,
-                          color: GsColors.textSecondary,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
 
-          // Row 3: Signature Champions Pool Grid
-          if (signatures.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            const Divider(color: Color(0x14FFFFFF), height: 1),
-            const SizedBox(height: 14),
-            const Text(
-              'Campeones Insignia & Dominio',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.5,
-                color: GsColors.textSecondary,
-              ),
-            ),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: signatures.map((champ) {
-                final cWinrate = (champ['winrate'] as num?)?.toDouble() ?? 0.0;
-                return Container(
-                  width: 220,
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: GsColors.surfaceElevated,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(6),
-                        child: _NetworkPortrait(
-                          url: champ['icon_url']?.toString(),
-                          size: 36,
+                    // Champion Portrait with Level
+                    Stack(
+                      clipBehavior: Clip.none,
+                      alignment: Alignment.bottomRight,
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: _NetworkPortrait(
+                            url: match.championIconUrl,
+                            size: 42,
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              champ['name']?.toString() ?? 'Campeón',
-                              style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                                color: GsColors.textPrimary,
+                        if (match.championLevel != null)
+                          Positioned(
+                            bottom: -2,
+                            right: -2,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 3,
+                                vertical: 1,
+                              ),
+                              decoration: BoxDecoration(
+                                color: GsColors.canvas,
+                                borderRadius: BorderRadius.circular(3),
+                              ),
+                              child: Text(
+                                '${match.championLevel}',
+                                style: const TextStyle(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.bold,
+                                  color: GsColors.textPrimary,
+                                ),
                               ),
                             ),
-                            const SizedBox(height: 2),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(width: 12),
+
+                    // Spells / Loadout
+                    if (match.spell1IconUrl != null ||
+                        match.spell2IconUrl != null)
+                      Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          if (match.spell1IconUrl != null)
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(3),
+                              child: _NetworkPortrait(
+                                url: match.spell1IconUrl,
+                                size: 16,
+                              ),
+                            ),
+                          const SizedBox(height: 2),
+                          if (match.spell2IconUrl != null)
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(3),
+                              child: _NetworkPortrait(
+                                url: match.spell2IconUrl,
+                                size: 16,
+                              ),
+                            ),
+                        ],
+                      ),
+                    const SizedBox(width: 12),
+
+                    // KDA & Main Stats
+                    Expanded(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Text(
+                                '${match.kills} / ',
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                  color: GsColors.textPrimary,
+                                ),
+                              ),
+                              Text(
+                                '${match.deaths}',
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                  color: GsColors.crimson,
+                                ),
+                              ),
+                              Text(
+                                ' / ${match.assists}',
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                  color: GsColors.textPrimary,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                '${match.kdaRatio.toStringAsFixed(2)} KDA',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: GsColors.cyan,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 3),
+                          Wrap(
+                            spacing: 8,
+                            children: [
+                              Text(
+                                '${match.cs} CS (${match.csm} CS/m)',
+                                style: const TextStyle(
+                                  fontSize: 10,
+                                  color: GsColors.textSecondary,
+                                ),
+                              ),
+                              if (match.killParticipation != null)
+                                Text(
+                                  '${match.killParticipation}% KP',
+                                  style: const TextStyle(
+                                    fontSize: 10,
+                                    color: GsColors.textSecondary,
+                                  ),
+                                ),
+                              if (match.damage != null)
+                                Text(
+                                  '${(match.damage! / 1000).toStringAsFixed(1)}K DMG',
+                                  style: const TextStyle(
+                                    fontSize: 10,
+                                    color: GsColors.textSecondary,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // 7-Item Build Row
+                    Wrap(
+                      spacing: 3,
+                      children: match.items.map((itemId) {
+                        return Container(
+                          width: 22,
+                          height: 22,
+                          decoration: BoxDecoration(
+                            color: GsColors.surfaceElevated,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: itemId > 0
+                              ? ClipRRect(
+                                  borderRadius: BorderRadius.circular(4),
+                                  child: _NetworkPortrait(
+                                    url:
+                                        'https://ddragon.leagueoflegends.com/cdn/${match.patch ?? '14.17.1'}/img/item/$itemId.png',
+                                    size: 22,
+                                  ),
+                                )
+                              : null,
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(width: 14),
+
+                    // Performance Score Badge
+                    Tooltip(
+                      message:
+                          match.performanceScore?.heuristicLabel ??
+                          'GodSense Rating',
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: score >= 70
+                              ? GsColors.emeraldGlow
+                              : score >= 50
+                              ? GsColors.cyanGlow
+                              : GsColors.crimsonGlow,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
                             Text(
-                              '${champ['games']} partidas · ${champ['kda']} KDA',
-                              style: const TextStyle(
-                                fontSize: 10,
+                              '$score',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                                color: score >= 70
+                                    ? GsColors.emerald
+                                    : score >= 50
+                                    ? GsColors.cyan
+                                    : GsColors.crimson,
+                              ),
+                            ),
+                            const Text(
+                              'SCORE',
+                              style: TextStyle(
+                                fontSize: 8,
+                                fontWeight: FontWeight.w700,
                                 color: GsColors.textMuted,
                               ),
                             ),
                           ],
                         ),
                       ),
-                      Text(
-                        '${cWinrate.toStringAsFixed(0)}%',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                          color: cWinrate >= 50
-                              ? GsColors.emerald
-                              : GsColors.crimson,
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              }).toList(),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _ScoutMatchCard extends StatelessWidget {
-  const _ScoutMatchCard({
-    required this.match,
-    required this.champion,
-    required this.isWin,
-    required this.onTap,
-  });
-
-  final Map<String, dynamic> match;
-  final Map<String, dynamic> champion;
-  final bool isWin;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final kills = match['kills'] ?? 0;
-    final deaths = match['deaths'] ?? 0;
-    final assists = match['assists'] ?? 0;
-    final csm = match['csm'] ?? 0;
-    final role = match['role']?.toString() ?? '';
-
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(10),
-        child: Container(
-          decoration: BoxDecoration(
-            color: isWin ? const Color(0xFF0B1917) : const Color(0xFF190F12),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: IntrinsicHeight(
-            child: Row(
-              children: [
-                // Left Color Stripe
-                Container(
-                  width: 5,
-                  decoration: BoxDecoration(
-                    color: isWin ? GsColors.emerald : GsColors.crimson,
-                    borderRadius: const BorderRadius.only(
-                      topLeft: Radius.circular(9),
-                      bottomLeft: Radius.circular(9),
                     ),
-                  ),
-                ),
-                const SizedBox(width: 14),
+                    const SizedBox(width: 10),
 
-                // Match Result & Queue
-                SizedBox(
-                  width: 100,
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        isWin ? 'VICTORIA' : 'DERROTA',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.5,
-                          color: isWin ? GsColors.emerald : GsColors.crimson,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      const Text(
-                        'Clasificatoria',
-                        style: TextStyle(
-                          fontSize: 11,
+                    // Expand / Collapse Chevron Button
+                    Tooltip(
+                      message: isExpanded
+                          ? 'Ocultar scoreboard'
+                          : 'Abrir detalle de partida',
+                      child: Padding(
+                        padding: const EdgeInsets.only(right: 12),
+                        child: Icon(
+                          isExpanded
+                              ? Icons.keyboard_arrow_up_rounded
+                              : Icons.keyboard_arrow_down_rounded,
+                          size: 20,
                           color: GsColors.textMuted,
                         ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                // Champion Portrait & Role
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: _NetworkPortrait(
-                    url: champion['icon_url']?.toString(),
-                    size: 42,
-                  ),
-                ),
-                const SizedBox(width: 12),
-
-                // Champion Name & Role Tag
-                Expanded(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '${champion['name'] ?? 'Campeón'} · ${match['result'] ?? (isWin ? 'Victoria' : 'Derrota')}',
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: GsColors.textPrimary,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      if (role.isNotEmpty)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 1,
-                          ),
-                          decoration: BoxDecoration(
-                            color: GsColors.cyanGlow,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(
-                            role,
-                            style: const TextStyle(
-                              fontSize: 9,
-                              fontWeight: FontWeight.w700,
-                              color: GsColors.cyan,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(width: 12),
-
-                // KDA Stats
-                Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          '$kills / ',
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                            color: GsColors.textPrimary,
-                          ),
-                        ),
-                        Text(
-                          '$deaths',
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                            color: GsColors.crimson,
-                          ),
-                        ),
-                        Text(
-                          ' / $assists',
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                            color: GsColors.textPrimary,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      '$csm CS/m',
-                      style: const TextStyle(
-                        fontSize: 11,
-                        color: GsColors.textMuted,
                       ),
                     ),
                   ],
                 ),
+              ),
+            ),
 
-                const SizedBox(width: 16),
+            // Expanded 5v5 Scoreboard
+            if (isExpanded) ...[
+              const Divider(height: 1, color: Color(0x14FFFFFF)),
+              if (match.participants.isNotEmpty)
+                _buildExpandedScoreboard(match)
+              else
+                const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Text(
+                    'Detalles completos de participantes no sincronizados para esta partida histórica.',
+                    style: TextStyle(fontSize: 11, color: GsColors.textMuted),
+                  ),
+                ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
 
-                // Open detail button
-                const Tooltip(
-                  message: 'Abrir detalle de partida',
-                  child: Padding(
-                    padding: EdgeInsets.only(right: 14),
-                    child: Icon(
-                      Icons.chevron_right_rounded,
-                      color: GsColors.textMuted,
-                      size: 20,
-                    ),
+  Widget _buildExpandedScoreboard(ScoutMatchSummary match) {
+    final allies = match.participants.where((p) => p.isAlly).toList();
+    final enemies = match.participants.where((p) => !p.isAlly).toList();
+
+    Widget teamColumn(
+      String title,
+      List<ScoutMatchParticipant> team,
+      bool isWin,
+    ) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            color: isWin ? const Color(0x1A10B981) : const Color(0x1AEF4444),
+            child: Row(
+              children: [
+                Icon(
+                  isWin ? Icons.emoji_events_rounded : Icons.close_rounded,
+                  size: 14,
+                  color: isWin ? GsColors.emerald : GsColors.crimson,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  '$title · ${isWin ? 'VICTORIA' : 'DERROTA'}',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: isWin ? GsColors.emerald : GsColors.crimson,
                   ),
                 ),
               ],
             ),
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ScoutMatchDetail extends StatelessWidget {
-  const _ScoutMatchDetail({required this.detail});
-
-  final Map<String, dynamic> detail;
-
-  @override
-  Widget build(BuildContext context) {
-    final teams = _asMapList(detail['teams']);
-    final players = _asMapList(detail['players']);
-
-    return Container(
-      decoration: BoxDecoration(
-        color: GsColors.surface,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        children: [
-          // Teams Summary
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: teams.map((team) {
-                final isWin = team['win'] == true;
-                return Expanded(
-                  child: Container(
-                    padding: const EdgeInsets.all(12),
-                    margin: const EdgeInsets.symmetric(horizontal: 4),
-                    decoration: BoxDecoration(
-                      color: isWin
-                          ? const Color(0x1A10B981)
-                          : const Color(0x1AEF4444),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          isWin
-                              ? Icons.emoji_events_rounded
-                              : Icons.close_rounded,
-                          size: 18,
-                          color: isWin ? GsColors.emerald : GsColors.crimson,
-                        ),
-                        const SizedBox(width: 8),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              '${team['side'] ?? 'Equipo'} · ${isWin ? 'VICTORIA' : 'DERROTA'}',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                                color: isWin
-                                    ? GsColors.emerald
-                                    : GsColors.crimson,
-                              ),
-                            ),
-                            Text(
-                              '${team['kills'] ?? 0} Bajas · ${team['drakes'] ?? 0} Dragones · ${team['barons'] ?? 0} Barones',
-                              style: const TextStyle(
-                                fontSize: 10,
-                                color: GsColors.textSecondary,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              }).toList(),
-            ),
-          ),
-
-          const Divider(color: Color(0x14FFFFFF), height: 1),
-
-          // Players List
-          ...players.map((player) {
-            final isSubject = player['is_subject'] == true;
+          ...team.map((player) {
             return Container(
-              color: isSubject ? GsColors.cyanGlow : Colors.transparent,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              color: player.isSubject ? GsColors.cyanGlow : Colors.transparent,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               child: Row(
                 children: [
                   ClipRRect(
-                    borderRadius: BorderRadius.circular(6),
+                    borderRadius: BorderRadius.circular(4),
                     child: _NetworkPortrait(
-                      url: player['champion'] is Map
-                          ? (player['champion'] as Map)['icon_url']?.toString()
-                          : null,
-                      size: 32,
+                      url: player.championIconUrl,
+                      size: 24,
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 8),
                   Expanded(
-                    flex: 2,
-                    child: Row(
-                      children: [
-                        Text(
-                          '${player['name'] ?? ''}',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: isSubject
-                                ? FontWeight.w700
-                                : FontWeight.w500,
-                            color: isSubject
-                                ? GsColors.cyan
-                                : GsColors.textPrimary,
-                          ),
-                        ),
-                        Text(
-                          '#${player['tag'] ?? ''}',
-                          style: const TextStyle(
-                            fontSize: 10,
-                            color: GsColors.textMuted,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  SizedBox(
-                    width: 60,
                     child: Text(
-                      '${player['role'] ?? ''}',
-                      style: const TextStyle(
+                      '${player.name}#${player.tag}',
+                      style: TextStyle(
                         fontSize: 11,
-                        color: GsColors.textSecondary,
+                        fontWeight: player.isSubject
+                            ? FontWeight.w700
+                            : FontWeight.w500,
+                        color: player.isSubject
+                            ? GsColors.cyan
+                            : GsColors.textPrimary,
                       ),
-                    ),
-                  ),
-                  SizedBox(
-                    width: 90,
-                    child: Text(
-                      '${player['kills'] ?? 0}/${player['deaths'] ?? 0}/${player['assists'] ?? 0}',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: GsColors.textPrimary,
-                      ),
-                    ),
-                  ),
-                  SizedBox(
-                    width: 70,
-                    child: Text(
-                      '${player['cs'] ?? 0} CS',
-                      style: const TextStyle(
-                        fontSize: 11,
-                        color: GsColors.textSecondary,
-                      ),
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                   Text(
-                    '${player['damage'] ?? 0} DMG',
+                    '${player.kills}/${player.deaths}/${player.assists}',
                     style: const TextStyle(
                       fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: GsColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    '${player.cs} CS',
+                    style: const TextStyle(
+                      fontSize: 10,
+                      color: GsColors.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    '${(player.damage / 1000).toStringAsFixed(1)}K',
+                    style: const TextStyle(
+                      fontSize: 10,
                       fontWeight: FontWeight.w600,
                       color: GsColors.cyan,
                     ),
@@ -1052,6 +1594,18 @@ class _ScoutMatchDetail extends StatelessWidget {
               ),
             );
           }),
+        ],
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.all(12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(child: teamColumn('Tu Equipo', allies, match.isWin)),
+          const SizedBox(width: 12),
+          Expanded(child: teamColumn('Equipo Rival', enemies, !match.isWin)),
         ],
       ),
     );
