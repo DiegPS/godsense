@@ -1,7 +1,15 @@
+import '../domain/tactical/composition_models.dart';
+
 class ChampionCompositionAnalyzer {
   const ChampionCompositionAnalyzer();
 
   Map<String, dynamic>? profile(List<Map<String, dynamic>> team) {
+    return typedProfile(team)?.toJson();
+  }
+
+  DeterministicCompositionProfile? typedProfile(
+    List<Map<String, dynamic>> team,
+  ) {
     final profiles = team
         .map((player) => _map(player['champion_profile']))
         .where((profile) => _map(profile['playstyle']).isNotEmpty)
@@ -47,23 +55,24 @@ class ChampionCompositionAnalyzer {
     final control = axes['crowdControl'] ?? 0;
     final durability = axes['durability'] ?? 0;
     final mobility = axes['mobility'] ?? 0;
-    return {
-      'axes': axes,
-      'axis_max': 3,
-      'known': profiles.length,
-      'total': team.length,
-      'classes': classes,
-      'damage_types': damageTypes,
-      'archetype': control >= 2 && durability >= 2
+    return DeterministicCompositionProfile(
+      axes: CompositionAxes(
+        damage: axes['damage'],
+        durability: axes['durability'],
+        crowdControl: axes['crowdControl'],
+        mobility: axes['mobility'],
+        utility: axes['utility'],
+      ),
+      knownChampions: profiles.length,
+      totalChampions: team.length,
+      damageTypes: Map.unmodifiable(damageTypes),
+      archetype: control >= 2 && durability >= 2
           ? 'Control y resistencia'
           : mobility >= 2
           ? 'Movilidad'
           : 'Perfil mixto',
-      'source': 'lcu_champion_playstyle',
-      'confidence': profiles.length / (team.isEmpty ? 1 : team.length) * 0.7,
-      'inference':
-          'Arquetipo derivado de atributos estáticos, no de win rates.',
-    };
+      confidence: profiles.length / (team.isEmpty ? 1 : team.length) * 0.7,
+    );
   }
 
   Map<String, dynamic> analyze(

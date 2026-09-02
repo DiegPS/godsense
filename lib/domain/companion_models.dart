@@ -1,3 +1,5 @@
+import 'league/draft_models.dart';
+
 enum CompanionConnection { connecting, online, offline }
 
 class ComponentHealth {
@@ -85,6 +87,7 @@ class LobbyState {
     required this.myTeam,
     required this.enemyTeam,
     required this.allLocked,
+    this.draft = DraftSnapshot.empty,
     this.candidate,
     this.timerPhase,
     this.timeLeftMilliseconds,
@@ -101,6 +104,7 @@ class LobbyState {
       myTeam: _mapList(snapshot['my_team']),
       enemyTeam: _mapList(snapshot['their_team']),
       allLocked: snapshot['all_locked'] == true,
+      draft: DraftSnapshot.fromMap(snapshot),
       candidate: json['candidate'] as String?,
       timerPhase: snapshot['timer_phase']?.toString(),
       timeLeftMilliseconds: (snapshot['time_left_ms'] as num?)?.toInt(),
@@ -115,6 +119,7 @@ class LobbyState {
   final List<Map<String, dynamic>> myTeam;
   final List<Map<String, dynamic>> enemyTeam;
   final bool allLocked;
+  final DraftSnapshot draft;
   final String? candidate;
   final String? timerPhase;
   final int? timeLeftMilliseconds;

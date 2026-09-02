@@ -127,9 +127,19 @@ class DataDragonResolver {
   }
 
   void _validate(List<int> bytes, DataDragonResource resource) {
-    final decoded = _jsonMap(bytes);
-    final data = decoded['data'];
-    if (data is! Map || data.isEmpty) {
+    final decoded = jsonDecode(utf8.decode(bytes));
+    final valid = switch (resource) {
+      DataDragonResource.runes =>
+        decoded is List &&
+            decoded.isNotEmpty &&
+            decoded.every(
+              (style) =>
+                  style is Map && style['id'] is num && style['slots'] is List,
+            ),
+      _ =>
+        decoded is Map && decoded['data'] is Map && decoded['data'].isNotEmpty,
+    };
+    if (!valid) {
       throw DataDragonResolutionException(
         'Validator $validatorVersion rejected ${resource.name}.',
       );
@@ -156,9 +166,13 @@ Map<String, Object?> _jsonMap(List<int> bytes) {
 String _fileName(DataDragonResource resource) => switch (resource) {
   DataDragonResource.items => 'item.json',
   DataDragonResource.champions => 'champion.json',
+  DataDragonResource.runes => 'runesReforged.json',
+  DataDragonResource.summonerSpells => 'summoner.json',
 };
 
 String _realmKey(DataDragonResource resource) => switch (resource) {
   DataDragonResource.items => 'item',
   DataDragonResource.champions => 'champion',
+  DataDragonResource.runes => 'rune',
+  DataDragonResource.summonerSpells => 'summoner',
 };

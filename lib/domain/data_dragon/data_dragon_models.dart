@@ -2,7 +2,7 @@ import '../identity/league_identity.dart';
 
 enum DataDragonResolutionIntent { currentRegional, historicalPatch }
 
-enum DataDragonResource { items, champions }
+enum DataDragonResource { items, champions, runes, summonerSpells }
 
 class DataDragonResolutionRequest {
   const DataDragonResolutionRequest({

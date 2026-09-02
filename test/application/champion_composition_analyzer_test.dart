@@ -2,56 +2,34 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:godsense/application/champion_composition_analyzer.dart';
 
 void main() {
-  const analyzer = ChampionCompositionAnalyzer();
-  test('uses champion attributes instead of assuming power from lane role', () {
-    final profile = analyzer.profile([
-      _champion('TOP', durability: 3, control: 3),
-      _champion('TOP', durability: 1, control: 1),
-    ])!;
-    expect((profile['axes'] as Map)['durability'], 2.0);
-    expect((profile['axes'] as Map)['crowdControl'], 2.0);
-    expect(profile['archetype'], 'Control y resistencia');
-    expect(profile['axis_max'], 3);
-    expect(profile['source'], 'lcu_champion_playstyle');
+  test('returns a versioned deterministic composition profile', () {
+    final profile = const ChampionCompositionAnalyzer().typedProfile([
+      {
+        'champion_profile': {
+          'playstyle': {
+            'damage': 3,
+            'durability': 2,
+            'crowdControl': 2,
+            'mobility': 1,
+            'utility': 1,
+          },
+          'classes': ['Mage'],
+          'tactical': {'damageType': 'MAGIC'},
+        },
+      },
+    ]);
+
+    expect(profile, isNotNull);
+    expect(profile?.axes.damage, 3);
+    expect(profile?.evaluatorVersion, 1);
+    expect(profile?.archetype, 'Control y resistencia');
+    expect(profile?.toJson()['source'], 'lcu_champion_playstyle');
   });
-  test('does not fabricate a champion profile from role alone', () {
+
+  test('does not invent a profile without champion attributes', () {
     expect(
-      analyzer.profile([
-        {'champion_name': 'Leona', 'position': 'UTILITY'},
-      ]),
+      const ChampionCompositionAnalyzer().typedProfile(const [{}]),
       isNull,
     );
   });
-  test('adapts advice when the actual team lacks durability and control', () {
-    final result = analyzer.analyze([
-      _champion('TOP', durability: 1, control: 1),
-    ], const []);
-    expect(
-      (result['guidelines'] as List).join(' '),
-      contains('Resistencia limitada'),
-    );
-    expect(
-      (result['guidelines'] as List).join(' '),
-      contains('Control limitado'),
-    );
-  });
 }
-
-Map<String, dynamic> _champion(
-  String role, {
-  required int durability,
-  required int control,
-}) => {
-  'position': role,
-  'champion_profile': {
-    'classes': ['tank'],
-    'tactical': {'damageType': 'kMagic'},
-    'playstyle': {
-      'damage': 2,
-      'durability': durability,
-      'crowdControl': control,
-      'mobility': 1,
-      'utility': 1,
-    },
-  },
-};

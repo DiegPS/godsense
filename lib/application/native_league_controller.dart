@@ -554,6 +554,15 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
       return players
           .map((player) {
             final id = (player['championId'] as num?)?.toInt() ?? 0;
+            final action = flatActions
+                .where(
+                  (action) =>
+                      action['actorCellId'] == player['cellId'] &&
+                      action['type'] == 'pick',
+                )
+                .lastOrNull;
+            final locked = action?['completed'] == true;
+            final picking = action?['isInProgress'] == true;
             return {
               'cell_id': player['cellId'],
               'champion_id': id,
@@ -561,12 +570,14 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
               'champion_alias': _championAliases[id] ?? '',
               'champion_profile': _championProfiles[id],
               'position': player['assignedPosition'] ?? '',
-              'locked': flatActions.any(
-                (action) =>
-                    action['actorCellId'] == player['cellId'] &&
-                    action['type'] == 'pick' &&
-                    action['completed'] == true,
-              ),
+              'locked': locked,
+              'selection_state': locked
+                  ? 'locked'
+                  : picking
+                  ? 'picking'
+                  : id > 0
+                  ? 'hovering'
+                  : 'unavailable',
               'is_local': player['cellId'] == localCell,
               'summoner_id': player['summonerId'],
               'spell1_id': player['spell1Id'],
