@@ -77,6 +77,8 @@ void runGodSense() {
         minimumSize: Size(900, 600),
         alignment: Alignment.center,
         title: 'GodSense',
+        titleBarStyle: TitleBarStyle.hidden,
+        windowButtonVisibility: false,
       ),
       observers: [overlayWindowManager],
     ),

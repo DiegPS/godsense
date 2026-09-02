@@ -120,37 +120,6 @@ void main() {
       await File('${root.path}\\targets_resized\\Sion.bmp').readAsBytes(),
       cv.IMREAD_COLOR,
     );
-    final box = cv.Rect(41, 47, 28, 28);
-    final live = cv.Mat.fromMat(frame, roi: box, copy: true);
-    final inner = cv.Rect(7, 7, 14, 14);
-    final liveFace = cv.Mat.fromMat(live, roi: inner, copy: true);
-    final targetFace = cv.Mat.fromMat(target, roi: inner, copy: true);
-    var delta = 0;
-    for (var index = 0; index < liveFace.data.length; index++) {
-      delta += (liveFace.data[index] - targetFace.data[index]).abs();
-    }
-    final mae = delta / liveFace.data.length;
-    final liveRange = cv.Mat.fromRange(frame, 47, 75, colStart: 41, colEnd: 69);
-    final liveFaceRange = cv.Mat.fromRange(
-      liveRange,
-      7,
-      21,
-      colStart: 7,
-      colEnd: 21,
-    );
-    final targetFaceRange = cv.Mat.fromRange(
-      target,
-      7,
-      21,
-      colStart: 7,
-      colEnd: 21,
-    );
-    var rangeDelta = 0;
-    for (var index = 0; index < liveFaceRange.data.length; index++) {
-      rangeDelta += (liveFaceRange.data[index] - targetFaceRange.data[index])
-          .abs();
-    }
-    final rangeMae = rangeDelta / liveFaceRange.data.length;
     var manualDelta = 0;
     var manualCount = 0;
     for (var y = 7; y < 21; y++) {
@@ -158,27 +127,14 @@ void main() {
         for (var channel = 0; channel < 3; channel++) {
           final frameIndex = ((47 + y) * frame.cols + (41 + x)) * 3 + channel;
           final targetIndex = (y * target.cols + x) * 3 + channel;
-          manualDelta += (frame.data[frameIndex] - target.data[targetIndex])
-              .abs();
+          manualDelta +=
+              (frame.data[frameIndex] - target.data[targetIndex]).abs();
           manualCount++;
         }
       }
     }
     final manualMae = manualDelta / manualCount;
-    debugPrint(
-      'Dart crop MAE: roi=${mae.toStringAsFixed(4)}, '
-      'range=${rangeMae.toStringAsFixed(4)}, '
-      'manual=${manualMae.toStringAsFixed(4)}',
-    );
     expect(manualMae, 0);
-    targetFaceRange.dispose();
-    liveFaceRange.dispose();
-    liveRange.dispose();
-    targetFace.dispose();
-    liveFace.dispose();
-    inner.dispose();
-    live.dispose();
-    box.dispose();
     target.dispose();
     frame.dispose();
   }, skip: corpusExists ? false : 'Local CV corpus is not available.');

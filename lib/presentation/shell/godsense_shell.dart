@@ -186,72 +186,55 @@ class GodSenseHome extends ConsumerWidget {
     };
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('GodSense'),
-        actions: [
-          IconButton(
-            tooltip: 'Ayuda y primeros pasos',
-            icon: const Icon(Icons.help_outline),
-            onPressed: () async {
-              final destination = await showGettingStartedGuide(context);
-              if (context.mounted && destination != null && destination >= 0) {
-                ref.read(selectedPageProvider.notifier).state = destination;
-              }
-            },
-          ),
-          IconButton(
-            tooltip: overlayOpen ? 'Close overlay' : 'Open overlay',
-            onPressed: () => overlayWindowManager.toggle(context),
-            icon: Icon(
-              overlayOpen ? Icons.layers_clear_outlined : Icons.layers_outlined,
-            ),
-          ),
-          IconButton(
-            tooltip: overlayLayout.editing
-                ? 'Terminar edición del overlay'
-                : 'Editar paneles del overlay',
-            onPressed: overlayOpen
-                ? () => ref.read(overlayLayoutProvider.notifier).toggleEditing()
-                : null,
-            icon: Icon(
-              overlayLayout.editing ? Icons.done : Icons.dashboard_customize,
-            ),
-          ),
-          IconButton(
-            tooltip: 'Restablecer paneles',
-            onPressed: overlayOpen
-                ? () => ref.read(overlayLayoutProvider.notifier).reset()
-                : null,
-            icon: const Icon(Icons.restart_alt),
-          ),
-          Padding(
-            padding: const EdgeInsets.only(right: 16),
-            child: Chip(
-              avatar: Icon(
-                Icons.circle,
-                size: 12,
-                color: backend.connection == CompanionConnection.online
-                    ? Colors.green
-                    : Colors.orange,
-              ),
-              label: Text(_sessionLabel(backend, nativeLeague)),
-            ),
-          ),
-        ],
-      ),
-      body: Row(
+      body: Stack(
         children: [
-          if (isDesktop)
-            NavigationRail(
-              extended: MediaQuery.sizeOf(context).width >= 1100,
-              selectedIndex: selectedPage,
-              onDestinationSelected: (value) {
-                ref.read(selectedPageProvider.notifier).state = value;
-              },
-              destinations: destinations,
-            ),
-          if (isDesktop) const VerticalDivider(width: 1),
-          Expanded(child: content),
+          Column(
+            children: [
+              _GodSenseCustomTitleBar(
+                overlayOpen: overlayOpen,
+                overlayEditing: overlayLayout.editing,
+                onToggleOverlay: () => overlayWindowManager.toggle(context),
+                onToggleEditing: overlayOpen
+                    ? () => ref
+                          .read(overlayLayoutProvider.notifier)
+                          .toggleEditing()
+                    : null,
+                onResetPanels: overlayOpen
+                    ? () => ref.read(overlayLayoutProvider.notifier).reset()
+                    : null,
+                onHelp: () async {
+                  final destination = await showGettingStartedGuide(context);
+                  if (context.mounted &&
+                      destination != null &&
+                      destination >= 0) {
+                    ref.read(selectedPageProvider.notifier).state = destination;
+                  }
+                },
+                sessionLabel: _sessionLabel(backend, nativeLeague),
+                isOnline:
+                    backend.connection == CompanionConnection.online ||
+                    nativeLeague.liveGame != null,
+              ),
+              Expanded(
+                child: Row(
+                  children: [
+                    if (isDesktop)
+                      NavigationRail(
+                        extended: MediaQuery.sizeOf(context).width >= 1100,
+                        selectedIndex: selectedPage,
+                        onDestinationSelected: (value) {
+                          ref.read(selectedPageProvider.notifier).state = value;
+                        },
+                        destinations: destinations,
+                      ),
+                    if (isDesktop) const VerticalDivider(width: 1),
+                    Expanded(child: content),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const _FramelessWindowResizeBorder(),
         ],
       ),
       bottomNavigationBar: isDesktop
@@ -288,6 +271,567 @@ class GodSenseHome extends ConsumerWidget {
                 ),
               ],
             ),
+    );
+  }
+}
+
+class _GodSenseCustomTitleBar extends StatelessWidget {
+  const _GodSenseCustomTitleBar({
+    required this.overlayOpen,
+    required this.overlayEditing,
+    required this.onToggleOverlay,
+    required this.onToggleEditing,
+    required this.onResetPanels,
+    required this.onHelp,
+    required this.sessionLabel,
+    required this.isOnline,
+  });
+
+  final bool overlayOpen;
+  final bool overlayEditing;
+  final VoidCallback onToggleOverlay;
+  final VoidCallback? onToggleEditing;
+  final VoidCallback? onResetPanels;
+  final VoidCallback onHelp;
+  final String sessionLabel;
+  final bool isOnline;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 42,
+      decoration: const BoxDecoration(
+        color: Color(0xFF080B10),
+        border: Border(bottom: BorderSide(color: Color(0x14FFFFFF), width: 1)),
+      ),
+      child: ClipRect(
+        child: Row(
+          children: [
+            // 1. Clean Professional Brand (Draggable)
+            DragToMoveArea(
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const SizedBox(width: 14),
+                  Container(
+                    width: 24,
+                    height: 24,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0F172A),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(
+                        color: const Color(0x3338BDF8),
+                        width: 1,
+                      ),
+                    ),
+                    child: const Center(
+                      child: Icon(
+                        Icons.shield_outlined,
+                        size: 13,
+                        color: Color(0xFF38BDF8),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  const Text(
+                    'GodSense',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.3,
+                      color: Color(0xFFF8FAFC),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                ],
+              ),
+            ),
+
+            // 2. Center Status Capsule (Draggable)
+            Expanded(
+              child: DragToMoveArea(
+                child: Row(
+                  children: [
+                    Flexible(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF0D131C),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(
+                            color: isOnline
+                                ? const Color(0x3310B981)
+                                : const Color(0x1AFFFFFF),
+                            width: 1,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 6,
+                              height: 6,
+                              decoration: BoxDecoration(
+                                color: isOnline
+                                    ? const Color(0xFF10B981)
+                                    : const Color(0xFF64748B),
+                                shape: BoxShape.circle,
+                                boxShadow: isOnline
+                                    ? const [
+                                        BoxShadow(
+                                          color: Color(0x8010B981),
+                                          blurRadius: 4,
+                                        ),
+                                      ]
+                                    : null,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Flexible(
+                              child: Text(
+                                sessionLabel,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w500,
+                                  color: isOnline
+                                      ? const Color(0xFFE2E8F0)
+                                      : const Color(0xFF94A3B8),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const Spacer(),
+                  ],
+                ),
+              ),
+            ),
+
+            // 3. Action Controls
+            _TitleBarActionChip(
+              icon: overlayOpen
+                  ? Icons.layers_clear_outlined
+                  : Icons.layers_outlined,
+              label: overlayOpen ? 'Overlay Activo' : 'Overlay',
+              active: overlayOpen,
+              onPressed: onToggleOverlay,
+            ),
+            if (overlayOpen) ...[
+              const SizedBox(width: 4),
+              _TitleBarIconButton(
+                icon: overlayEditing ? Icons.check : Icons.tune_outlined,
+                tooltip: overlayEditing ? 'Guardar HUD' : 'Editar HUD',
+                active: overlayEditing,
+                onPressed: onToggleEditing,
+              ),
+              const SizedBox(width: 4),
+              _TitleBarIconButton(
+                icon: Icons.restart_alt_outlined,
+                tooltip: 'Restablecer HUD',
+                onPressed: onResetPanels,
+              ),
+            ],
+            const SizedBox(width: 4),
+            _TitleBarIconButton(
+              icon: Icons.help_outline,
+              tooltip: 'Guía y atajos',
+              onPressed: onHelp,
+            ),
+            const SizedBox(width: 8),
+            const SizedBox(
+              height: 16,
+              child: VerticalDivider(width: 1, color: Color(0x1AFFFFFF)),
+            ),
+            const SizedBox(width: 4),
+
+            // 4. Clean Window Controls (Minimize, Maximize, Close)
+            const _CustomWindowControlButtons(),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TitleBarActionChip extends StatefulWidget {
+  const _TitleBarActionChip({
+    required this.icon,
+    required this.label,
+    required this.active,
+    required this.onPressed,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool active;
+  final VoidCallback onPressed;
+
+  @override
+  State<_TitleBarActionChip> createState() => _TitleBarActionChipState();
+}
+
+class _TitleBarActionChipState extends State<_TitleBarActionChip> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        onTap: widget.onPressed,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(
+            color: widget.active
+                ? const Color(0x330284C7)
+                : _hovered
+                ? const Color(0x1F38BDF8)
+                : const Color(0x0DFFFFFF),
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(
+              color: widget.active
+                  ? const Color(0x8038BDF8)
+                  : _hovered
+                  ? const Color(0x4D38BDF8)
+                  : const Color(0x1FFFFFFF),
+              width: 1,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                widget.icon,
+                size: 14,
+                color: widget.active
+                    ? const Color(0xFF38BDF8)
+                    : const Color(0xFFCBD5E1),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                widget.label,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.5,
+                  color: widget.active
+                      ? const Color(0xFF38BDF8)
+                      : const Color(0xFFCBD5E1),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TitleBarIconButton extends StatefulWidget {
+  const _TitleBarIconButton({
+    required this.icon,
+    required this.tooltip,
+    this.active = false,
+    this.onPressed,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final bool active;
+  final VoidCallback? onPressed;
+
+  @override
+  State<_TitleBarIconButton> createState() => _TitleBarIconButtonState();
+}
+
+class _TitleBarIconButtonState extends State<_TitleBarIconButton> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = widget.onPressed != null;
+    return Tooltip(
+      message: widget.tooltip,
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _hovered = true),
+        onExit: (_) => setState(() => _hovered = false),
+        child: GestureDetector(
+          onTap: widget.onPressed,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: widget.active
+                  ? const Color(0x330284C7)
+                  : _hovered && enabled
+                  ? const Color(0x1F38BDF8)
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(
+                color: widget.active
+                    ? const Color(0x8038BDF8)
+                    : Colors.transparent,
+                width: 1,
+              ),
+            ),
+            child: Icon(
+              widget.icon,
+              size: 16,
+              color: !enabled
+                  ? const Color(0xFF475569)
+                  : widget.active
+                  ? const Color(0xFF38BDF8)
+                  : _hovered
+                  ? Colors.white
+                  : const Color(0xFF94A3B8),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CustomWindowControlButtons extends StatefulWidget {
+  const _CustomWindowControlButtons();
+
+  @override
+  State<_CustomWindowControlButtons> createState() =>
+      _CustomWindowControlButtonsState();
+}
+
+class _CustomWindowControlButtonsState
+    extends State<_CustomWindowControlButtons> {
+  bool _isMaximized = false;
+
+  MultiViewDesktop? _currentWindow() {
+    try {
+      return MultiViewDesktop.of(context);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  void _checkMaximized() {
+    final win = _currentWindow();
+    if (win == null) return;
+    win.isMaximized().then((value) {
+      if (mounted && value != _isMaximized) {
+        setState(() => _isMaximized = value);
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    _checkMaximized();
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _WindowBtn(
+          icon: Icons.remove,
+          tooltip: 'Minimizar',
+          onTap: () => _currentWindow()?.minimize(),
+        ),
+        _WindowBtn(
+          icon: _isMaximized ? Icons.filter_none : Icons.crop_square,
+          iconSize: _isMaximized ? 11 : 13,
+          tooltip: _isMaximized ? 'Restaurar' : 'Maximizar',
+          onTap: () async {
+            final win = _currentWindow();
+            if (win != null) {
+              if (await win.isMaximized()) {
+                await win.unmaximize();
+              } else {
+                await win.maximize();
+              }
+              _checkMaximized();
+            }
+          },
+        ),
+        _WindowBtn(
+          icon: Icons.close,
+          tooltip: 'Cerrar',
+          isClose: true,
+          onTap: () {
+            try {
+              MultiViewDesktop.closeApp();
+            } catch (_) {}
+          },
+        ),
+        const SizedBox(width: 4),
+      ],
+    );
+  }
+}
+
+class _WindowBtn extends StatefulWidget {
+  const _WindowBtn({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+    this.iconSize = 14,
+    this.isClose = false,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+  final double iconSize;
+  final bool isClose;
+
+  @override
+  State<_WindowBtn> createState() => _WindowBtnState();
+}
+
+class _WindowBtnState extends State<_WindowBtn> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: widget.tooltip,
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _hovered = true),
+        onExit: (_) => setState(() => _hovered = false),
+        child: GestureDetector(
+          onTap: widget.onTap,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 100),
+            width: 44,
+            height: 42,
+            color: _hovered
+                ? (widget.isClose
+                      ? const Color(0xFFE11D48)
+                      : const Color(0x1FFFFFFF))
+                : Colors.transparent,
+            child: Center(
+              child: Icon(
+                widget.icon,
+                size: widget.iconSize,
+                color: _hovered && widget.isClose
+                    ? Colors.white
+                    : _hovered
+                    ? Colors.white
+                    : const Color(0xFF94A3B8),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FramelessWindowResizeBorder extends StatelessWidget {
+  const _FramelessWindowResizeBorder();
+
+  @override
+  Widget build(BuildContext context) {
+    const edgeSize = 4.0;
+    const cornerSize = 8.0;
+
+    return Stack(
+      children: const [
+        // Top edge
+        Positioned(
+          top: 0,
+          left: cornerSize,
+          right: cornerSize,
+          height: edgeSize,
+          child: DragToResizeArea(
+            resizeEdge: ResizeEdge.top,
+            child: SizedBox.expand(),
+          ),
+        ),
+        // Bottom edge
+        Positioned(
+          bottom: 0,
+          left: cornerSize,
+          right: cornerSize,
+          height: edgeSize,
+          child: DragToResizeArea(
+            resizeEdge: ResizeEdge.bottom,
+            child: SizedBox.expand(),
+          ),
+        ),
+        // Left edge
+        Positioned(
+          top: cornerSize,
+          bottom: cornerSize,
+          left: 0,
+          width: edgeSize,
+          child: DragToResizeArea(
+            resizeEdge: ResizeEdge.left,
+            child: SizedBox.expand(),
+          ),
+        ),
+        // Right edge
+        Positioned(
+          top: cornerSize,
+          bottom: cornerSize,
+          right: 0,
+          width: edgeSize,
+          child: DragToResizeArea(
+            resizeEdge: ResizeEdge.right,
+            child: SizedBox.expand(),
+          ),
+        ),
+        // Top Left Corner
+        Positioned(
+          top: 0,
+          left: 0,
+          width: cornerSize,
+          height: cornerSize,
+          child: DragToResizeArea(
+            resizeEdge: ResizeEdge.topLeft,
+            child: SizedBox.expand(),
+          ),
+        ),
+        // Top Right Corner
+        Positioned(
+          top: 0,
+          right: 0,
+          width: cornerSize,
+          height: cornerSize,
+          child: DragToResizeArea(
+            resizeEdge: ResizeEdge.topRight,
+            child: SizedBox.expand(),
+          ),
+        ),
+        // Bottom Left Corner
+        Positioned(
+          bottom: 0,
+          left: 0,
+          width: cornerSize,
+          height: cornerSize,
+          child: DragToResizeArea(
+            resizeEdge: ResizeEdge.bottomLeft,
+            child: SizedBox.expand(),
+          ),
+        ),
+        // Bottom Right Corner
+        Positioned(
+          bottom: 0,
+          right: 0,
+          width: cornerSize,
+          height: cornerSize,
+          child: DragToResizeArea(
+            resizeEdge: ResizeEdge.bottomRight,
+            child: SizedBox.expand(),
+          ),
+        ),
+      ],
     );
   }
 }

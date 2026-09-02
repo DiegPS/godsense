@@ -18,7 +18,10 @@ void main() {
   testWidgets('shows the GodSense overview', (tester) async {
     await tester.pumpWidget(_testApp());
 
-    expect(find.text('GodSense'), findsOneWidget);
+    expect(
+      find.textContaining(RegExp('GodSense', caseSensitive: false)),
+      findsAtLeastNWidgets(1),
+    );
     expect(find.text('League client'), findsOneWidget);
     expect(find.text('Vision tracker'), findsOneWidget);
   });
