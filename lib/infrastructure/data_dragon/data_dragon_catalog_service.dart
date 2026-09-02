@@ -58,6 +58,39 @@ class DataDragonCatalogService {
     };
   }
 
+  Future<Map<String, String>> loadChampionPortraits({
+    required PatchKey patch,
+    required PlatformId platformId,
+    ClientVersion? clientVersion,
+  }) async {
+    final artifact = await resolver.resolve(
+      DataDragonResolutionRequest(
+        clientVersion: clientVersion,
+        patch: patch,
+        platformId: platformId,
+        requestedLocale: LeagueLocale('en_US'),
+        resource: DataDragonResource.champions,
+        intent: DataDragonResolutionIntent.currentRegional,
+      ),
+    );
+    final decoded = jsonDecode(utf8.decode(artifact.bytes));
+    final data = decoded is Map ? decoded['data'] : null;
+    if (data is! Map) return const {};
+    final result = <String, String>{};
+    for (final champion in data.values.whereType<Map>()) {
+      final image = champion['image'];
+      final filename = image is Map ? image['full']?.toString() : null;
+      if (filename == null || filename.isEmpty) continue;
+      final url =
+          'https://ddragon.leagueoflegends.com/cdn/'
+          '${artifact.resolvedVersion.value}/img/champion/$filename';
+      for (final key in [champion['name'], champion['id']]) {
+        if (key != null) result[_championKey(key.toString())] = url;
+      }
+    }
+    return result;
+  }
+
   Future<Map<String, List<Map<String, dynamic>>>> loadChampionAbilities({
     required Iterable<String> championNames,
     required PatchKey patch,

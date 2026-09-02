@@ -10,6 +10,25 @@ import 'package:godsense/infrastructure/data_dragon/data_dragon_transport.dart';
 
 void main() {
   test(
+    'portraits resolve independently of champion ability requests',
+    () async {
+      final service = DataDragonCatalogService(
+        DataDragonResolver(
+          transport: _SingleBuildTransport(),
+          store: _MemoryStore(),
+        ),
+      );
+      final portraits = await service.loadChampionPortraits(
+        patch: PatchKey('16.17'),
+        platformId: PlatformId('LA1'),
+      );
+      expect(
+        portraits['vex'],
+        'https://ddragon.leagueoflegends.com/cdn/16.17.2/img/champion/Vex.png',
+      );
+    },
+  );
+  test(
     'item catalog exposes the resolved metadata used by projections',
     () async {
       final service = DataDragonCatalogService(
@@ -102,7 +121,11 @@ class _SingleBuildTransport implements DataDragonTransport {
     return utf8.encode(
       jsonEncode({
         'data': {
-          'Vex': {'id': 'Vex', 'name': 'Vex'},
+          'Vex': {
+            'id': 'Vex',
+            'name': 'Vex',
+            'image': {'full': 'Vex.png'},
+          },
           '1001': {
             'name': 'Boots',
             'gold': {'total': 300},

@@ -210,20 +210,13 @@ class _EditableOverlayPanel extends ConsumerWidget {
     final layout = state.panels[id];
     if (layout == null) return const SizedBox.shrink();
     final viewport = MediaQuery.sizeOf(context);
-    final left = layout.x
-        .clamp(0, (viewport.width - 44).clamp(0, double.infinity))
-        .toDouble();
-    final top = layout.y
-        .clamp(0, (viewport.height - 44).clamp(0, double.infinity))
-        .toDouble();
+    final visible = layout.fitWithin(viewport);
 
     return Positioned(
-      left: left,
-      top: top,
-      width: layout.width.clamp(240, viewport.width - left).toDouble(),
-      height: layout.collapsed
-          ? 48
-          : layout.height.clamp(80, viewport.height - top).toDouble(),
+      left: visible.left,
+      top: visible.top,
+      width: visible.width,
+      height: visible.height,
       child: Stack(
         children: [
           Positioned.fill(

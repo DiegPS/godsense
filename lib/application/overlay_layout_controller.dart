@@ -40,6 +40,32 @@ class OverlayPanelLayout {
   final double height;
   final bool collapsed;
 
+  Rect fitWithin(Size viewport) {
+    final maxWidth = viewport.width.isFinite
+        ? viewport.width.clamp(0.0, double.infinity)
+        : 0.0;
+    final maxHeight = viewport.height.isFinite
+        ? viewport.height.clamp(0.0, double.infinity)
+        : 0.0;
+    final fittedWidth = (width.isFinite ? width : 360.0).clamp(
+      maxWidth < 240 ? maxWidth : 240.0,
+      maxWidth,
+    );
+    final fittedHeight = (collapsed ? 48.0 : (height.isFinite ? height : 120.0))
+        .clamp(
+          maxHeight < (collapsed ? 48 : 80)
+              ? maxHeight
+              : (collapsed ? 48.0 : 80.0),
+          maxHeight,
+        );
+    return Rect.fromLTWH(
+      (x.isFinite ? x : 0.0).clamp(0.0, maxWidth - fittedWidth),
+      (y.isFinite ? y : 0.0).clamp(0.0, maxHeight - fittedHeight),
+      fittedWidth,
+      fittedHeight,
+    );
+  }
+
   OverlayPanelLayout copyWith({
     double? x,
     double? y,
@@ -134,24 +160,37 @@ class OverlayLayoutController extends StateNotifier<OverlayLayoutState> {
   void move(String id, Offset delta, Size viewport) {
     final current = state.panels[id];
     if (current == null) return;
+    final visible = current.fitWithin(viewport);
     final next = current.copyWith(
-      x: (current.x + delta.dx).clamp(0, viewport.width - current.width),
-      y: (current.y + delta.dy).clamp(0, viewport.height - 44),
+      x: visible.left + delta.dx,
+      y: visible.top + delta.dy,
+      width: visible.width,
     );
-    _update(id, next, persist: false);
+    final fitted = next.fitWithin(viewport);
+    _update(id, next.copyWith(x: fitted.left, y: fitted.top), persist: false);
   }
 
   void resize(String id, Offset delta, Size viewport) {
     final current = state.panels[id];
     if (current == null) return;
+    final visible = current.fitWithin(viewport);
     final next = current.copyWith(
-      width: (current.width + delta.dx).clamp(240, viewport.width - current.x),
-      height: (current.height + delta.dy).clamp(
-        80,
-        viewport.height - current.y,
-      ),
+      x: visible.left,
+      y: visible.top,
+      width: visible.width + delta.dx,
+      height: visible.height + delta.dy,
     );
-    _update(id, next, persist: false);
+    final fitted = next.fitWithin(viewport);
+    _update(
+      id,
+      next.copyWith(
+        x: fitted.left,
+        y: fitted.top,
+        width: fitted.width,
+        height: current.collapsed ? current.height : fitted.height,
+      ),
+      persist: false,
+    );
   }
 
   void toggleCollapsed(String id) {

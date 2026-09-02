@@ -10,6 +10,7 @@ import '../domain/summoners_rift_map.dart';
 import '../infrastructure/native_vision/dartcv_minimap_tracker.dart';
 import '../infrastructure/native_vision/native_minimap_calibrator.dart';
 import '../infrastructure/native_vision/win32_screen_capture.dart';
+import '../infrastructure/native_vision/vision_icon_cache.dart';
 
 enum TrackerLogSource { native, legacy }
 
@@ -173,8 +174,10 @@ class NativeVisionController extends StateNotifier<NativeVisionState> {
   NativeVisionController({
     Win32ScreenCapture? capture,
     DartCvMinimapTracker? tracker,
+    VisionIconCache? iconCache,
   }) : _capture = capture ?? Win32ScreenCapture(),
        _tracker = tracker ?? DartCvMinimapTracker(),
+       _iconCache = iconCache ?? VisionIconCache(),
        super(const NativeVisionState());
 
   final Win32ScreenCapture _capture;
@@ -188,6 +191,13 @@ class NativeVisionController extends StateNotifier<NativeVisionState> {
   String _targetSignature = '';
   String? _loadingTargetSignature;
   bool _targetsUpdating = false;
+  final VisionIconCache _iconCache;
+  int _targetGeneration = 0;
+  int? _targetIconSize;
+  String _rosterKey = '';
+  String _requestedTargetSignature = '';
+  DateTime? _targetAttempt;
+  bool _disposed = false;
   String? _lastErrorMessage;
   DateTime? _lastErrorLoggedAt;
   int _previewFrame = 0;
@@ -267,78 +277,89 @@ class NativeVisionController extends StateNotifier<NativeVisionState> {
         )
         .where((entry) => entry.name.isNotEmpty)
         .toList();
+    if (_disposed || iconSize < 4) return;
+    final names = entries.map((entry) => entry.name).toList()..sort();
+    final rosterKey = names.join('|');
+    if (rosterKey != _rosterKey) {
+      _rosterKey = rosterKey;
+      _targetGeneration++;
+      _targetSignature = '';
+      _targetAttempt = null;
+      _targetIconSize = null;
+      _tracker.setTargets(const {}, iconSize: iconSize);
+      _activeGanks.clear();
+      _sightingStates.clear();
+      state = state.copyWith(
+        identified: const {},
+        lastKnown: const {},
+        events: const [],
+      );
+    }
     if (entries.isEmpty) return;
 
-    // Stabilize icon size to avoid re-triggering on 1-pixel fluctuations
-    final stableIconSize = (iconSize / 2).round() * 2;
+    // Templates and live crops MUST use exactly the same calibrated size.
+    final stableIconSize = iconSize;
     final signature = [
       stableIconSize,
       ...entries.map((entry) => '${entry.name}:${entry.urls.join(',')}'),
     ].join('|');
-    if (signature == _targetSignature || signature == _loadingTargetSignature) {
+    if (_requestedTargetSignature != signature) {
+      _requestedTargetSignature = signature;
+      _targetGeneration++;
+      _targetAttempt = null;
+    }
+    if (signature == _targetSignature || _loadingTargetSignature != null) {
       return;
     }
+    final now = DateTime.now();
+    if (_targetAttempt != null &&
+        now.difference(_targetAttempt!) < const Duration(seconds: 10)) {
+      return;
+    }
+    _targetAttempt = now;
+    final generation = _targetGeneration;
     _loadingTargetSignature = signature;
-    _targetsUpdating = true;
 
     final icons = <String, List<Uint8List>>{};
-    final client = HttpClient()..connectionTimeout = const Duration(seconds: 4);
     try {
-      for (final entry in entries) {
-        final cleanName = entry.name.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '');
-        final candidateUrls = <String>{
-          ...entry.urls,
-          'https://cdn.communitydragon.org/latest/champion/$cleanName/square',
-        };
-
-        for (final url in candidateUrls) {
-          try {
-            final request = await client.getUrl(Uri.parse(url));
-            final response = await request.close();
-            if (response.statusCode == HttpStatus.ok) {
-              final bytes = await consolidateHttpClientResponseBytes(response);
-              if (bytes.isNotEmpty) {
-                icons[entry.name] = [bytes];
-                break;
-              }
+      await Future.wait(
+        entries.map((entry) async {
+          if (_disposed || generation != _targetGeneration) return;
+          for (final url in entry.urls) {
+            final bytes = await _iconCache.load(url);
+            if (bytes != null) {
+              icons[entry.name] = [bytes];
+              break;
             }
-          } catch (_) {}
-        }
-
-        if (entry.name.toLowerCase() == 'kayn' &&
-            icons.containsKey(entry.name)) {
-          const base =
-              'https://raw.communitydragon.org/latest/game/assets/characters/kayn/hud';
-          for (final path in const [
-            'rhaast/kayn_slay_circle.png',
-            'assassin/kayn_ass_circle.png',
-          ]) {
-            try {
-              final variantRequest = await client.getUrl(
-                Uri.parse('$base/$path'),
-              );
-              final variantResponse = await variantRequest.close();
-              if (variantResponse.statusCode == HttpStatus.ok) {
-                final bytes = await consolidateHttpClientResponseBytes(
-                  variantResponse,
-                );
-                if (bytes.isNotEmpty) {
-                  icons[entry.name]!.add(bytes);
-                }
-              }
-            } catch (_) {}
           }
-        }
-      }
-    } finally {
-      client.close(force: true);
-    }
-    while (state.processing) {
-      await Future<void>.delayed(const Duration(milliseconds: 10));
-    }
-    try {
-      _tracker.setTargets(icons, iconSize: stableIconSize);
-      _targetSignature = signature;
+
+          if (entry.name.toLowerCase() == 'kayn' &&
+              icons.containsKey(entry.name)) {
+            const base =
+                'https://raw.communitydragon.org/latest/game/assets/characters/kayn/hud';
+            for (final path in const [
+              'rhaast/kayn_slay_circle.png',
+              'assassin/kayn_ass_circle.png',
+            ]) {
+              final bytes = await _iconCache.load('$base/$path');
+              if (bytes != null) icons[entry.name]!.add(bytes);
+            }
+          }
+        }),
+      );
+      if (_disposed || generation != _targetGeneration) return;
+      _targetsUpdating = true;
+      _tracker.setTargets({
+        for (final entry in entries)
+          if (icons.containsKey(entry.name)) entry.name: icons[entry.name]!,
+      }, iconSize: stableIconSize);
+      _targetIconSize = stableIconSize;
+      final loadedNames = _tracker.targetNames;
+      final missing = names
+          .where((name) => !loadedNames.contains(name))
+          .toList();
+      // A partial download is not a completed roster; retry missing assets.
+      _targetSignature = missing.isEmpty ? signature : '';
       // Preserve lastKnown across target updates so champion tracking history is not lost!
       state = state.copyWith(identified: const {});
       _appendLog(
@@ -347,9 +368,16 @@ class NativeVisionController extends StateNotifier<NativeVisionState> {
           source: TrackerLogSource.native,
           event: 'targets_refreshed',
           message:
-              'Targets: ${icons.keys.join(', ')} · icon $stableIconSize px',
+              'Targets: ${loadedNames.join(', ')} · icon $stableIconSize px · '
+              '${loadedNames.length}/${names.length} · missing: ${missing.join(', ')}',
         ),
       );
+    } catch (error) {
+      if (!_disposed && generation == _targetGeneration) {
+        state = state.copyWith(
+          error: 'No se pudieron preparar los retratos: $error',
+        );
+      }
     } finally {
       _targetsUpdating = false;
       _loadingTargetSignature = null;
@@ -456,7 +484,12 @@ class NativeVisionController extends StateNotifier<NativeVisionState> {
   }
 
   Future<void> _captureAndProcess() async {
-    if (state.processing || _targetsUpdating) return;
+    if (_disposed ||
+        state.processing ||
+        _targetsUpdating ||
+        (_targetIconSize != null && _targetIconSize != _iconSize)) {
+      return;
+    }
     final bounds = state.bounds;
     if (bounds == null) return;
     state = state.copyWith(processing: true);
@@ -497,7 +530,10 @@ class NativeVisionController extends StateNotifier<NativeVisionState> {
             event: 'performance',
             message:
                 'GDI avg=${averageCapture.toStringAsFixed(2)} ms · CV avg=${averageCv.toStringAsFixed(2)} ms · '
-                'CV p95=${p95Cv.toStringAsFixed(2)} ms · stages=${frame.stageMicroseconds.map((key, value) => MapEntry(key, (value / 1000).toStringAsFixed(2)))}',
+                'CV p95=${p95Cv.toStringAsFixed(2)} ms · '
+                'identified=${frame.detections.where((d) => d.championName != null).length}/${frame.detections.length} · '
+                'templates=${_tracker.targetNames.length} at ${_targetIconSize ?? 0}px · captureIcon=${_iconSize}px · '
+                'stages=${frame.stageMicroseconds.map((key, value) => MapEntry(key, (value / 1000).toStringAsFixed(2)))}',
             detectionCount: frame.detections.length,
           ),
         );
@@ -740,6 +776,8 @@ class NativeVisionController extends StateNotifier<NativeVisionState> {
 
   @override
   void dispose() {
+    _disposed = true;
+    _targetGeneration++;
     stop();
     _tracker.dispose();
     _capture.dispose();
@@ -754,11 +792,22 @@ List<String> _visionAssetUrls(Map<String, dynamic> enemy) {
     if (url.isNotEmpty && !result.contains(url)) result.add(url);
   }
 
-  add(enemy['icon_url']);
+  // Vision uses canonical Data Dragon portraits, not arbitrary UI fallbacks.
+  void addCanonical(Object? value) {
+    final uri = Uri.tryParse(value?.toString() ?? '');
+    if (uri?.scheme == 'https' &&
+        uri?.host == 'ddragon.leagueoflegends.com' &&
+        uri!.path.contains('/img/champion/')) {
+      add(value);
+    }
+  }
+
+  addCanonical(enemy['vision_icon_url']);
+  addCanonical(enemy['icon_url']);
   final fallbacks = enemy['icon_fallback_urls'];
   if (fallbacks is List) {
     for (final value in fallbacks) {
-      add(value);
+      addCanonical(value);
     }
   }
   return result;

@@ -32,6 +32,7 @@ class LiveGameProcessor {
     Map<String, List<Map<String, dynamic>>> championAbilities = const {},
     Map<String, Map<String, dynamic>> rankedProfiles = const {},
     Map<String, Map<String, dynamic>> championProfiles = const {},
+    Map<String, String> championPortraits = const {},
     String? gameId,
     DateTime? observedAt,
   }) {
@@ -117,8 +118,9 @@ class LiveGameProcessor {
         championName.replaceAll(RegExp(r'[^a-zA-Z0-9]'), ''),
       ]);
       final championIconUrls = _uniqueAssetUrls([
-        championProfile?['icon_url'],
+        championPortraits[championKey],
         abilities.firstOrNull?['champion_icon_url'],
+        championProfile?['icon_url'],
         if (championAlias.isNotEmpty)
           'https://cdn.communitydragon.org/latest/champion/'
               '${Uri.encodeComponent(championAlias)}/square',
@@ -156,6 +158,9 @@ class LiveGameProcessor {
         'mia_duration': 0.0,
         'last_known_location': null,
         'icon_url': championIconUrls.firstOrNull ?? '',
+        'vision_icon_url':
+            championPortraits[championKey] ??
+            abilities.firstOrNull?['champion_icon_url'],
         'icon_fallback_urls': championIconUrls.skip(1).toList(growable: false),
         'is_dead': value['isDead'] == true,
         'respawn_timer': value['respawnTimer'] ?? 0,

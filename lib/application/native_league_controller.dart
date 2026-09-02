@@ -237,6 +237,10 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
   final Map<int, String> _championAliases = {};
   final Map<int, Map<String, dynamic>> _championProfiles = {};
   String? _championProfilesVersion;
+  final Map<String, String> _championPortraits = {};
+  String? _portraitPatch;
+  bool _portraitsLoading = false;
+  DateTime? _portraitAttempt;
   int? _localSummonerId;
   Map<int, Map<String, dynamic>> _itemCatalog = const {};
   final Map<String, List<Map<String, dynamic>>> _championAbilities = {};
@@ -428,6 +432,7 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
         _ensureItemCatalogLoaded();
       }
       if (liveData != null) {
+        _ensureChampionPortraitsLoaded();
         _ensureChampionAbilitiesLoaded(liveData);
         if (lcuConnected) _ensureRankedProfilesLoaded(liveData);
       }
@@ -437,6 +442,7 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
           liveData,
           itemCatalog: _itemCatalog,
           championAbilities: _championAbilities,
+          championPortraits: _championPortraits,
           rankedProfiles: _liveRankedProfiles,
           championProfiles: {
             for (final entry in _championProfiles.entries)
@@ -1042,6 +1048,42 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
     unawaited(
       _loadItemCatalog().whenComplete(() => _itemCatalogLoading = false),
     );
+  }
+
+  void _ensureChampionPortraitsLoaded() {
+    final account = foundation?.state.account.context?.account;
+    final patch = account?.patchKey;
+    if (patch == null) return;
+    if (_portraitPatch != patch.value) {
+      _portraitPatch = patch.value;
+      _championPortraits.clear();
+      _portraitAttempt = null;
+    }
+    if (_championPortraits.isNotEmpty || _portraitsLoading) return;
+    final now = DateTime.now();
+    if (_portraitAttempt != null &&
+        now.difference(_portraitAttempt!) < const Duration(seconds: 10)) {
+      return;
+    }
+    _portraitAttempt = now;
+    _portraitsLoading = true;
+    unawaited(() async {
+      try {
+        dataDragonCatalog ??= await DataDragonCatalogService.createDefault();
+        final portraits = await dataDragonCatalog!.loadChampionPortraits(
+          patch: patch,
+          platformId: account?.platformId ?? PlatformId('LA1'),
+          clientVersion: account?.clientVersion == null
+              ? null
+              : ClientVersion(account!.clientVersion!),
+        );
+        if (_portraitPatch == patch.value) _championPortraits.addAll(portraits);
+      } catch (_) {
+        // Retry independently of ability metadata or a previous champ select.
+      } finally {
+        _portraitsLoading = false;
+      }
+    }());
   }
 
   void _ensureChampionAbilitiesLoaded(Map<String, dynamic> liveData) {

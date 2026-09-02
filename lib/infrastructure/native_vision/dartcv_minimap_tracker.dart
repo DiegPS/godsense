@@ -95,36 +95,57 @@ class DartCvMinimapTracker {
   final List<NativeChampionTarget> _targets = [];
   final Float32List _float32Scratch = Float32List(1);
   cv.Mat? _kernel;
+  List<String> get targetNames =>
+      List.unmodifiable(_targets.map((target) => target.name));
 
   void setTargets(Map<String, List<Uint8List>> icons, {required int iconSize}) {
+    if (iconSize < 4) throw ArgumentError.value(iconSize, 'iconSize');
+    final prepared = <NativeChampionTarget>[];
+    try {
+      for (final entry in icons.entries) {
+        final variants = <NativeChampionVariant>[];
+        prepared.add(NativeChampionTarget(name: entry.key, variants: variants));
+        for (final bytes in entry.value) {
+          final decoded = cv.imdecode(bytes, cv.IMREAD_COLOR);
+          try {
+            if (decoded.isEmpty) {
+              continue;
+            }
+            final resized = cv.resize(decoded, (iconSize, iconSize));
+            try {
+              final face = _innerFace(resized, iconSize);
+              if (face == null) continue;
+              try {
+                variants.add(
+                  NativeChampionVariant(
+                    faceTemplate: face,
+                    histogram: _faceHistogram(face),
+                  ),
+                );
+              } catch (_) {
+                face.dispose();
+                rethrow;
+              }
+            } finally {
+              resized.dispose();
+            }
+          } finally {
+            decoded.dispose();
+          }
+        }
+      }
+    } catch (_) {
+      for (final target in prepared) {
+        target.dispose();
+      }
+      rethrow;
+    }
     for (final target in _targets) {
       target.dispose();
     }
-    _targets.clear();
-    for (final entry in icons.entries) {
-      final variants = <NativeChampionVariant>[];
-      for (final bytes in entry.value) {
-        final decoded = cv.imdecode(bytes, cv.IMREAD_COLOR);
-        if (decoded.isEmpty) {
-          decoded.dispose();
-          continue;
-        }
-        final resized = cv.resize(decoded, (iconSize, iconSize));
-        final face = _innerFace(resized, iconSize);
-        decoded.dispose();
-        resized.dispose();
-        if (face == null) continue;
-        variants.add(
-          NativeChampionVariant(
-            faceTemplate: face,
-            histogram: _faceHistogram(face),
-          ),
-        );
-      }
-      if (variants.isNotEmpty) {
-        _targets.add(NativeChampionTarget(name: entry.key, variants: variants));
-      }
-    }
+    _targets
+      ..clear()
+      ..addAll(prepared.where((target) => target.variants.isNotEmpty));
   }
 
   void setRawTargets(
