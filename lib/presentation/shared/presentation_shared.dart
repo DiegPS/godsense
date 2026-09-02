@@ -1,9 +1,11 @@
 part of '../../app/godsense_app.dart';
 
 String _sessionLabel(CompanionState state, NativeLeagueState native) {
-  if (native.inGame) return 'League game active · native';
-  if (native.lcuConnected) return '${native.gameflowPhase} · native';
-  if (state.connection != CompanionConnection.online) return 'League offline';
+  if (native.inGame) return 'Partida en curso';
+  if (native.lcuConnected) return 'League conectado';
+  if (state.connection != CompanionConnection.online) {
+    return 'Abre League para comenzar';
+  }
   if (state.lobby?.lcuConnected == true) {
     return '${state.lobby!.phase} · fallback';
   }
@@ -48,25 +50,19 @@ String _formatTimestamp(DateTime timestamp) {
 }
 
 String _calibrationDescription(CalibrationState? calibration) {
-  if (calibration == null) return 'Sin calibración nativa guardada.';
+  if (calibration == null) return 'El minimapa todavía no está configurado.';
   if (!calibration.calibrated && calibration.defaultBounds == null) {
     return 'Detecta el minimapa o introduce sus límites manualmente.';
   }
   if (calibration.calibrated &&
       !calibration.boundsAreUsable(calibration.bounds)) {
-    final bad = calibration.bounds!;
-    return 'Calibración inválida ${bad['width']}x${bad['height']}. '
-        'Vuelve a calibrar manualmente.';
+    return 'El área guardada ya no es válida. Vuelve a calibrar el minimapa.';
   }
   final bounds = calibration.effectiveBounds;
-  if (bounds == null) return 'Calibración nativa activa.';
-  final source = calibration.calibrated
-      ? 'calibración guardada'
-      : calibration.defaultTrustworthy
-      ? 'estimación confiable'
-      : 'estimación provisional';
-  return '$source · ${bounds['width']}x${bounds['height']} at '
-      '${bounds['left']}, ${bounds['top']} · icon ${calibration.iconSize?.round() ?? '-'} px';
+  if (bounds == null) return 'El área del minimapa está configurada.';
+  return calibration.calibrated
+      ? 'Área del minimapa guardada y lista para detectar alertas.'
+      : 'Área estimada automáticamente; puedes ajustarla si no coincide.';
 }
 
 String _signedNumber(int value) => value > 0 ? '+$value' : '$value';
@@ -114,11 +110,6 @@ NativeIdentifiedChampion? _nativeForEnemy(
 List<String> _stringValues(Object? value) {
   if (value is! List) return const [];
   return value.map((item) => item.toString()).toList(growable: false);
-}
-
-String _mapDescription(Map<dynamic, dynamic> map) {
-  if (map.isEmpty) return 'Sin datos';
-  return map.entries.map((entry) => '${entry.key}: ${entry.value}').join('\n');
 }
 
 class _NetworkPortrait extends StatelessWidget {

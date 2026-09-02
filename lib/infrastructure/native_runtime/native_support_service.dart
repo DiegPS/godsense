@@ -15,6 +15,7 @@ class NativeSupportService {
   Future<Map<String, dynamic>> createBundle({
     required Map<String, dynamic> settings,
     required Map<String, dynamic> health,
+    String? note,
   }) async {
     final now = DateTime.now().toUtc();
     final root = await _rootDirectory();
@@ -28,6 +29,7 @@ class NativeSupportService {
         'processor_count': Platform.numberOfProcessors,
         'health': health,
         'settings': _redact(settings),
+        if (note?.trim().isNotEmpty == true) 'user_description': note!.trim(),
         'privacy': {
           'contains_lcu_credentials': false,
           'contains_audio': false,
@@ -84,10 +86,16 @@ class NativeSupportService {
 Map<String, dynamic> _redact(Map<String, dynamic> source) => {
   for (final entry in source.entries)
     if (!RegExp(
-      r'password|token|credential|authorization|lockfile',
+      r'password|token|credential|authorization|lockfile|secret',
       caseSensitive: false,
     ).hasMatch(entry.key))
-      entry.key: entry.value,
+      entry.key: _redactValue(entry.value),
+};
+
+Object? _redactValue(Object? value) => switch (value) {
+  Map value => _redact(Map<String, dynamic>.from(value)),
+  List value => value.map(_redactValue).toList(growable: false),
+  _ => value,
 };
 
 String _stamp(DateTime value) =>

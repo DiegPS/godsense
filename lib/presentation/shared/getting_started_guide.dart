@@ -62,7 +62,9 @@ class GettingStartedGuide extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('No necesitas iniciar Python, Electron ni un servidor local.'),
+          Text(
+            'GodSense se prepara automáticamente para acompañarte en cada partida.',
+          ),
           SizedBox(height: 16),
           _GuideStep(
             title: '1. Abre League',
@@ -73,30 +75,30 @@ class GettingStartedGuide extends StatelessWidget {
           _GuideStep(
             title: '2. Calibra el minimapa',
             body:
-                'Entra a una partida de práctica y abre Vision. Comprueba '
-                'la región detectada; usa la calibración manual si no coincide. '
+                'Entra a una partida de práctica y abre Mapa. Comprueba '
+                'la región detectada; usa el ajuste manual si no coincide. '
                 'Revisa la calibración si cambias resolución o escala del HUD.',
           ),
           _GuideStep(
             title: '3. Prueba la voz',
             body:
-                'En Settings, selecciona micrófono, STT y una voz TTS local. '
-                'Prueba la reproducción y mantén pulsada la tecla Push-to-Talk '
-                'para preguntar. Los modelos deben estar disponibles en disco.',
+                'En Ajustes, elige el idioma que hablas y una voz de respuesta. '
+                'Prueba la reproducción y mantén pulsada la tecla configurada '
+                'para preguntar al coach.',
           ),
           _GuideStep(
             title: '4. Prepara el overlay',
             body:
-                'Usa Abrir overlay en la barra superior. Edita la posición '
-                'de los paneles y termina la edición antes de jugar. Live '
-                'comienza a recibir datos cuando la partida está activa.',
+                'Usa Editar HUD en la barra superior, coloca los paneles y '
+                'termina la edición antes de jugar. La información aparecerá '
+                'automáticamente cuando la partida esté activa.',
           ),
           _GuideStep(
             title: '5. Revisa el coaching',
             body:
                 'En selección de campeón, Coach muestra runas y objetos '
-                'disponibles para el parche. La importación requiere tu clic. '
-                'El coach actual usa reglas locales y no es todavía un LLM.',
+                'disponibles para el parche. La importación siempre requiere '
+                'tu confirmación.',
           ),
           Text('Puedes volver a esta guía desde el botón Ayuda.'),
         ],
@@ -109,7 +111,7 @@ class GettingStartedGuide extends StatelessWidget {
       ),
       OutlinedButton(
         onPressed: () => Navigator.of(context).pop(2),
-        child: const Text('Abrir Vision'),
+        child: const Text('Abrir Mapa'),
       ),
       FilledButton(
         onPressed: () => Navigator.of(context).pop(5),

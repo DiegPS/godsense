@@ -56,7 +56,7 @@ class _ScoutPageState extends ConsumerState<ScoutPage> {
                         style: Theme.of(context).textTheme.headlineMedium,
                       ),
                       const Text(
-                        'Analítica competitiva, historial local y proyección de rendimiento por partida.',
+                        'Analiza perfiles, tendencias y rendimiento reciente por partida.',
                         style: TextStyle(
                           fontSize: 13,
                           color: GsColors.textSecondary,
@@ -66,7 +66,7 @@ class _ScoutPageState extends ConsumerState<ScoutPage> {
                   ),
                 ),
                 IconButton.outlined(
-                  tooltip: 'Actualizar historial local',
+                  tooltip: 'Actualizar historial',
                   style: IconButton.styleFrom(
                     side: BorderSide.none,
                     backgroundColor: GsColors.surfaceElevated,
@@ -197,7 +197,8 @@ class _ScoutPageState extends ConsumerState<ScoutPage> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        state.lastError!,
+                        'No pudimos actualizar este perfil. Comprueba que '
+                        'League esté abierto e inténtalo de nuevo.',
                         style: const TextStyle(
                           color: GsColors.crimson,
                           fontSize: 12,
@@ -676,7 +677,7 @@ class _ScoutPageState extends ConsumerState<ScoutPage> {
                           const SizedBox(width: 6),
                           Text(
                             activeContextState?.lcuConnected == true
-                                ? 'Cliente Local Activo'
+                                ? 'Cuenta conectada'
                                 : 'Desconectado',
                             style: const TextStyle(
                               fontSize: 11,
@@ -693,7 +694,7 @@ class _ScoutPageState extends ConsumerState<ScoutPage> {
           : const Padding(
               padding: EdgeInsets.symmetric(vertical: 4),
               child: Text(
-                'Sin cliente local conectado.',
+                'Abre League para conectar tu cuenta.',
                 style: TextStyle(fontSize: 12, color: GsColors.textMuted),
               ),
             ),
@@ -785,8 +786,7 @@ class _ScoutPageState extends ConsumerState<ScoutPage> {
 
     return GsCard(
       title: 'Resumen de Rendimiento',
-      subtitle:
-          'Calculado sobre ${kpis.sampleSize} partidas disponibles en registro local.',
+      subtitle: 'Calculado sobre ${kpis.sampleSize} partidas disponibles.',
       icon: Icons.query_stats_rounded,
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -798,25 +798,25 @@ class _ScoutPageState extends ConsumerState<ScoutPage> {
             runSpacing: 12,
             children: [
               _buildKpiTile(
-                'RECENT WIN RATE',
+                'VICTORIAS RECIENTES',
                 '${kpis.recentWinRate.toStringAsFixed(1)}%',
                 '${kpis.wins}W · ${kpis.losses}L',
                 GsColors.emerald,
               ),
               _buildKpiTile(
-                'AVERAGE KDA',
+                'KDA PROMEDIO',
                 kpis.avgKda?.toStringAsFixed(2) ?? 'Sin datos',
                 'Ratio K+A/D',
                 GsColors.cyan,
               ),
               _buildKpiTile(
-                'AVERAGE DAMAGE',
+                'DAÑO PROMEDIO',
                 _formatK(kpis.avgDamage),
                 'A campeones',
                 GsColors.textPrimary,
               ),
               _buildKpiTile(
-                'KILL PARTICIPATION',
+                'PARTICIPACIÓN EN BAJAS',
                 kpis.killParticipation != null
                     ? '${kpis.killParticipation!.toStringAsFixed(1)}%'
                     : 'Sin datos',
@@ -824,25 +824,25 @@ class _ScoutPageState extends ConsumerState<ScoutPage> {
                 GsColors.textPrimary,
               ),
               _buildKpiTile(
-                'OBJECTIVE DAMAGE',
+                'DAÑO A OBJETIVOS',
                 _formatK(kpis.avgObjectiveDamage),
                 'Daño medio/partida',
                 GsColors.textPrimary,
               ),
               _buildKpiTile(
-                'AVG GOLD / MIN',
+                'ORO POR MINUTO',
                 kpis.avgGoldPerMin?.toStringAsFixed(0) ?? 'Sin datos',
                 'Oro ganado',
                 GsColors.textPrimary,
               ),
               _buildKpiTile(
-                'AVG CS / MIN',
+                'SÚBDITOS POR MINUTO',
                 kpis.avgCsPerMin?.toStringAsFixed(1) ?? 'Sin datos',
                 'Línea + jungla',
                 GsColors.textPrimary,
               ),
               _buildKpiTile(
-                'AVG VISION / MIN',
+                'VISIÓN POR MINUTO',
                 kpis.avgVisionPerMin?.toStringAsFixed(2) ?? 'Sin datos',
                 'Puntos de visión',
                 GsColors.textPrimary,
@@ -1403,8 +1403,9 @@ class _ModernMatchCard extends StatelessWidget {
                               ? ClipRRect(
                                   borderRadius: BorderRadius.circular(4),
                                   child: _NetworkPortrait(
-                                    url:
-                                        'https://ddragon.leagueoflegends.com/cdn/${match.patch ?? '14.17.1'}/img/item/$itemId.png',
+                                    url: match.patch == null
+                                        ? null
+                                        : 'https://ddragon.leagueoflegends.com/cdn/${match.patch}/img/item/$itemId.png',
                                     size: 22,
                                   ),
                                 )
@@ -1464,7 +1465,7 @@ class _ModernMatchCard extends StatelessWidget {
                     // Expand / Collapse Chevron Button
                     Tooltip(
                       message: isExpanded
-                          ? 'Ocultar scoreboard'
+                          ? 'Ocultar equipos'
                           : 'Abrir detalle de partida',
                       child: Padding(
                         padding: const EdgeInsets.only(right: 12),

@@ -21,7 +21,7 @@ class CompositionBreakdownCard extends StatelessWidget {
       icon: Icons.balance_outlined,
       child: ally == null && enemy == null
           ? const CoachEmptyState(
-              message: 'Esperando perfiles de campeones desde LCU.',
+              message: 'Esperando que los equipos seleccionen sus campeones.',
             )
           : Column(
               children: [

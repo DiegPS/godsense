@@ -20,6 +20,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   Widget build(BuildContext context) {
     final overlayEnabled = ref.watch(overlayEnabledProvider);
     final backend = ref.watch(companionControllerProvider);
+    final league = ref.watch(nativeLeagueProvider);
+    final speech = ref.watch(nativeSpeechProvider);
     final nativeCalibration = ref.watch(nativeCalibrationProvider);
     final calibration = nativeCalibration.calibration;
     final settings = backend.settings;
@@ -27,7 +29,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     final locks = meta['locks'] is Map ? meta['locks'] as Map : const {};
     const panels = {
       'matchup_info': 'Enfrentamiento',
-      'builds': 'Builds',
+      'builds': 'Objetos recomendados',
       'directives': 'Directivas',
       'team_comp': 'Composición',
       'gold_chart': 'Diferencia de oro',
@@ -35,18 +37,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       'jungler': 'Jungla enemigo',
       'voice_ask': 'Voz',
     };
-    final healthComponents =
-        <String, ({bool alive, String? latency, String? error})>{
-          for (final name in const ['tick', 'gank', 'cv', 'tts', 'publisher'])
-            name: (
-              alive: backend.health?.components[name]?.alive ?? false,
-              latency: backend.health?.components[name]?.alive == true
-                  ? 'ACTIVO'
-                  : null,
-              error: backend.health?.components[name]?.error,
-            ),
-        };
-
     return ListView(
       padding: const EdgeInsets.all(24),
       children: [
@@ -61,7 +51,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     style: Theme.of(context).textTheme.headlineMedium,
                   ),
                   const Text(
-                    'Preferencias del sistema, integración de overlay y diagnóstico.',
+                    'Personaliza cómo GodSense te acompaña dentro y fuera de partida.',
                     style: TextStyle(
                       fontSize: 13,
                       color: GsColors.textSecondary,
@@ -76,15 +66,14 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
         // 1. General Settings Card
         GsCard(
-          title: 'General y Overlay',
+          title: 'Juego y overlay',
           icon: Icons.tune_rounded,
           padding: EdgeInsets.zero,
           child: Column(
             children: [
               GsToggleSwitch(
-                title: 'Activar Overlay In-Game',
-                subtitle:
-                    'Superposición HUD transparente acelerada por hardware.',
+                title: 'Mostrar el overlay durante la partida',
+                subtitle: 'Presenta alertas y consejos encima del juego.',
                 icon: Icons.layers_outlined,
                 value: overlayEnabled,
                 onChanged: (value) {
@@ -100,11 +89,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                     GsSelect<String>(
-                      label: 'IDIOMA DE LA APP',
+                      label: 'IDIOMA',
                       width: 140,
                       value: settings?.language ?? 'auto',
                       items: const {
-                        'auto': 'AUTO',
+                        'auto': 'Automático',
                         'en': 'ENGLISH',
                         'es': 'ESPAÑOL',
                       },
@@ -117,7 +106,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                                 .updateSettings({'language': value}),
                     ),
                     GsSelect<String>(
-                      label: 'CADENCIA DE VOZ',
+                      label: 'FRECUENCIA DE CONSEJOS',
                       width: 140,
                       value: settings?.cadence ?? 'normal',
                       items: const {
@@ -152,7 +141,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const Text(
-                            'Calibración del Minimapa',
+                            'Área del minimapa',
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w700,
@@ -183,7 +172,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                       ),
                     const SizedBox(width: 6),
                     GsButton(
-                      label: 'Manual',
+                      label: 'Ajustar',
                       variant: GsButtonVariant.secondary,
                       compact: true,
                       onPressed: nativeCalibration.saving
@@ -196,7 +185,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     ),
                     const SizedBox(width: 6),
                     GsButton(
-                      label: 'Detectar',
+                      label: 'Detectar automáticamente',
                       compact: true,
                       onPressed: nativeCalibration.saving
                           ? null
@@ -218,9 +207,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
         // 3. Overlay Panels Config
         GsCard(
-          title: 'Paneles del Overlay',
-          subtitle:
-              'Activa o desactiva módulos visuales en la superposición HUD.',
+          title: 'Contenido del overlay',
+          subtitle: 'Elige qué información quieres ver mientras juegas.',
           icon: Icons.dashboard_customize_outlined,
           padding: EdgeInsets.zero,
           child: Column(
@@ -249,19 +237,66 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         ),
         const SizedBox(height: 16),
 
-        // 4. System Health Diagnostic Matrix
+        // 4. Player-facing readiness
         GsCard(
-          title: 'Diagnóstico de Componentes',
-          subtitle: 'Estado de servicios en proceso y canal de eventos.',
+          title: '¿Está todo listo?',
+          subtitle:
+              'GodSense comprueba automáticamente lo necesario para jugar.',
           icon: Icons.health_and_safety_outlined,
-          child: GsHealthMatrix(components: healthComponents),
+          padding: EdgeInsets.zero,
+          child: Column(
+            children: [
+              _ReadinessRow(
+                title: 'Cliente de League',
+                detail: league.lcuConnected
+                    ? 'Cuenta y selección de campeón disponibles.'
+                    : 'Abre League e inicia sesión para conectar tu cuenta.',
+                ready: league.lcuConnected,
+              ),
+              const Divider(height: 1, color: Color(0x14FFFFFF)),
+              _ReadinessRow(
+                title: 'Overlay de partida',
+                detail: overlayEnabled
+                    ? 'Se mostrará automáticamente cuando lo necesites.'
+                    : 'Está desactivado y no aparecerá durante la partida.',
+                ready: overlayEnabled,
+                actionLabel: overlayEnabled ? null : 'Activar',
+                onAction: overlayEnabled
+                    ? null
+                    : () => ref.read(overlayEnabledProvider.notifier).state =
+                          true,
+              ),
+              const Divider(height: 1, color: Color(0x14FFFFFF)),
+              _ReadinessRow(
+                title: 'Detección del minimapa',
+                detail: calibration == null
+                    ? 'Necesita una calibración antes de detectar amenazas.'
+                    : 'El área del minimapa está configurada.',
+                ready: calibration != null,
+                actionLabel: calibration == null ? 'Calibrar' : null,
+                onAction: calibration == null
+                    ? () => ref
+                          .read(nativeVisionProvider.notifier)
+                          .detectCalibration()
+                    : null,
+              ),
+              const Divider(height: 1, color: Color(0x14FFFFFF)),
+              _ReadinessRow(
+                title: 'Preguntas por voz',
+                detail: speech.settings.pushToTalkEnabled
+                    ? 'Mantén ${speech.settings.pushToTalkKey.toUpperCase()} para hablar con el coach.'
+                    : 'La función está desactivada.',
+                ready: speech.settings.pushToTalkEnabled,
+              ),
+            ],
+          ),
         ),
         const SizedBox(height: 16),
 
-        // 5. Support & Debugging
+        // 5. Help and export
         GsCard(
-          title: 'Soporte y Diagnóstico Local',
-          subtitle: 'Generación de paquete de depuración para resolución de incidencias.',
+          title: 'Ayuda y solución de problemas',
+          subtitle: 'Exporta información técnica únicamente cuando soporte te la solicite.',
           icon: Icons.contact_support_outlined,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -270,53 +305,140 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 controller: _supportController,
                 maxLines: 2,
                 decoration: const InputDecoration(
-                  labelText: 'Nota del reporte de soporte',
-                  hintText: 'Describe el problema o adjunta contexto…',
+                  labelText: '¿Qué problema encontraste? (opcional)',
+                  hintText: 'Describe qué intentabas hacer y qué ocurrió.',
                 ),
               ),
               const SizedBox(height: 12),
-              Row(
-                children: [
-                  GsButton(
-                    label: 'Crear bundle',
-                    icon: Icons.folder_zip_outlined,
-                    variant: GsButtonVariant.secondary,
-                    loading: backend.operationInProgress,
-                    onPressed: backend.operationInProgress
-                        ? null
-                        : () => ref
-                              .read(companionControllerProvider.notifier)
-                              .createSupportBundle(),
-                  ),
-                  const SizedBox(width: 10),
-                  GsButton(
-                    label: 'Guardar reporte',
-                    icon: Icons.save_outlined,
-                    loading: backend.operationInProgress,
-                    onPressed: backend.operationInProgress
-                        ? null
-                        : () => ref
-                              .read(companionControllerProvider.notifier)
-                              .reportSupport(_supportController.text),
-                  ),
-                ],
+              const Text(
+                'El archivo incluye estados de configuración y funcionamiento. '
+                'No incluye audio, capturas de pantalla ni credenciales de League.',
+                style: TextStyle(fontSize: 12, color: GsColors.textSecondary),
               ),
-              if (backend.supportResult.isNotEmpty) ...[
-                const SizedBox(height: 10),
-                SelectableText(
-                  _mapDescription(backend.supportResult),
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: GsColors.textSecondary,
-                  ),
-                ),
-              ],
+              const SizedBox(height: 12),
+              GsButton(
+                label: 'Exportar información para soporte',
+                icon: Icons.save_alt_rounded,
+                loading: backend.operationInProgress,
+                onPressed: backend.operationInProgress
+                    ? null
+                    : () => _exportSupportInformation(
+                        context,
+                        ref,
+                        _supportController.text,
+                      ),
+              ),
             ],
           ),
         ),
       ],
     );
   }
+}
+
+Future<void> _exportSupportInformation(
+  BuildContext context,
+  WidgetRef ref,
+  String note,
+) async {
+  const type = XTypeGroup(label: 'Archivo ZIP', extensions: ['zip']);
+  final destination = await getSaveLocation(
+    suggestedName: 'godsense-soporte.zip',
+    acceptedTypeGroups: const [type],
+  );
+  if (destination == null || !context.mounted) return;
+
+  final result = await ref
+      .read(companionControllerProvider.notifier)
+      .reportSupport(note);
+  final sourcePath = result?['path']?.toString();
+  if (sourcePath == null || !context.mounted) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No se pudo preparar la información de soporte.'),
+        ),
+      );
+    }
+    return;
+  }
+  try {
+    final temporary = File(sourcePath);
+    await temporary.copy(destination.path);
+    if (await temporary.exists()) await temporary.delete();
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Información guardada en ${destination.path}')),
+    );
+  } catch (error) {
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('No se pudo guardar el archivo: $error')),
+    );
+  }
+}
+
+class _ReadinessRow extends StatelessWidget {
+  const _ReadinessRow({
+    required this.title,
+    required this.detail,
+    required this.ready,
+    this.actionLabel,
+    this.onAction,
+  });
+
+  final String title;
+  final String detail;
+  final bool ready;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+    child: Row(
+      children: [
+        Icon(
+          ready ? Icons.check_circle_rounded : Icons.info_outline_rounded,
+          color: ready ? GsColors.emerald : GsColors.amber,
+          size: 20,
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: GsColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                detail,
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: GsColors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (actionLabel != null) ...[
+          const SizedBox(width: 12),
+          GsButton(
+            label: actionLabel!,
+            compact: true,
+            variant: GsButtonVariant.secondary,
+            onPressed: onAction,
+          ),
+        ],
+      ],
+    ),
+  );
 }
 
 Future<void> _showManualCalibrationDialog(

@@ -47,7 +47,7 @@ class CoachSectionHeader extends StatelessWidget {
               ),
             ),
             const Text(
-              'Asistencia táctica local guiada por el estado real de League.',
+              'Asistencia táctica guiada por lo que ocurre en tu partida.',
               style: TextStyle(color: CoachColors.secondaryText, fontSize: 13),
             ),
           ],

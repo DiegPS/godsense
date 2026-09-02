@@ -140,8 +140,12 @@ class NativeCompanionGateway implements CompanionGateway {
       .createBundle(settings: await _loadSettings(), health: await health());
 
   @override
-  Future<Map<String, dynamic>> reportSupport({String? note}) =>
-      _support.saveReport(note ?? '');
+  Future<Map<String, dynamic>> reportSupport({String? note}) async =>
+      _support.createBundle(
+        settings: await _loadSettings(),
+        health: await health(),
+        note: note,
+      );
 
   @override
   Stream<Map<String, dynamic>> alertEvents() => _alerts.stream;

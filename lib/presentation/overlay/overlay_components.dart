@@ -15,11 +15,11 @@ String _enemyLocationStatus(
   if (native != null) {
     final elapsed = currentTime.difference(native.lastSeen);
     if (elapsed.inMilliseconds <= 2000) {
-      return 'Visto en ${native.region} · DartCV '
-          '${(native.confidence * 100).toStringAsFixed(0)}%';
+      return 'Visto en ${native.region} · '
+          '${(native.confidence * 100).toStringAsFixed(0)}% de confianza';
     }
     return 'Visto hace ${_formatDuration(elapsed.inSeconds)} en '
-        '${native.region} · DartCV';
+        '${native.region}';
   }
   final current = enemy['map_location']?.toString();
   if (current != null && current.isNotEmpty) return 'Visto en $current';
@@ -43,11 +43,7 @@ String _voiceMessage(CompanionAlert alert) {
     return raw['text']?.toString() ?? 'Respondiendo…';
   }
   if (state == 'error') {
-    final detail = raw['detail'] is Map ? raw['detail'] as Map : const {};
-    final suffix = detail.isEmpty
-        ? ''
-        : ' · ${detail.entries.map((entry) => '${entry.key}: ${entry.value}').join(', ')}';
-    return '${raw['reason'] ?? 'Error'}$suffix';
+    return 'No pude procesar la pregunta. Inténtalo de nuevo.';
   }
   return alert.message;
 }

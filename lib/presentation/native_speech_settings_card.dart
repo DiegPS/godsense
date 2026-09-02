@@ -8,6 +8,7 @@ import '../app/godsense_app.dart';
 import '../application/native_speech_controller.dart';
 import '../infrastructure/speech/speech/live_captions_service.dart';
 import '../infrastructure/speech/speech/speech_model_catalog.dart';
+import '../infrastructure/speech/tts_service.dart';
 import '../infrastructure/speech/tts/tts_model_catalog.dart';
 
 class NativeSpeechSettingsCard extends ConsumerWidget {
@@ -23,15 +24,15 @@ class NativeSpeechSettingsCard extends ConsumerWidget {
     Future<void> update(dynamic next) => controller.updateSettings(next);
 
     return GsCard(
-      title: 'Voz local · Sherpa-ONNX',
-      subtitle: 'Push-to-Talk, transcripción y síntesis ejecutados 100% en proceso sin dependencias de red.',
+      title: 'Voz y atajo para hablar',
+      subtitle: 'Habla con el coach y escucha sus respuestas. Tu voz se procesa en este equipo.',
       icon: Icons.mic_external_on_rounded,
       padding: EdgeInsets.zero,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           GsToggleSwitch(
-            title: 'Push-to-Talk local',
+            title: 'Hablar con el coach',
             subtitle: _speechStatus(state),
             icon: Icons.mic_none_rounded,
             value: settings.pushToTalkEnabled,
@@ -48,7 +49,7 @@ class NativeSpeechSettingsCard extends ConsumerWidget {
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 GsSelect<String>(
-                  label: 'Tecla global',
+                  label: 'TECLA PARA HABLAR',
                   value: settings.pushToTalkKey,
                   width: 110,
                   items: const {
@@ -64,7 +65,7 @@ class NativeSpeechSettingsCard extends ConsumerWidget {
                       update(settings.copyWith(pushToTalkKey: value)),
                 ),
                 GsSelect<String>(
-                  label: 'Idioma STT',
+                  label: 'IDIOMA QUE HABLAS',
                   value: settings.sttLanguage,
                   width: 120,
                   items: {
@@ -79,7 +80,7 @@ class NativeSpeechSettingsCard extends ConsumerWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     const Text(
-                      'Filtro de audio',
+                      'Claridad del micrófono',
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
@@ -88,7 +89,7 @@ class NativeSpeechSettingsCard extends ConsumerWidget {
                     ),
                     const SizedBox(height: 4),
                     GsPillToggle(
-                      label: 'Reducción de ruido GTCRN',
+                      label: 'Reducir ruido de fondo',
                       icon: Icons.graphic_eq_rounded,
                       selected: settings.sttDenoise,
                       onToggle: (value) =>
@@ -101,7 +102,7 @@ class NativeSpeechSettingsCard extends ConsumerWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     const Text(
-                      'Modelo de voz',
+                      'Reconocimiento de voz',
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
@@ -111,7 +112,7 @@ class NativeSpeechSettingsCard extends ConsumerWidget {
                     const SizedBox(height: 4),
                     GsButton(
                       label:
-                          'Descargar STT (${_megabytes(SpeechModelCatalog.canary.package.downloadBytes)})',
+                          'Descargar reconocimiento (${_megabytes(SpeechModelCatalog.canary.package.downloadBytes)})',
                       icon: Icons.download_rounded,
                       variant: GsButtonVariant.secondary,
                       compact: true,
@@ -168,8 +169,8 @@ class NativeSpeechSettingsCard extends ConsumerWidget {
           ],
           const Divider(height: 1, color: Color(0x14FFFFFF)),
           GsToggleSwitch(
-            title: 'Respuesta hablada local (TTS)',
-            subtitle: state.tts.message,
+            title: 'Escuchar las respuestas',
+            subtitle: _ttsStatus(state),
             icon: Icons.volume_up_outlined,
             value: settings.ttsEnabled,
             onChanged: state.loading
@@ -184,7 +185,7 @@ class NativeSpeechSettingsCard extends ConsumerWidget {
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 GsSelect<String>(
-                  label: 'Modelo TTS',
+                  label: 'TIPO DE VOZ',
                   value: selectedModel.id,
                   width: 200,
                   items: {
@@ -217,7 +218,7 @@ class NativeSpeechSettingsCard extends ConsumerWidget {
                       update(settings.copyWith(ttsVoice: value)),
                 ),
                 GsSelect<String>(
-                  label: 'Idioma TTS',
+                  label: 'IDIOMA DE RESPUESTA',
                   value: selectedModel.supportsLanguage(settings.ttsLanguage)
                       ? settings.ttsLanguage
                       : selectedModel.languages.first.code,
@@ -380,7 +381,7 @@ class NativeSpeechSettingsCard extends ConsumerWidget {
               ),
             ),
           ],
-          if (state.error case final error?) ...[
+          if (state.error != null) ...[
             Container(
               margin: const EdgeInsets.fromLTRB(14, 0, 14, 12),
               padding: const EdgeInsets.all(10),
@@ -389,7 +390,7 @@ class NativeSpeechSettingsCard extends ConsumerWidget {
                 borderRadius: BorderRadius.circular(6),
               ),
               child: Text(
-                error,
+                'No pudimos preparar el audio. Vuelve a intentarlo o elige otra voz.',
                 style: const TextStyle(color: GsColors.crimson, fontSize: 11),
               ),
             ),
@@ -402,15 +403,28 @@ class NativeSpeechSettingsCard extends ConsumerWidget {
   String _speechStatus(NativeSpeechState state) {
     if (state.pushToTalkPressed) return 'Suelta la tecla para transcribir.';
     return switch (state.speech.phase) {
-      LiveCaptionsPhase.missingModel => 'Falta descargar Canary 180M.',
-      LiveCaptionsPhase.downloading => state.speech.message,
-      LiveCaptionsPhase.loading => state.speech.message,
+      LiveCaptionsPhase.missingModel =>
+        'Descarga el reconocimiento de voz para comenzar.',
+      LiveCaptionsPhase.downloading => 'Descargando reconocimiento de voz…',
+      LiveCaptionsPhase.loading => 'Preparando el micrófono…',
       LiveCaptionsPhase.listening => 'Escuchando mientras mantienes la tecla.',
-      LiveCaptionsPhase.transcribing => 'Transcribiendo localmente…',
-      LiveCaptionsPhase.error => state.speech.error ?? state.speech.message,
+      LiveCaptionsPhase.transcribing => 'Entendiendo tu pregunta…',
+      LiveCaptionsPhase.error =>
+        'No pudimos preparar el micrófono. Vuelve a intentarlo.',
       _ => 'Mantén ${state.settings.pushToTalkKey.toUpperCase()} para hablar.',
     };
   }
+
+  String _ttsStatus(NativeSpeechState state) => switch (state.tts.phase) {
+    TtsLoadPhase.idle =>
+      state.settings.ttsEnabled
+          ? 'La voz se preparará cuando la necesites.'
+          : 'Actívala para escuchar las respuestas.',
+    TtsLoadPhase.checking || TtsLoadPhase.loading => 'Preparando la voz…',
+    TtsLoadPhase.downloading => 'Descargando la voz…',
+    TtsLoadPhase.ready => 'Lista para responder.',
+    TtsLoadPhase.error => 'La voz necesita atención.',
+  };
 
   String _megabytes(int bytes) => '${(bytes / 1024 / 1024).round()} MB';
 }

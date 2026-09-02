@@ -6,20 +6,17 @@ class OverviewPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final backend = ref.watch(companionControllerProvider);
-    final nativeLeague = ref.watch(nativeLeagueProvider);
     final game = ref.watch(effectiveGameProvider);
     final lobby = ref.watch(effectiveLobbyProvider);
-    final coach = backend.localCoachHealth['opencode'];
-    final coachMap = coach is Map ? coach : const {};
-    final model = coachMap['model'];
-    final modelMap = model is Map ? model : const {};
-    final cv = backend.health?.components['cv'];
+    final calibration = ref.watch(nativeCalibrationProvider).calibration;
+    final overlayEnabled = ref.watch(overlayEnabledProvider);
+    final speech = ref.watch(nativeSpeechProvider);
     final alerts = backend.alerts
         .where((alert) => alert.isVisibleAlert)
         .take(5);
 
     final isLeagueActive = game != null || lobby?.lcuConnected == true;
-    final isLiveConnected = nativeLeague.liveApiConnected;
+    final readyToPlay = isLeagueActive && calibration != null;
 
     return ListView(
       padding: const EdgeInsets.all(24),
@@ -31,11 +28,11 @@ class OverviewPage extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Overview',
+                    'Inicio',
                     style: Theme.of(context).textTheme.headlineMedium,
                   ),
                   const Text(
-                    'Estado del sistema en tiempo real y sesión de juego activa.',
+                    'Tu cuenta, la partida actual y todo lo que requiere atención.',
                     style: TextStyle(
                       fontSize: 13,
                       color: GsColors.textSecondary,
@@ -45,8 +42,12 @@ class OverviewPage extends ConsumerWidget {
               ),
             ),
             GsBadge(
-              label: isLeagueActive ? 'CLIENTE CONECTADO' : 'CLIENTE OFFLINE',
-              variant: isLeagueActive
+              label: readyToPlay
+                  ? 'LISTO PARA JUGAR'
+                  : isLeagueActive
+                  ? 'FALTA CONFIGURACIÓN'
+                  : 'ABRE LEAGUE PARA COMENZAR',
+              variant: readyToPlay
                   ? GsBadgeVariant.success
                   : GsBadgeVariant.neutral,
             ),
@@ -54,55 +55,52 @@ class OverviewPage extends ConsumerWidget {
         ),
         const SizedBox(height: 20),
 
-        // 1. Grid of Service Cards
+        // 1. Player readiness
         Wrap(
           spacing: 12,
           runSpacing: 12,
           children: [
             _OverviewServiceCard(
-              title: 'League client',
+              title: 'Cliente de League',
               status: game != null
-                  ? 'En partida · ${game.phase}'
+                  ? 'Partida en curso'
                   : lobby?.lcuConnected == true
-                  ? 'Conectado · ${lobby!.phase}'
-                  : 'Desconectado',
-              detail: nativeLeague.lcuEventConnected
-                  ? 'Eventos WebSocket'
-                  : 'Polling LCU',
+                  ? 'Cuenta conectada'
+                  : 'Abre League e inicia sesión',
+              detail: game != null
+                  ? _formatGameTime(game.gameTime)
+                  : 'La conexión es automática',
               icon: Icons.sports_esports_outlined,
               isOnline: isLeagueActive,
             ),
             _OverviewServiceCard(
-              title: 'Live Client API',
-              status: isLiveConnected
-                  ? '${nativeLeague.liveApiLatencyMilliseconds.toStringAsFixed(1)} ms'
-                  : nativeLeague.inGame
-                  ? 'Reconectando (${nativeLeague.consecutiveLiveFailures})'
-                  : 'Esperando partida',
-              detail: isLiveConnected ? 'Captura nativa 100 Hz' : 'Offline',
-              icon: Icons.monitor_heart_outlined,
-              isOnline: isLiveConnected,
+              title: 'Overlay de partida',
+              status: overlayEnabled ? 'Activado' : 'Desactivado',
+              detail: overlayEnabled
+                  ? 'Aparecerá cuando empiece la partida'
+                  : 'Puedes activarlo en Ajustes',
+              icon: Icons.layers_outlined,
+              isOnline: overlayEnabled,
             ),
             _OverviewServiceCard(
-              title: 'Coach Táctico',
-              status:
-                  modelMap['name']?.toString() ??
-                  coachMap['state']?.toString() ??
-                  'Local Sherpa / AI',
-              detail: 'Motor local en proceso',
-              icon: Icons.psychology_outlined,
-              isOnline: true,
+              title: 'Alertas del minimapa',
+              status: calibration == null ? 'Necesitan calibración' : 'Listas',
+              detail: calibration == null
+                  ? 'Configura el área del minimapa'
+                  : 'GodSense vigilará las amenazas',
+              icon: Icons.radar_rounded,
+              isOnline: calibration != null,
             ),
             _OverviewServiceCard(
-              title: 'Vision tracker',
-              status: cv == null
-                  ? 'No disponible'
-                  : cv.alive
-                  ? 'Activo y calibrado'
-                  : cv.error ?? 'Detenido',
-              detail: 'Visión Canny en proceso',
-              icon: Icons.visibility_outlined,
-              isOnline: cv?.alive == true,
+              title: 'Preguntas por voz',
+              status: speech.settings.pushToTalkEnabled
+                  ? 'Activadas'
+                  : 'Desactivadas',
+              detail: speech.settings.pushToTalkEnabled
+                  ? 'Mantén ${speech.settings.pushToTalkKey.toUpperCase()} para hablar'
+                  : 'Configúralas en Ajustes',
+              icon: Icons.mic_none_rounded,
+              isOnline: speech.settings.pushToTalkEnabled,
             ),
           ],
         ),
@@ -297,7 +295,8 @@ class OverviewPage extends ConsumerWidget {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    backend.lastError!,
+                    'GodSense no pudo actualizar parte de la información. '
+                    'Volverá a intentarlo automáticamente.',
                     style: const TextStyle(
                       fontSize: 12,
                       color: GsColors.crimson,

@@ -11,7 +11,7 @@ class LiveDirectivesCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return CoachSurface(
-      title: 'Directivas tácticas locales',
+      title: 'Recomendaciones tácticas',
       icon: Icons.record_voice_over_outlined,
       child: directives.isEmpty
           ? const CoachEmptyState(

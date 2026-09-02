@@ -11,11 +11,11 @@ class PickAdviceCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return CoachSurface(
-      title: 'Sugerencias locales de pick',
+      title: 'Sugerencias de selección',
       icon: Icons.recommend_outlined,
       child: advice.isEmpty
           ? const CoachEmptyState(
-              message: 'Esperando campeones disponibles y maestría local.',
+              message: 'Esperando tus campeones disponibles y su maestría.',
             )
           : Column(
               children: [

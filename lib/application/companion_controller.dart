@@ -201,7 +201,7 @@ class CompanionController extends StateNotifier<CompanionState> {
     }
   }
 
-  Future<void> reportSupport(String note) async {
+  Future<Map<String, dynamic>?> reportSupport(String note) async {
     state = state.copyWith(operationInProgress: true, clearError: true);
     try {
       final result = await client.reportSupport(note: note);
@@ -210,11 +210,13 @@ class CompanionController extends StateNotifier<CompanionState> {
         operationInProgress: false,
         clearError: true,
       );
+      return result;
     } catch (error) {
       state = state.copyWith(
         operationInProgress: false,
         lastError: error.toString(),
       );
+      return null;
     }
   }
 

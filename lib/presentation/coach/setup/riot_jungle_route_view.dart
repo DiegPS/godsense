@@ -12,7 +12,7 @@ class RiotJungleRouteView extends StatelessWidget {
   Widget build(BuildContext context) {
     return CoachSurface(
       title: 'Ruta recomendada por Riot',
-      subtitle: bundle == null ? null : 'Map11 · parche ${bundle!.patch.value}',
+      subtitle: bundle == null ? null : 'Parche ${bundle!.patch.value}',
       icon: Icons.route_outlined,
       child: bundle == null
           ? const CoachEmptyState(

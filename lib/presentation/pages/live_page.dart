@@ -41,7 +41,7 @@ class LivePage extends ConsumerWidget {
                     style: Theme.of(context).textTheme.headlineMedium,
                   ),
                   const Text(
-                    'Telemetría en tiempo real y análisis de enfrentamiento.',
+                    'Estado de la partida, objetivos y enfrentamiento de línea.',
                     style: TextStyle(
                       fontSize: 13,
                       color: GsColors.textSecondary,
@@ -52,7 +52,7 @@ class LivePage extends ConsumerWidget {
             ),
             if (game != null)
               GsBadge(
-                label: isEnded ? 'FINALIZADA' : game.phase,
+                label: isEnded ? 'FINALIZADA' : _gamePhaseLabel(game.phase),
                 variant: isEnded ? GsBadgeVariant.neutral : GsBadgeVariant.info,
               ),
           ],
@@ -85,7 +85,7 @@ class LivePage extends ConsumerWidget {
                   ),
                   SizedBox(height: 4),
                   Text(
-                    'La telemetría de oro, objetivos y estado de línea se mostrará al entrar al juego.',
+                    'El oro, los objetivos y el estado de línea aparecerán al entrar al juego.',
                     style: TextStyle(
                       fontSize: 12,
                       color: GsColors.textSecondary,
@@ -118,7 +118,7 @@ class LivePage extends ConsumerWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text(
-                          'Live Client temporalmente desconectado',
+                          'Actualización de partida interrumpida',
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w700,
@@ -126,7 +126,7 @@ class LivePage extends ConsumerWidget {
                           ),
                         ),
                         Text(
-                          'Se conserva el último estado válido mientras se reconecta (${nativeLeague.consecutiveLiveFailures} intentos).',
+                          'Conservamos la última información mientras restablecemos la conexión automáticamente.',
                           style: const TextStyle(
                             fontSize: 11,
                             color: GsColors.textSecondary,
@@ -151,13 +151,13 @@ class LivePage extends ConsumerWidget {
                 ),
                 GsMetricStat(
                   label: 'Fase',
-                  value: isEnded ? 'FINALIZADA' : game.phase,
+                  value: isEnded ? 'FINALIZADA' : _gamePhaseLabel(game.phase),
                   icon: Icons.flag_outlined,
                   valueColor: GsColors.cyan,
                 ),
                 GsMetricStat(
                   label: 'Estado',
-                  value: game.raw['team_state']?.toString() ?? 'EVEN',
+                  value: _teamStateLabel(game.raw['team_state']),
                   icon: Icons.insights_rounded,
                 ),
                 GsMetricStat(
@@ -228,7 +228,7 @@ class LivePage extends ConsumerWidget {
                     ),
                     const SizedBox(width: 6),
                     Text(
-                      '${entry.key}: ${value['status'] ?? 'unknown'}'
+                      '${_objectiveLabel(entry.key)}: ${_objectiveStatusLabel(value['status'], isAlive)}'
                       '${respawn == null ? '' : ' · ${_formatDuration(respawn)}'}',
                       style: const TextStyle(
                         fontSize: 11,
@@ -290,7 +290,7 @@ class LivePage extends ConsumerWidget {
             child: goldPoints.isEmpty
                 ? const Center(
                     child: Text(
-                      'Esperando puntos del timeline…',
+                      'La evolución del oro aparecerá durante la partida.',
                       style: TextStyle(
                         color: GsColors.textSecondary,
                         fontSize: 12,
@@ -357,9 +357,7 @@ class LivePage extends ConsumerWidget {
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
-                                  event['label']?.toString() ??
-                                      event['EventName']?.toString() ??
-                                      'Evento',
+                                  _eventLabel(event),
                                   style: const TextStyle(
                                     fontSize: 12,
                                     fontWeight: FontWeight.w600,
@@ -391,6 +389,59 @@ class LivePage extends ConsumerWidget {
       ],
     );
   }
+}
+
+String _gamePhaseLabel(String value) => switch (value.toLowerCase()) {
+  'inprogress' || 'in_progress' || 'live' => 'EN PARTIDA',
+  'champselect' || 'champ_select' => 'SELECCIÓN',
+  'endofgame' || 'postgame' || 'completed' => 'FINALIZADA',
+  _ => 'ACTIVA',
+};
+
+String _teamStateLabel(Object? value) =>
+    switch (value?.toString().toUpperCase()) {
+      'AHEAD' || 'WINNING' => 'Con ventaja',
+      'BEHIND' || 'LOSING' => 'En desventaja',
+      'EVEN' => 'Igualada',
+      _ => 'Sin determinar',
+    };
+
+String _objectiveLabel(Object? value) =>
+    switch (value?.toString().toLowerCase()) {
+      'dragon' => 'Dragón',
+      'baron' || 'baron_nashor' => 'Barón Nashor',
+      'herald' || 'rift_herald' => 'Heraldo',
+      'atakhan' => 'Atakhan',
+      'elder' || 'elder_dragon' => 'Dragón anciano',
+      final value when value != null && value.isNotEmpty => value,
+      _ => 'Objetivo',
+    };
+
+String _objectiveStatusLabel(Object? value, bool isAlive) {
+  final status = value?.toString().toLowerCase();
+  if (isAlive || status == 'alive' || status == 'available') {
+    return 'Disponible';
+  }
+  return switch (status) {
+    'respawning' || 'dead' => 'Reapareciendo',
+    'killed' || 'taken' => 'Eliminado',
+    _ => 'No disponible',
+  };
+}
+
+String _eventLabel(Map<String, dynamic> event) {
+  final provided = event['label']?.toString();
+  if (provided != null && provided.isNotEmpty) return provided;
+  return switch (event['EventName']?.toString()) {
+    'ChampionKill' => 'Campeón eliminado',
+    'DragonKill' => 'Dragón eliminado',
+    'BaronKill' => 'Barón Nashor eliminado',
+    'HeraldKill' => 'Heraldo eliminado',
+    'TurretKilled' => 'Torre destruida',
+    'InhibKilled' => 'Inhibidor destruido',
+    'GameEnd' => 'Partida finalizada',
+    _ => 'Evento de partida',
+  };
 }
 
 class _TeamSection extends StatelessWidget {

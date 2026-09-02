@@ -16,8 +16,8 @@ class VoiceCoachCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return CoachSurface(
-      title: 'Asistente de voz local',
-      subtitle: 'Push-to-Talk · Sherpa STT/TTS · motor táctico determinista',
+      title: 'Preguntas por voz',
+      subtitle: 'Mantén tu tecla configurada, pregunta y escucha la respuesta.',
       icon: Icons.mic_none_rounded,
       child: Column(
         children: [

@@ -15,7 +15,7 @@ class DraftMatrixCard extends StatelessWidget {
       icon: Icons.groups_2_outlined,
       subtitle: draft.allLocked
           ? 'Todas las selecciones están bloqueadas'
-          : 'Actualización directa desde LCU',
+          : 'Se actualiza con la selección de campeón',
       child: LayoutBuilder(
         builder: (context, constraints) {
           final ally = _Roster(
@@ -100,9 +100,9 @@ class _DraftPlayerRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final state = player?.selectionState ?? DraftSelectionState.unavailable;
     final label = switch (state) {
-      DraftSelectionState.locked => 'LOCKED',
-      DraftSelectionState.hovering => 'HOVER',
-      DraftSelectionState.picking => 'PICKING',
+      DraftSelectionState.locked => 'CONFIRMADO',
+      DraftSelectionState.hovering => 'MOSTRANDO',
+      DraftSelectionState.picking => 'ELIGIENDO',
       DraftSelectionState.unavailable => 'ESPERANDO',
     };
     final name = player?.championName.isNotEmpty == true

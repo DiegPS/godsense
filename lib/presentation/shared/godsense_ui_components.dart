@@ -713,8 +713,8 @@ class GsHealthMatrix extends StatelessWidget {
                     ),
                     Text(
                       isAlive
-                          ? (info.latency ?? 'ONLINE')
-                          : (info.error ?? 'OFFLINE'),
+                          ? (info.latency ?? 'Listo')
+                          : (info.error ?? 'Requiere atención'),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(

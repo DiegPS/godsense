@@ -9,10 +9,8 @@ class VisionPage extends ConsumerWidget {
     final calibrationState = ref.watch(nativeCalibrationProvider);
     final calibration = calibrationState.calibration;
     final native = ref.watch(nativeVisionProvider);
-    final corpus = ref.watch(cvCorpusComparatorProvider);
-    final positionedEnemies = game?.enemies
-        .where((enemy) => enemy['position'] is Map)
-        .length;
+    final positionedEnemies =
+        game?.enemies.where((enemy) => enemy['position'] is Map).length ?? 0;
 
     return ListView(
       padding: const EdgeInsets.all(24),
@@ -24,11 +22,11 @@ class VisionPage extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Vision Tracker',
+                    'Mapa y alertas',
                     style: Theme.of(context).textTheme.headlineMedium,
                   ),
                   const Text(
-                    'Captura Win32 GDI y visión computacional DartCV ejecutadas 100% en proceso.',
+                    'Comprueba el minimapa y revisa los últimos avistamientos enemigos.',
                     style: TextStyle(
                       fontSize: 13,
                       color: GsColors.textSecondary,
@@ -38,7 +36,7 @@ class VisionPage extends ConsumerWidget {
               ),
             ),
             GsBadge(
-              label: native.running ? 'TRACKER ACTIVO' : 'TRACKER IDLE',
+              label: native.running ? 'VIGILANDO' : 'EN ESPERA',
               variant: native.running
                   ? GsBadgeVariant.success
                   : GsBadgeVariant.neutral,
@@ -47,38 +45,30 @@ class VisionPage extends ConsumerWidget {
         ),
         const SizedBox(height: 20),
 
-        // 1. Performance Overview
+        // 1. Player-facing status
         GsCard(
-          title: 'DartCV tracker nativo',
-          icon: Icons.memory_rounded,
+          title: 'Estado de las alertas',
+          icon: Icons.radar_rounded,
           child: Wrap(
             spacing: 28,
             runSpacing: 12,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               GsMetricStat(
-                label: 'Frecuencia',
-                value: '${native.fps.toStringAsFixed(1)} FPS',
-                icon: Icons.speed_rounded,
-                valueColor: GsColors.cyan,
+                label: 'Minimapa',
+                value: calibration == null ? 'Sin configurar' : 'Configurado',
+                subtitle: calibration == null
+                    ? 'Calibra para comenzar'
+                    : 'Área detectada correctamente',
+                icon: Icons.map_outlined,
+                valueColor: calibration == null
+                    ? GsColors.amber
+                    : GsColors.emerald,
               ),
               GsMetricStat(
-                label: 'Latencia DartCV',
-                value: '${native.averageCvMilliseconds.toStringAsFixed(1)} ms',
-                subtitle:
-                    'p95: ${native.p95CvMilliseconds.toStringAsFixed(1)} ms',
-                icon: Icons.memory_rounded,
-              ),
-              GsMetricStat(
-                label: 'Captura GDI',
-                value:
-                    '${native.averageCaptureMilliseconds.toStringAsFixed(1)} ms',
-                icon: Icons.screenshot_monitor_rounded,
-              ),
-              GsMetricStat(
-                label: 'Enemigos Detectados',
+                label: 'Enemigos visibles',
                 value: '${native.frame?.detections.length ?? 0}',
-                subtitle: 'Live API: ${positionedEnemies ?? 0}',
+                subtitle: '$positionedEnemies con posición conocida',
                 icon: Icons.person_search_rounded,
                 valueColor: (native.frame?.detections.length ?? 0) > 0
                     ? GsColors.emerald
@@ -89,80 +79,7 @@ class VisionPage extends ConsumerWidget {
         ),
         const SizedBox(height: 16),
 
-        // 2. Paridad Determinista
-        GsCard(
-          title: 'Paridad Determinista',
-          icon: Icons.compare_arrows_rounded,
-          action: GsButton(
-            label: 'Comparar corpus',
-            icon: Icons.compare_rounded,
-            compact: true,
-            loading: corpus.running,
-            onPressed: corpus.running
-                ? null
-                : () => ref.read(cvCorpusComparatorProvider.notifier).run(),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (corpus.error != null)
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: GsColors.crimsonGlow,
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Text(
-                    corpus.error!,
-                    style: const TextStyle(
-                      color: GsColors.crimson,
-                      fontSize: 12,
-                    ),
-                  ),
-                )
-              else
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
-                  children: [
-                    _ParityMetric(label: 'Frames', value: '${corpus.frames}'),
-                    _ParityMetric(
-                      label: 'Precision',
-                      value: '${(corpus.precision * 100).toStringAsFixed(1)}%',
-                      isSuccess: corpus.precision >= 0.95,
-                    ),
-                    _ParityMetric(
-                      label: 'Recall',
-                      value: '${(corpus.recall * 100).toStringAsFixed(1)}%',
-                      isSuccess: corpus.recall >= 0.95,
-                    ),
-                    _ParityMetric(
-                      label: 'Identidad',
-                      value:
-                          '${(corpus.identityAgreement * 100).toStringAsFixed(1)}%',
-                      isSuccess: corpus.identityAgreement >= 0.95,
-                    ),
-                    _ParityMetric(
-                      label: 'Boxes Exactos',
-                      value: '${corpus.exactBoxes}/${corpus.matchedBoxes}',
-                    ),
-                    _ParityMetric(
-                      label: 'IoU Promedio',
-                      value: corpus.averageIou.toStringAsFixed(3),
-                    ),
-                    _ParityMetric(
-                      label: 'Tiempo Dart',
-                      value:
-                          '${corpus.averageDartMilliseconds.toStringAsFixed(1)} ms',
-                    ),
-                  ],
-                ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 16),
-
-        // 3. Calibration Action
+        // 2. Calibration action
         GsCard(
           child: Row(
             children: [
@@ -183,7 +100,7 @@ class VisionPage extends ConsumerWidget {
               ),
               const SizedBox(width: 10),
               GsButton(
-                label: 'Detectar nativo',
+                label: 'Calibrar automáticamente',
                 icon: Icons.auto_fix_high_rounded,
                 compact: true,
                 loading: native.processing,
@@ -195,7 +112,7 @@ class VisionPage extends ConsumerWidget {
               ),
               const SizedBox(width: 8),
               GsButton(
-                label: 'Capturar ahora',
+                label: 'Comprobar ahora',
                 icon: Icons.camera_alt_outlined,
                 variant: GsButtonVariant.secondary,
                 compact: true,
@@ -211,21 +128,17 @@ class VisionPage extends ConsumerWidget {
         ),
         const SizedBox(height: 16),
 
-        // 4. Vision Previews
+        // 3. Useful previews
         Wrap(
           spacing: 12,
           runSpacing: 12,
           children: [
             _VisionPreview(
-              title: 'Captura del minimapa',
+              title: 'Minimapa observado',
               bytes: native.frame?.capturePng,
             ),
             _VisionPreview(
-              title: 'Máscara HSV roja',
-              bytes: native.frame?.maskPng,
-            ),
-            _VisionPreview(
-              title: 'Candidatos detectados',
+              title: 'Detecciones actuales',
               bytes: native.frame?.annotatedPng,
             ),
           ],
@@ -239,13 +152,11 @@ class VisionPage extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Calibración nativa propuesta',
+                    'Área del minimapa encontrada',
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
-                  Text(
-                    '${native.calibrationProposal!.bounds} · '
-                    'icon ${native.calibrationProposal!.iconSize}px · '
-                    'confidence ${(native.calibrationProposal!.confidence * 100).toStringAsFixed(1)}%',
+                  const Text(
+                    'GodSense detectó esta región. Comprueba visualmente que corresponde al minimapa.',
                   ),
                   const SizedBox(height: 8),
                   Image.memory(
@@ -277,7 +188,8 @@ class VisionPage extends ConsumerWidget {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    native.error!,
+                    'No pudimos revisar el minimapa. Comprueba la calibración '
+                    'e inténtalo de nuevo.',
                     style: const TextStyle(
                       color: GsColors.crimson,
                       fontSize: 12,
@@ -293,7 +205,7 @@ class VisionPage extends ConsumerWidget {
           children: [
             const Expanded(
               child: Text(
-                'REGISTRO CRONOLÓGICO DE VISIÓN',
+                'ÚLTIMOS AVISTAMIENTOS',
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w700,
@@ -303,7 +215,7 @@ class VisionPage extends ConsumerWidget {
               ),
             ),
             GsButton(
-              label: 'Limpiar registro',
+              label: 'Limpiar',
               icon: Icons.delete_outline_rounded,
               variant: GsButtonVariant.ghost,
               compact: true,
@@ -321,7 +233,7 @@ class VisionPage extends ConsumerWidget {
                   padding: EdgeInsets.all(16),
                   child: Center(
                     child: Text(
-                      'Sin detecciones todavía. Los eventos de detección de campeones se guardan en tiempo real.',
+                      'Todavía no hay avistamientos. Aparecerán aquí durante la partida.',
                       style: TextStyle(
                         color: GsColors.textSecondary,
                         fontSize: 12,
@@ -331,7 +243,6 @@ class VisionPage extends ConsumerWidget {
                 )
               : Column(
                   children: native.logs.take(50).map((entry) {
-                    final isNative = entry.source == TrackerLogSource.native;
                     return Container(
                       margin: const EdgeInsets.only(bottom: 4),
                       padding: const EdgeInsets.symmetric(
@@ -344,12 +255,10 @@ class VisionPage extends ConsumerWidget {
                       ),
                       child: Row(
                         children: [
-                          Icon(
-                            isNative
-                                ? Icons.memory_rounded
-                                : Icons.cloud_outlined,
+                          const Icon(
+                            Icons.visibility_outlined,
                             size: 16,
-                            color: isNative ? GsColors.cyan : GsColors.amber,
+                            color: GsColors.cyan,
                           ),
                           const SizedBox(width: 10),
                           Expanded(
@@ -357,18 +266,10 @@ class VisionPage extends ConsumerWidget {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  '${entry.source.name.toUpperCase()} · ${entry.event}',
-                                  style: const TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w700,
-                                    color: GsColors.textPrimary,
-                                  ),
-                                ),
-                                Text(
                                   entry.message,
                                   style: const TextStyle(
-                                    fontSize: 11,
-                                    color: GsColors.textSecondary,
+                                    fontSize: 12,
+                                    color: GsColors.textPrimary,
                                   ),
                                 ),
                               ],
@@ -388,51 +289,6 @@ class VisionPage extends ConsumerWidget {
                 ),
         ),
       ],
-    );
-  }
-}
-
-class _ParityMetric extends StatelessWidget {
-  const _ParityMetric({
-    required this.label,
-    required this.value,
-    this.isSuccess,
-  });
-
-  final String label;
-  final String value;
-  final bool? isSuccess;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: GsColors.surfaceElevated,
-        borderRadius: BorderRadius.circular(6),
-        border: isSuccess == true
-            ? Border.all(color: const Color(0x3310B981))
-            : null,
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            '$label: ',
-            style: const TextStyle(fontSize: 11, color: GsColors.textSecondary),
-          ),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              color: isSuccess == true
-                  ? GsColors.emerald
-                  : GsColors.textPrimary,
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

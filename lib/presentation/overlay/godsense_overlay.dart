@@ -177,7 +177,7 @@ class _GodSenseOverlayState extends ConsumerState<GodSenseOverlay> {
                   ),
                   subtitle: Text(
                     nativeGank != null
-                        ? '${nativeGank.location} · ${nativeGank.role} · DartCV'
+                        ? '${nativeGank.location} · ${nativeGank.role}'
                         : gank?.message ?? 'Esperando una amenaza de gank…',
                     style: const TextStyle(color: Color(0xFFCBD5E1)),
                   ),
@@ -233,7 +233,7 @@ class _GodSenseOverlayState extends ConsumerState<GodSenseOverlay> {
                         ),
                         subtitle: Text(
                           nativeSighting != null
-                              ? '${nativeSighting.region} · hace ${_formatDuration(_now.difference(nativeSighting.timestamp).inSeconds)} · DartCV'
+                              ? '${nativeSighting.region} · hace ${_formatDuration(_now.difference(nativeSighting.timestamp).inSeconds)}'
                               : '${sighting!.message} · hace ${_formatDuration(_now.difference(sighting.receivedAt).inSeconds)}',
                           style: const TextStyle(color: Color(0xFF94A3B8)),
                         ),
@@ -291,7 +291,7 @@ class _GodSenseOverlayState extends ConsumerState<GodSenseOverlay> {
                   ),
                   title: Text(
                     nativeSpeech.pushToTalkPressed
-                        ? 'Escuchando localmente…'
+                        ? 'Escuchando…'
                         : nativeSpeech.transcript.isNotEmpty
                         ? nativeSpeech.transcript
                         : voice?.raw['question']?.toString() ??
@@ -304,13 +304,13 @@ class _GodSenseOverlayState extends ConsumerState<GodSenseOverlay> {
                   ),
                   subtitle: Text(
                     nativeSpeech.pushToTalkPressed
-                        ? 'Sherpa-ONNX · suelta la tecla para enviar'
+                        ? 'Suelta la tecla para enviar'
                         : nativeVoiceCoach.processing
-                        ? 'Analizando hechos locales…'
+                        ? 'Preparando respuesta…'
                         : nativeVoiceCoach.advice != null
                         ? nativeVoiceCoach.advice!.ttsText
                         : nativeSpeech.transcript.isNotEmpty
-                        ? 'Transcripción offline completada'
+                        ? 'Pregunta entendida'
                         : voice == null
                         ? 'Esperando una interacción de voz…'
                         : _voiceMessage(voice),

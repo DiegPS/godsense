@@ -12,7 +12,7 @@ class ThreatAndSightingsCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return CoachSurface(
       title: 'Estado de amenaza y avistamientos',
-      subtitle: 'Fuente: visión nativa DartCV',
+      subtitle: 'Avistamientos y amenazas detectadas en el minimapa.',
       icon: Icons.radar_outlined,
       child: threats.isEmpty
           ? const CoachEmptyState(

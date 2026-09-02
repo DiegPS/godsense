@@ -16,7 +16,7 @@ class LiveRankBadge extends StatelessWidget {
         ? 'Sin rango en Solo/Duo'
         : '$tier ${profile?['division'] ?? ''} · ${profile?['lp'] ?? 0} LP';
     return Tooltip(
-      message: 'Solo/Duo · LCU · ${profile?['observed_at'] ?? ''}',
+      message: 'Clasificación Solo/Duo actualizada recientemente',
       child: Text(label, style: Theme.of(context).textTheme.labelLarge),
     );
   }
