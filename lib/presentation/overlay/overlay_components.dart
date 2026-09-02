@@ -168,6 +168,7 @@ class _NativeCompositionView extends StatelessWidget {
                   (player) => Chip(
                     avatar: _NetworkPortrait(
                       url: player['icon_url']?.toString(),
+                      fallbackUrls: _stringValues(player['icon_fallback_urls']),
                       size: 24,
                     ),
                     label: Text(

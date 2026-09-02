@@ -84,6 +84,9 @@ class DataDragonCatalogService {
     for (final raw in summaries.values.whereType<Map>()) {
       final name = raw['name']?.toString() ?? '';
       final alias = raw['id']?.toString() ?? '';
+      final image = raw['image'] is Map
+          ? (raw['image'] as Map)['full']?.toString() ?? ''
+          : '';
       final key = _championKey(name);
       if (alias.isEmpty || !requested.contains(key)) continue;
       try {
@@ -98,10 +101,20 @@ class DataDragonCatalogService {
         final detailData = detailJson is Map ? detailJson['data'] : null;
         final detail = detailData is Map ? detailData[alias] : null;
         if (detail is! Map) continue;
-        result[key] = _abilities(
-          detail,
-          version: artifact.resolvedVersion.value,
-        );
+        final iconUrl = image.isEmpty
+            ? ''
+            : 'https://ddragon.leagueoflegends.com/cdn/'
+                  '${artifact.resolvedVersion.value}/img/champion/$image';
+        result[key] =
+            _abilities(detail, version: artifact.resolvedVersion.value)
+                .map(
+                  (ability) => {
+                    ...ability,
+                    'champion_alias': alias,
+                    'champion_icon_url': iconUrl,
+                  },
+                )
+                .toList(growable: false);
       } catch (_) {
         // One unavailable champion must not suppress the other nine players.
       }

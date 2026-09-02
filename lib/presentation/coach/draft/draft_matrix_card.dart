@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../../domain/league/draft_models.dart';
+import '../../shared/resilient_network_image.dart';
+import '../shared/asset_portrait.dart';
 import '../shared/coach_surface.dart';
 
 class DraftMatrixCard extends StatelessWidget {
@@ -121,13 +123,12 @@ class _DraftPlayerRow extends StatelessWidget {
         ),
         child: Row(
           children: [
-            CircleAvatar(
-              radius: 16,
-              backgroundColor: color.withValues(alpha: .14),
-              child: Text(
-                player?.championId == 0 ? '–' : '${player?.championId ?? '–'}',
-                style: TextStyle(color: color, fontSize: 10),
-              ),
+            AssetPortrait(
+              semanticLabel: name,
+              url: communityDragonChampionIcon(player?.championId ?? 0),
+              size: 32,
+              circular: true,
+              fallback: Icons.person_outline,
             ),
             const SizedBox(width: 9),
             Expanded(
@@ -196,7 +197,13 @@ class _Bans extends StatelessWidget {
       children: [
         for (final ban in bans)
           Chip(
-            avatar: const Icon(Icons.block, size: 16),
+            avatar: AssetPortrait(
+              semanticLabel: 'Campeón bloqueado ${ban.championId}',
+              url: communityDragonChampionIcon(ban.championId),
+              size: 22,
+              circular: true,
+              fallback: Icons.block,
+            ),
             label: Text(
               '${ban.side == DraftSide.ally ? 'Aliado' : 'Rival'} · ${ban.championId}',
             ),

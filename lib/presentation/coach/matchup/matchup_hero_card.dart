@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../application/coach_controller.dart';
+import '../../shared/resilient_network_image.dart';
 import '../shared/asset_portrait.dart';
 import '../shared/coach_surface.dart';
 
@@ -25,6 +26,12 @@ class MatchupHeroCard extends StatelessWidget {
         const [];
     final importing =
         state.importFeedback.status == CoachImportStatus.importing;
+    final localPlayer = state.lobby?.draft.allies
+        .where((player) => player.isLocal)
+        .firstOrNull;
+    final selectedEnemyPlayer = state.lobby?.draft.enemies
+        .where((player) => player.championName == state.selectedEnemy)
+        .firstOrNull;
     return CoachSurface(
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -36,6 +43,7 @@ class MatchupHeroCard extends StatelessWidget {
                   name: state.localChampion.isEmpty
                       ? 'Tu campeón'
                       : state.localChampion,
+                  championId: localPlayer?.championId ?? 0,
                   accent: CoachColors.cyan,
                 ),
               ),
@@ -53,6 +61,7 @@ class MatchupHeroCard extends StatelessWidget {
               Expanded(
                 child: _Champion(
                   name: state.selectedEnemy ?? 'Rival pendiente',
+                  championId: selectedEnemyPlayer?.championId ?? 0,
                   accent: CoachColors.crimson,
                 ),
               ),
@@ -133,9 +142,14 @@ class MatchupHeroCard extends StatelessWidget {
 }
 
 class _Champion extends StatelessWidget {
-  const _Champion({required this.name, required this.accent});
+  const _Champion({
+    required this.name,
+    required this.championId,
+    required this.accent,
+  });
 
   final String name;
+  final int championId;
   final Color accent;
 
   @override
@@ -149,6 +163,7 @@ class _Champion extends StatelessWidget {
           ),
           child: AssetPortrait(
             semanticLabel: name,
+            url: communityDragonChampionIcon(championId),
             size: 64,
             circular: true,
             fallback: Icons.person_outline,

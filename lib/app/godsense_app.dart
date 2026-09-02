@@ -23,6 +23,7 @@ import '../presentation/native_speech_settings_card.dart';
 import '../presentation/coach/coach_page.dart';
 import '../presentation/shared/live_rank_badge.dart';
 import '../presentation/shared/getting_started_guide.dart';
+import '../presentation/shared/resilient_network_image.dart';
 
 part '../presentation/shell/godsense_shell.dart';
 part 'godsense_theme.dart';

@@ -117,26 +117,24 @@ class _NetworkPortrait extends StatelessWidget {
     required this.url,
     required this.size,
     this.fallback = Icons.person,
+    this.fallbackUrls = const [],
   });
 
   final String? url;
   final double size;
   final IconData fallback;
+  final List<String> fallbackUrls;
 
   @override
   Widget build(BuildContext context) {
-    if (url == null || url!.isEmpty) {
-      return SizedBox.square(dimension: size, child: Icon(fallback));
-    }
     return ClipRRect(
       borderRadius: BorderRadius.circular(6),
-      child: Image.network(
-        url!,
+      child: ResilientNetworkImage(
+        urls: [url, ...fallbackUrls],
         width: size,
         height: size,
         fit: BoxFit.cover,
-        errorBuilder: (_, _, _) =>
-            SizedBox.square(dimension: size, child: Icon(fallback)),
+        fallback: SizedBox.square(dimension: size, child: Icon(fallback)),
       ),
     );
   }

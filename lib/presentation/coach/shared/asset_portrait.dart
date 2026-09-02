@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../shared/resilient_network_image.dart';
 import 'coach_surface.dart';
 
 class AssetPortrait extends StatelessWidget {
@@ -7,6 +8,7 @@ class AssetPortrait extends StatelessWidget {
     super.key,
     required this.semanticLabel,
     this.url,
+    this.fallbackUrls = const [],
     this.size = 40,
     this.fallback = Icons.image_not_supported_outlined,
     this.circular = false,
@@ -14,6 +16,7 @@ class AssetPortrait extends StatelessWidget {
 
   final String semanticLabel;
   final String? url;
+  final List<String> fallbackUrls;
   final double size;
   final IconData fallback;
   final bool circular;
@@ -28,13 +31,12 @@ class AssetPortrait extends StatelessWidget {
         borderRadius: BorderRadius.circular(radius),
         child: SizedBox.square(
           dimension: size,
-          child: url == null || url!.isEmpty
-              ? _fallback()
-              : Image.network(
-                  url!,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, _, _) => _fallback(),
-                ),
+          child: ResilientNetworkImage(
+            urls: [url, ...fallbackUrls],
+            width: size,
+            height: size,
+            fallback: _fallback(),
+          ),
         ),
       ),
     );

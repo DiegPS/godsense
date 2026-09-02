@@ -496,6 +496,7 @@ class _PlayerTile extends StatelessWidget {
           borderRadius: BorderRadius.circular(6),
           child: _NetworkPortrait(
             url: player['icon_url']?.toString(),
+            fallbackUrls: _stringValues(player['icon_fallback_urls']),
             size: 38,
           ),
         ),
@@ -697,7 +698,11 @@ class _MatchupPlayer extends StatelessWidget {
     final items = _asMapList(player['items']);
     return Column(
       children: [
-        _NetworkPortrait(url: player['icon_url']?.toString(), size: 72),
+        _NetworkPortrait(
+          url: player['icon_url']?.toString(),
+          fallbackUrls: _stringValues(player['icon_fallback_urls']),
+          size: 72,
+        ),
         const SizedBox(height: 6),
         Text(
           player['champion_name']?.toString() ?? '—',

@@ -108,9 +108,27 @@ class LiveGameProcessor {
       final observableGold = inventoryGold + currentGold;
       final goldTotal = math.max(observableGold, statisticalGold);
       final championName = value['championName']?.toString() ?? '';
+      final championKey = _championKey(championName);
+      final championProfile = championProfiles[championKey];
+      final abilities = championAbilities[championKey] ?? const [];
+      final championAlias = _firstNonEmpty([
+        championProfile?['champion_alias'],
+        abilities.firstOrNull?['champion_alias'],
+        championName.replaceAll(RegExp(r'[^a-zA-Z0-9]'), ''),
+      ]);
+      final championIconUrls = _uniqueAssetUrls([
+        championProfile?['icon_url'],
+        abilities.firstOrNull?['champion_icon_url'],
+        if (championAlias.isNotEmpty)
+          'https://cdn.communitydragon.org/latest/champion/'
+              '${Uri.encodeComponent(championAlias)}/square',
+        if (championName.isNotEmpty)
+          'https://cdn.communitydragon.org/latest/champion/'
+              '${Uri.encodeComponent(championName)}/square',
+      ]);
       return {
         'champion_name': championName,
-        'champion_profile': championProfiles[_championKey(championName)],
+        'champion_profile': championProfile,
         'summoner_name': _playerName(value),
         'tag_line': value['riotIdTagLine'] ?? '',
         'team': value['team'] ?? '',
@@ -129,7 +147,7 @@ class LiveGameProcessor {
             .where((name) => name.isNotEmpty)
             .toList(growable: false),
         'runes': value['runes'] ?? const {},
-        'abilities': championAbilities[_championKey(championName)] ?? const [],
+        'abilities': abilities,
         'ranked_profile':
             rankedProfiles[livePlayerRiotId(value)?.displayName.toLowerCase()],
         'position': null,
@@ -137,9 +155,8 @@ class LiveGameProcessor {
         'is_mia': false,
         'mia_duration': 0.0,
         'last_known_location': null,
-        'icon_url':
-            'https://cdn.communitydragon.org/latest/champion/'
-            '${Uri.encodeComponent(championName)}/square',
+        'icon_url': championIconUrls.firstOrNull ?? '',
+        'icon_fallback_urls': championIconUrls.skip(1).toList(growable: false),
         'is_dead': value['isDead'] == true,
         'respawn_timer': value['respawnTimer'] ?? 0,
       };
@@ -582,4 +599,13 @@ List<Map<String, dynamic>> _mapList(Object? value) {
       .whereType<Map>()
       .map((item) => item.map((key, value) => MapEntry(key.toString(), value)))
       .toList(growable: false);
+}
+
+List<String> _uniqueAssetUrls(Iterable<Object?> values) {
+  final result = <String>[];
+  for (final value in values) {
+    final url = value?.toString().trim() ?? '';
+    if (url.isNotEmpty && !result.contains(url)) result.add(url);
+  }
+  return result;
 }

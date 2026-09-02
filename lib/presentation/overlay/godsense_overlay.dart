@@ -195,6 +195,9 @@ class _GodSenseOverlayState extends ConsumerState<GodSenseOverlay> {
                     ListTile(
                       leading: _NetworkPortrait(
                         url: jungler?['icon_url']?.toString(),
+                        fallbackUrls: _stringValues(
+                          jungler?['icon_fallback_urls'],
+                        ),
                         size: 56,
                       ),
                       title: Text(
@@ -244,6 +247,9 @@ class _GodSenseOverlayState extends ConsumerState<GodSenseOverlay> {
                         dense: true,
                         leading: _NetworkPortrait(
                           url: enemy['icon_url']?.toString(),
+                          fallbackUrls: _stringValues(
+                            enemy['icon_fallback_urls'],
+                          ),
                           size: 32,
                         ),
                         title: Text(

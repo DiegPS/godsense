@@ -534,6 +534,12 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
           _championNames[id] = data['name']?.toString() ?? '$id';
           _championAliases[id] = data['alias']?.toString() ?? '';
           _championProfiles[id] = {
+            'champion_id': id,
+            'champion_alias': data['alias']?.toString() ?? '',
+            'icon_url':
+                'https://raw.communitydragon.org/latest/plugins/'
+                'rcp-be-lol-game-data/global/default/v1/champion-icons/'
+                '$id.png',
             'classes': data['roles'] ?? const [],
             'playstyle': data['playstyleInfo'] ?? const {},
             'tactical': data['tacticalInfo'] ?? const {},

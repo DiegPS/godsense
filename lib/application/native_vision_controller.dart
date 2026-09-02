@@ -262,7 +262,7 @@ class NativeVisionController extends StateNotifier<NativeVisionState> {
         .map(
           (enemy) => (
             name: enemy['champion_name']?.toString() ?? '',
-            url: enemy['icon_url']?.toString() ?? '',
+            urls: _visionAssetUrls(enemy),
           ),
         )
         .where((entry) => entry.name.isNotEmpty)
@@ -273,7 +273,7 @@ class NativeVisionController extends StateNotifier<NativeVisionState> {
     final stableIconSize = (iconSize / 2).round() * 2;
     final signature = [
       stableIconSize,
-      ...entries.map((entry) => '${entry.name}:${entry.url}'),
+      ...entries.map((entry) => '${entry.name}:${entry.urls.join(',')}'),
     ].join('|');
     if (signature == _targetSignature || signature == _loadingTargetSignature) {
       return;
@@ -286,11 +286,10 @@ class NativeVisionController extends StateNotifier<NativeVisionState> {
     try {
       for (final entry in entries) {
         final cleanName = entry.name.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '');
-        final candidateUrls = [
-          if (entry.url.isNotEmpty) entry.url,
-          'https://ddragon.leagueoflegends.com/cdn/16.17.1/img/champion/$cleanName.png',
+        final candidateUrls = <String>{
+          ...entry.urls,
           'https://cdn.communitydragon.org/latest/champion/$cleanName/square',
-        ];
+        };
 
         for (final url in candidateUrls) {
           try {
@@ -746,4 +745,21 @@ class NativeVisionController extends StateNotifier<NativeVisionState> {
     _capture.dispose();
     super.dispose();
   }
+}
+
+List<String> _visionAssetUrls(Map<String, dynamic> enemy) {
+  final result = <String>[];
+  void add(Object? value) {
+    final url = value?.toString().trim() ?? '';
+    if (url.isNotEmpty && !result.contains(url)) result.add(url);
+  }
+
+  add(enemy['icon_url']);
+  final fallbacks = enemy['icon_fallback_urls'];
+  if (fallbacks is List) {
+    for (final value in fallbacks) {
+      add(value);
+    }
+  }
+  return result;
 }
