@@ -144,6 +144,39 @@ void main() {
       );
     },
   );
+
+  test('loads match documents concurrently to keep Scout responsive', () async {
+    transport.delay = const Duration(milliseconds: 15);
+    transport.responses.addAll({
+      '/lol-match-history/v1/products/lol/player/matches?begIndex=0&endIndex=20':
+          _ok({
+            'games': [
+              {'gameId': 100, 'gameVersion': '16.17.1'},
+              {'gameId': 99, 'gameVersion': '16.17.1'},
+            ],
+          }),
+      '/lol-match-history/v1/games/100': _ok({'gameId': 100}),
+      '/lol-match-history/v1/game-timelines/100': _ok({'frames': <Object?>[]}),
+      '/lol-match-history/v1/games/99': _ok({'gameId': 99}),
+      '/lol-match-history/v1/game-timelines/99': _ok({'frames': <Object?>[]}),
+    });
+    service = LocalScoutSyncService(
+      transport: transport,
+      repository: DriftLocalScoutRepository(database),
+      now: () => DateTime.utc(2026, 9, 1),
+      detailLimit: 2,
+    );
+
+    final result = await service.synchronize(
+      puuid: Puuid('player'),
+      platformId: PlatformId('LA1'),
+      capabilities: _capabilities(history: true),
+    );
+
+    expect(result.detailsStored, 2);
+    expect(result.timelinesStored, 2);
+    expect(transport.maxInFlight, greaterThan(1));
+  });
 }
 
 LcuCapabilities _capabilities({bool history = false, bool ranked = false}) {
@@ -173,6 +206,9 @@ LcuProbeResponse _ok(Object body) =>
 class _FakeTransport implements LcuReadTransport {
   final Map<String, LcuProbeResponse> responses = {};
   final List<String> paths = [];
+  Duration delay = Duration.zero;
+  int inFlight = 0;
+  int maxInFlight = 0;
 
   @override
   Future<Object?> get(String path) async => (await getDetailed(path)).body;
@@ -180,10 +216,17 @@ class _FakeTransport implements LcuReadTransport {
   @override
   Future<LcuProbeResponse> getDetailed(String path) async {
     paths.add(path);
-    return responses[path] ??
-        const LcuProbeResponse.failure(
-          failureKind: LcuProbeFailureKind.clientError,
-          statusCode: 404,
-        );
+    inFlight++;
+    if (inFlight > maxInFlight) maxInFlight = inFlight;
+    try {
+      if (delay > Duration.zero) await Future<void>.delayed(delay);
+      return responses[path] ??
+          const LcuProbeResponse.failure(
+            failureKind: LcuProbeFailureKind.clientError,
+            statusCode: 404,
+          );
+    } finally {
+      inFlight--;
+    }
   }
 }

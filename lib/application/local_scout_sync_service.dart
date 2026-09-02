@@ -13,13 +13,16 @@ class LocalScoutSyncService {
     DateTime Function()? now,
     this.historyLimit = 20,
     this.detailLimit = 10,
-  }) : _now = now ?? DateTime.now;
+    this.detailConcurrency = 4,
+  }) : assert(detailConcurrency > 0),
+       _now = now ?? DateTime.now;
 
   final LcuReadTransport transport;
   final LocalScoutRepository repository;
   final DateTime Function() _now;
   final int historyLimit;
   final int detailLimit;
+  final int detailConcurrency;
 
   Future<LocalScoutSyncResult> synchronize({
     required Puuid puuid,
@@ -82,57 +85,72 @@ class LocalScoutSyncService {
       );
     }
     final games = _extractGames(response.body);
-    for (var index = 0; index < games.length; index++) {
-      final summary = games[index];
-      final gameId = _int(summary['gameId'] ?? summary['game_id']);
-      if (gameId == null) continue;
-      Object? details;
-      Object? timeline;
-      if (index < detailLimit &&
-          capabilities[LcuCapabilityId.matchDetails].status !=
-              LcuCapabilityStatus.unavailable) {
-        final detailResponse = await transport.getDetailed(
-          '/lol-match-history/v1/games/$gameId',
-        );
-        if (detailResponse.isSuccess) {
-          details = detailResponse.body;
-          detailsStored++;
-        }
-        if (capabilities[LcuCapabilityId.matchTimeline].status !=
-            LcuCapabilityStatus.unavailable) {
-          final timelineResponse = await transport.getDetailed(
-            '/lol-match-history/v1/game-timelines/$gameId',
-          );
-          if (timelineResponse.isSuccess) {
-            timeline = timelineResponse.body;
-            timelinesStored++;
+    var nextIndex = 0;
+
+    Future<void> processGames() async {
+      while (nextIndex < games.length) {
+        final index = nextIndex++;
+        final summary = games[index];
+        final gameId = _int(summary['gameId'] ?? summary['game_id']);
+        if (gameId == null) continue;
+        Object? details;
+        Object? timeline;
+        if (index < detailLimit &&
+            capabilities[LcuCapabilityId.matchDetails].status !=
+                LcuCapabilityStatus.unavailable) {
+          final loadTimeline =
+              capabilities[LcuCapabilityId.matchTimeline].status !=
+              LcuCapabilityStatus.unavailable;
+          final documents = await Future.wait([
+            transport.getDetailed('/lol-match-history/v1/games/$gameId'),
+            if (loadTimeline)
+              transport.getDetailed(
+                '/lol-match-history/v1/game-timelines/$gameId',
+              ),
+          ]);
+          final detailResponse = documents.first;
+          if (detailResponse.isSuccess) {
+            details = detailResponse.body;
+            detailsStored++;
+          }
+          if (loadTimeline) {
+            final timelineResponse = documents[1];
+            if (timelineResponse.isSuccess) {
+              timeline = timelineResponse.body;
+              timelinesStored++;
+            }
           }
         }
-      }
-      try {
-        await repository.upsertMatch(
-          LocalMatchRecord(
-            match: MatchKey(platformId: platformId, gameId: gameId),
-            puuid: puuid,
-            patch: _patch(summary['gameVersion'] ?? summary['game_version']),
-            queueId: _int(summary['queueId'] ?? summary['queue_id']),
-            startedAt: _timestamp(
-              summary['gameCreation'] ??
-                  summary['gameStartTimestamp'] ??
-                  summary['gameBeginDate'],
+        try {
+          await repository.upsertMatch(
+            LocalMatchRecord(
+              match: MatchKey(platformId: platformId, gameId: gameId),
+              puuid: puuid,
+              patch: _patch(summary['gameVersion'] ?? summary['game_version']),
+              queueId: _int(summary['queueId'] ?? summary['queue_id']),
+              startedAt: _timestamp(
+                summary['gameCreation'] ??
+                    summary['gameStartTimestamp'] ??
+                    summary['gameBeginDate'],
+              ),
+              endedAt: _timestamp(summary['gameEndTimestamp']),
+              summaryJson: _canonicalJson(summary),
+              detailsJson: details == null ? null : _canonicalJson(details),
+              timelineJson: timeline == null ? null : _canonicalJson(timeline),
+              syncedAt: _now().toUtc(),
             ),
-            endedAt: _timestamp(summary['gameEndTimestamp']),
-            summaryJson: _canonicalJson(summary),
-            detailsJson: details == null ? null : _canonicalJson(details),
-            timelineJson: timeline == null ? null : _canonicalJson(timeline),
-            syncedAt: _now().toUtc(),
-          ),
-        );
-        matchesStored++;
-      } catch (error) {
-        errors.add('$gameId: $error');
+          );
+          matchesStored++;
+        } catch (error) {
+          errors.add('$gameId: $error');
+        }
       }
     }
+
+    final workerCount = games.length < detailConcurrency
+        ? games.length
+        : detailConcurrency;
+    await Future.wait(List.generate(workerCount, (_) => processGames()));
     return LocalScoutSyncResult(
       matchesSeen: games.length,
       matchesStored: matchesStored,
