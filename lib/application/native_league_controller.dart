@@ -293,6 +293,20 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
     client: _lcu,
   )).resolveAndSyncScout(gameName: gameName, tagLine: tagLine);
 
+  Future<LeagueAccountProfile> resolveScoutAccount({
+    required String gameName,
+    required String tagLine,
+  }) => (foundation ??= NativeLeagueFoundation(
+    client: _lcu,
+  )).resolveScoutAccount(gameName: gameName, tagLine: tagLine);
+
+  Future<LocalScoutSyncResult> synchronizeScoutAccount(
+    LeagueAccountProfile account, {
+    Future<void> Function(LocalScoutSyncProgress progress)? onProgress,
+  }) => (foundation ??= NativeLeagueFoundation(
+    client: _lcu,
+  )).synchronizeScoutAccount(account, onProgress: onProgress);
+
   Future<Map<int, String>> loadChampionNames() async {
     if (_championNames.length >= 150) return Map.unmodifiable(_championNames);
     final response = await _lcu.get(

@@ -125,6 +125,18 @@ class NativeLeagueFoundation {
     required String tagLine,
     bool includeHistory = true,
   }) async {
+    final account = await resolveScoutAccount(
+      gameName: gameName,
+      tagLine: tagLine,
+    );
+    await synchronizeScoutAccount(account, includeHistory: includeHistory);
+    return account;
+  }
+
+  Future<LeagueAccountProfile> resolveScoutAccount({
+    required String gameName,
+    required String tagLine,
+  }) async {
     await _ensureInitialized();
     final normalizedName = gameName.trim();
     final normalizedTag = tagLine.trim();
@@ -164,14 +176,24 @@ class NativeLeagueFoundation {
       lastSeenAt: now,
     );
     await _accountRepository!.saveKnownAccount(account);
-    await _scoutSync!.synchronize(
+    return account;
+  }
+
+  Future<LocalScoutSyncResult> synchronizeScoutAccount(
+    LeagueAccountProfile account, {
+    bool includeHistory = true,
+    Future<void> Function(LocalScoutSyncProgress progress)? onProgress,
+  }) async {
+    await _ensureInitialized();
+    final connected = _accounts?.state.context?.account;
+    return _scoutSync!.synchronize(
       puuid: account.puuid,
       platformId: account.platformId,
       capabilities: _state.capabilities,
       currentAccountPuuid: connected?.puuid,
       includeHistory: includeHistory,
+      onProgress: onProgress,
     );
-    return account;
   }
 
   Future<bool> recordTacticalAdvice({

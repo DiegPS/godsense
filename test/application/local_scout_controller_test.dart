@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:godsense/application/local_scout_controller.dart';
 import 'package:godsense/domain/identity/league_identity.dart';
@@ -194,6 +196,69 @@ void main() {
     await controller.useConnectedAccount();
     expect(controller.state.profile['game_name'], 'Diego');
   });
+
+  test(
+    'publishes the resolved profile before synchronization finishes',
+    () async {
+      final synchronizationStarted = Completer<void>();
+      final finishSynchronization = Completer<void>();
+      final progressiveController = LocalScoutController(
+        loadMatches: repository.loadMatches,
+        loadRanked: repository.loadLatestRanked,
+        resolveAccount: ({required gameName, required tagLine}) async =>
+            LeagueAccountProfile(
+              puuid: Puuid('progressive'),
+              platformId: PlatformId('LA1'),
+              riotId: RiotId(gameName: gameName, tagLine: tagLine),
+              firstSeenAt: DateTime.utc(2026, 9, 3),
+              lastSeenAt: DateTime.utc(2026, 9, 3),
+            ),
+        synchronizeAccount: (account, {onProgress}) async {
+          await onProgress?.call(
+            const LocalScoutSyncProgress(
+              stage: LocalScoutSyncStage.ranked,
+              completed: 1,
+              total: 1,
+            ),
+          );
+          synchronizationStarted.complete();
+          await finishSynchronization.future;
+          return const LocalScoutSyncResult(
+            matchesSeen: 0,
+            matchesStored: 0,
+            detailsStored: 0,
+            timelinesStored: 0,
+            rankedStored: false,
+          );
+        },
+      );
+
+      final search = progressiveController.searchRiotId(
+        gameName: 'Visible primero',
+        tagLine: 'LAN',
+      );
+      await synchronizationStarted.future;
+
+      expect(
+        progressiveController.state.profile['game_name'],
+        'Visible primero',
+      );
+      expect(progressiveController.state.loading, isTrue);
+      expect(
+        progressiveController.state.loadingLabel,
+        'Rango recibido. Solicitando partidas…',
+      );
+
+      finishSynchronization.complete();
+      await search;
+      expect(progressiveController.state.loading, isFalse);
+      expect(
+        progressiveController.state.profile['game_name'],
+        'Visible primero',
+      );
+      progressiveController.dispose();
+    },
+  );
 }
 
 LeagueAccountProfile _account() => LeagueAccountProfile(

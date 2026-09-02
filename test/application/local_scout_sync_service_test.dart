@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:godsense/application/local_scout_sync_service.dart';
 import 'package:godsense/domain/identity/league_identity.dart';
 import 'package:godsense/domain/league/lcu_capabilities.dart';
+import 'package:godsense/domain/league/local_scout.dart';
 import 'package:godsense/infrastructure/league/lcu_probe_transport.dart';
 import 'package:godsense/infrastructure/persistence/drift_local_scout_repository.dart';
 import 'package:godsense/infrastructure/persistence/godsense_database.dart';
@@ -160,22 +161,45 @@ void main() {
       '/lol-match-history/v1/games/99': _ok({'gameId': 99}),
       '/lol-match-history/v1/game-timelines/99': _ok({'frames': <Object?>[]}),
     });
+    final progressiveRepository = DriftLocalScoutRepository(database);
     service = LocalScoutSyncService(
       transport: transport,
-      repository: DriftLocalScoutRepository(database),
+      repository: progressiveRepository,
       now: () => DateTime.utc(2026, 9, 1),
       detailLimit: 2,
     );
 
+    var summariesVisibleBeforeDocuments = false;
+    final stages = <LocalScoutSyncStage>[];
     final result = await service.synchronize(
       puuid: Puuid('player'),
       platformId: PlatformId('LA1'),
       capabilities: _capabilities(history: true),
+      onProgress: (progress) async {
+        stages.add(progress.stage);
+        if (progress.stage == LocalScoutSyncStage.matches) {
+          final matches = await progressiveRepository.loadMatches(
+            Puuid('player'),
+          );
+          summariesVisibleBeforeDocuments =
+              matches.length == 2 &&
+              matches.every(
+                (match) =>
+                    match.detailsJson == null && match.timelineJson == null,
+              );
+        }
+      },
     );
 
     expect(result.detailsStored, 2);
     expect(result.timelinesStored, 2);
     expect(transport.maxInFlight, greaterThan(1));
+    expect(summariesVisibleBeforeDocuments, isTrue);
+    expect(stages.first, LocalScoutSyncStage.matches);
+    expect(
+      stages.where((stage) => stage == LocalScoutSyncStage.documents),
+      hasLength(2),
+    );
   });
 }
 

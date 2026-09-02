@@ -19,6 +19,10 @@ typedef ResolveScoutAccount = Future<LeagueAccountProfile> Function({
   required String gameName,
   required String tagLine,
 });
+typedef SynchronizeScoutAccount = Future<LocalScoutSyncResult> Function(
+  LeagueAccountProfile account, {
+  Future<void> Function(LocalScoutSyncProgress progress)? onProgress,
+});
 typedef LoadChampionNames = Future<Map<int, String>> Function();
 
 class LocalScoutState {
@@ -65,12 +69,14 @@ class LocalScoutController extends StateNotifier<LocalScoutState> {
     required LoadLocalMatches loadMatches,
     required LoadLocalRanked loadRanked,
     ResolveScoutAccount? resolveAccount,
+    SynchronizeScoutAccount? synchronizeAccount,
     LoadChampionNames? loadChampionNames,
     ScoutProfileAnalyzer analyzer = const ScoutProfileAnalyzer(),
     LocalScoutState initialState = const LocalScoutState(),
   }) : _loadMatches = loadMatches,
        _loadRanked = loadRanked,
        _resolveAccount = resolveAccount,
+       _synchronizeAccount = synchronizeAccount,
        _loadChampionNames = loadChampionNames,
        _analyzer = analyzer,
        super(initialState);
@@ -78,6 +84,7 @@ class LocalScoutController extends StateNotifier<LocalScoutState> {
   final LoadLocalMatches _loadMatches;
   final LoadLocalRanked _loadRanked;
   final ResolveScoutAccount? _resolveAccount;
+  final SynchronizeScoutAccount? _synchronizeAccount;
   final LoadChampionNames? _loadChampionNames;
   final ScoutProfileAnalyzer _analyzer;
   Map<int, String> _championNames = const {};
@@ -109,26 +116,7 @@ class LocalScoutController extends StateNotifier<LocalScoutState> {
       clearError: true,
     );
     try {
-      final results = await Future.wait<Object?>([
-        _loadMatches(account.puuid, limit: 30),
-        _loadRanked(account.puuid),
-        _loadChampionNamesSafely(),
-      ]);
-      if (revision != _revision) return;
-      final matches = results[0] as List<LocalMatchRecord>;
-      final ranked = results[1] as LocalRankedSnapshot?;
-      _championNames = results[2] as Map<int, String>;
-      final analytics = _analyzer.analyze(
-        matches,
-        puuid: account.puuid,
-        championNames: _championNames,
-      );
-      state = LocalScoutState(
-        profile: _profile(account, ranked, analytics),
-        matches: matches
-            .map((match) => _matchSummary(match, _championNames))
-            .toList(growable: false),
-      );
+      await _publishAccount(account, revision: revision, loading: false);
     } catch (error) {
       if (revision != _revision) return;
       state = state.copyWith(
@@ -150,45 +138,51 @@ class LocalScoutController extends StateNotifier<LocalScoutState> {
     }
     final wasShowingConnectedAccount = _showingConnectedAccount;
     final previousAccount = _account;
+    var accountResolved = false;
     _showingConnectedAccount = false;
     final revision = ++_revision;
     state = state.copyWith(
       loading: true,
-      loadingLabel: 'Buscando $gameName#$tagLine y sincronizando partidas…',
+      loadingLabel: 'Buscando $gameName#$tagLine…',
       clearError: true,
     );
     try {
       final account = await resolver(gameName: gameName, tagLine: tagLine);
       if (revision != _revision) return;
+      accountResolved = true;
       _account = account;
-      state = state.copyWith(
-        loading: true,
-        loadingLabel: 'Preparando el perfil de $gameName#$tagLine…',
+      await _publishAccount(
+        account,
+        revision: revision,
+        loading: _synchronizeAccount != null,
+        loadingLabel: _synchronizeAccount == null
+            ? null
+            : 'Perfil encontrado. Solicitando rango e historial…',
       );
-      final results = await Future.wait<Object?>([
-        _loadMatches(account.puuid, limit: 30),
-        _loadRanked(account.puuid),
-        _loadChampionNamesSafely(),
-      ]);
       if (revision != _revision) return;
-      final matches = results[0] as List<LocalMatchRecord>;
-      final ranked = results[1] as LocalRankedSnapshot?;
-      _championNames = results[2] as Map<int, String>;
-      final analytics = _analyzer.analyze(
-        matches,
-        puuid: account.puuid,
-        championNames: _championNames,
-      );
-      state = LocalScoutState(
-        profile: _profile(account, ranked, analytics),
-        matches: matches
-            .map((match) => _matchSummary(match, _championNames))
-            .toList(growable: false),
-      );
+      final synchronizer = _synchronizeAccount;
+      if (synchronizer != null) {
+        await synchronizer(
+          account,
+          onProgress: (progress) async {
+            if (revision != _revision) return;
+            await _publishAccount(
+              account,
+              revision: revision,
+              loading: true,
+              loadingLabel: _progressLabel(progress),
+            );
+          },
+        );
+        if (revision != _revision) return;
+        await _publishAccount(account, revision: revision, loading: false);
+      }
     } catch (error) {
       if (revision != _revision) return;
-      _showingConnectedAccount = wasShowingConnectedAccount;
-      _account = previousAccount;
+      if (!accountResolved) {
+        _showingConnectedAccount = wasShowingConnectedAccount;
+        _account = previousAccount;
+      }
       state = state.copyWith(
         loading: false,
         lastError: error.toString(),
@@ -208,6 +202,36 @@ class LocalScoutController extends StateNotifier<LocalScoutState> {
     } catch (_) {
       return _championNames;
     }
+  }
+
+  Future<void> _publishAccount(
+    LeagueAccountProfile account, {
+    required int revision,
+    required bool loading,
+    String? loadingLabel,
+  }) async {
+    final results = await Future.wait<Object?>([
+      _loadMatches(account.puuid, limit: 30),
+      _loadRanked(account.puuid),
+      _loadChampionNamesSafely(),
+    ]);
+    if (revision != _revision) return;
+    final matches = results[0] as List<LocalMatchRecord>;
+    final ranked = results[1] as LocalRankedSnapshot?;
+    _championNames = results[2] as Map<int, String>;
+    final analytics = _analyzer.analyze(
+      matches,
+      puuid: account.puuid,
+      championNames: _championNames,
+    );
+    state = LocalScoutState(
+      loading: loading,
+      loadingLabel: loadingLabel,
+      profile: _profile(account, ranked, analytics),
+      matches: matches
+          .map((match) => _matchSummary(match, _championNames))
+          .toList(growable: false),
+    );
   }
 
   Future<void> refresh() => _showAccount(
@@ -247,6 +271,15 @@ class LocalScoutController extends StateNotifier<LocalScoutState> {
     super.dispose();
   }
 }
+
+String _progressLabel(LocalScoutSyncProgress progress) =>
+    switch (progress.stage) {
+      LocalScoutSyncStage.ranked => 'Rango recibido. Solicitando partidas…',
+      LocalScoutSyncStage.matches =>
+        '${progress.completed} partidas recibidas. Cargando detalles…',
+      LocalScoutSyncStage.documents =>
+        'Detalles ${progress.completed}/${progress.total} recibidos…',
+    };
 
 Map<String, dynamic> _profile(
   LeagueAccountProfile account,

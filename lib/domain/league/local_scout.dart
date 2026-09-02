@@ -67,3 +67,17 @@ class LocalScoutSyncResult {
   final bool rankedStored;
   final String? error;
 }
+
+enum LocalScoutSyncStage { ranked, matches, documents }
+
+class LocalScoutSyncProgress {
+  const LocalScoutSyncProgress({
+    required this.stage,
+    required this.completed,
+    required this.total,
+  });
+
+  final LocalScoutSyncStage stage;
+  final int completed;
+  final int total;
+}

@@ -30,6 +30,7 @@ class LocalScoutSyncService {
     required LcuCapabilities capabilities,
     Puuid? currentAccountPuuid,
     bool includeHistory = true,
+    Future<void> Function(LocalScoutSyncProgress progress)? onProgress,
   }) async {
     var rankedStored = false;
     var matchesStored = 0;
@@ -54,6 +55,14 @@ class LocalScoutSyncService {
             payloadJson: utf8.decode(encoded.bytes),
             observedAt: _now().toUtc(),
             semanticHash: encoded.semanticHash,
+          ),
+        );
+        await _notify(
+          onProgress,
+          const LocalScoutSyncProgress(
+            stage: LocalScoutSyncStage.ranked,
+            completed: 1,
+            total: 1,
           ),
         );
       }
@@ -85,72 +94,102 @@ class LocalScoutSyncService {
       );
     }
     final games = _extractGames(response.body);
-    var nextIndex = 0;
+    final summaries = <({int index, int gameId, Map<String, Object?> data})>[];
+    for (var index = 0; index < games.length; index++) {
+      final summary = games[index];
+      final gameId = _int(summary['gameId'] ?? summary['game_id']);
+      if (gameId == null) continue;
+      try {
+        await repository.upsertMatch(
+          _record(
+            puuid: puuid,
+            platformId: platformId,
+            gameId: gameId,
+            summary: summary,
+          ),
+        );
+        matchesStored++;
+        summaries.add((index: index, gameId: gameId, data: summary));
+      } catch (error) {
+        errors.add('$gameId: $error');
+      }
+    }
+    await _notify(
+      onProgress,
+      LocalScoutSyncProgress(
+        stage: LocalScoutSyncStage.matches,
+        completed: matchesStored,
+        total: games.length,
+      ),
+    );
 
-    Future<void> processGames() async {
-      while (nextIndex < games.length) {
-        final index = nextIndex++;
-        final summary = games[index];
-        final gameId = _int(summary['gameId'] ?? summary['game_id']);
-        if (gameId == null) continue;
+    final documentJobs =
+        capabilities[LcuCapabilityId.matchDetails].status ==
+            LcuCapabilityStatus.unavailable
+        ? const <({int index, int gameId, Map<String, Object?> data})>[]
+        : summaries
+              .where((item) => item.index < detailLimit)
+              .toList(growable: false);
+    var nextIndex = 0;
+    var documentsCompleted = 0;
+
+    Future<void> processDocuments() async {
+      while (nextIndex < documentJobs.length) {
+        final job = documentJobs[nextIndex++];
         Object? details;
         Object? timeline;
-        if (index < detailLimit &&
-            capabilities[LcuCapabilityId.matchDetails].status !=
-                LcuCapabilityStatus.unavailable) {
-          final loadTimeline =
-              capabilities[LcuCapabilityId.matchTimeline].status !=
-              LcuCapabilityStatus.unavailable;
-          final documents = await Future.wait([
-            transport.getDetailed('/lol-match-history/v1/games/$gameId'),
-            if (loadTimeline)
-              transport.getDetailed(
-                '/lol-match-history/v1/game-timelines/$gameId',
-              ),
-          ]);
-          final detailResponse = documents.first;
-          if (detailResponse.isSuccess) {
-            details = detailResponse.body;
-            detailsStored++;
-          }
-          if (loadTimeline) {
-            final timelineResponse = documents[1];
-            if (timelineResponse.isSuccess) {
-              timeline = timelineResponse.body;
-              timelinesStored++;
-            }
+        final loadTimeline =
+            capabilities[LcuCapabilityId.matchTimeline].status !=
+            LcuCapabilityStatus.unavailable;
+        final documents = await Future.wait([
+          transport.getDetailed('/lol-match-history/v1/games/${job.gameId}'),
+          if (loadTimeline)
+            transport.getDetailed(
+              '/lol-match-history/v1/game-timelines/${job.gameId}',
+            ),
+        ]);
+        final detailResponse = documents.first;
+        if (detailResponse.isSuccess) {
+          details = detailResponse.body;
+          detailsStored++;
+        }
+        if (loadTimeline) {
+          final timelineResponse = documents[1];
+          if (timelineResponse.isSuccess) {
+            timeline = timelineResponse.body;
+            timelinesStored++;
           }
         }
         try {
           await repository.upsertMatch(
-            LocalMatchRecord(
-              match: MatchKey(platformId: platformId, gameId: gameId),
+            _record(
               puuid: puuid,
-              patch: _patch(summary['gameVersion'] ?? summary['game_version']),
-              queueId: _int(summary['queueId'] ?? summary['queue_id']),
-              startedAt: _timestamp(
-                summary['gameCreation'] ??
-                    summary['gameStartTimestamp'] ??
-                    summary['gameBeginDate'],
-              ),
-              endedAt: _timestamp(summary['gameEndTimestamp']),
-              summaryJson: _canonicalJson(summary),
-              detailsJson: details == null ? null : _canonicalJson(details),
-              timelineJson: timeline == null ? null : _canonicalJson(timeline),
-              syncedAt: _now().toUtc(),
+              platformId: platformId,
+              gameId: job.gameId,
+              summary: job.data,
+              details: details,
+              timeline: timeline,
             ),
           );
-          matchesStored++;
         } catch (error) {
-          errors.add('$gameId: $error');
+          errors.add('${job.gameId}: $error');
         }
+        documentsCompleted++;
+        await _notify(
+          onProgress,
+          LocalScoutSyncProgress(
+            stage: LocalScoutSyncStage.documents,
+            completed: documentsCompleted,
+            total: documentJobs.length,
+          ),
+        );
       }
     }
 
-    final workerCount = games.length < detailConcurrency
-        ? games.length
+    final workerCount = documentJobs.length < detailConcurrency
+        ? documentJobs.length
         : detailConcurrency;
-    await Future.wait(List.generate(workerCount, (_) => processGames()));
+    await Future.wait(List.generate(workerCount, (_) => processDocuments()));
     return LocalScoutSyncResult(
       matchesSeen: games.length,
       matchesStored: matchesStored,
@@ -167,6 +206,42 @@ class LocalScoutSyncService {
       if (response.isSuccess) return response.body;
     }
     return null;
+  }
+
+  LocalMatchRecord _record({
+    required Puuid puuid,
+    required PlatformId platformId,
+    required int gameId,
+    required Map<String, Object?> summary,
+    Object? details,
+    Object? timeline,
+  }) => LocalMatchRecord(
+    match: MatchKey(platformId: platformId, gameId: gameId),
+    puuid: puuid,
+    patch: _patch(summary['gameVersion'] ?? summary['game_version']),
+    queueId: _int(summary['queueId'] ?? summary['queue_id']),
+    startedAt: _timestamp(
+      summary['gameCreation'] ??
+          summary['gameStartTimestamp'] ??
+          summary['gameBeginDate'],
+    ),
+    endedAt: _timestamp(summary['gameEndTimestamp']),
+    summaryJson: _canonicalJson(summary),
+    detailsJson: details == null ? null : _canonicalJson(details),
+    timelineJson: timeline == null ? null : _canonicalJson(timeline),
+    syncedAt: _now().toUtc(),
+  );
+}
+
+Future<void> _notify(
+  Future<void> Function(LocalScoutSyncProgress progress)? callback,
+  LocalScoutSyncProgress progress,
+) async {
+  if (callback == null) return;
+  try {
+    await callback(progress);
+  } catch (_) {
+    // Presentation refresh failures must not abort persistence.
   }
 }
 
