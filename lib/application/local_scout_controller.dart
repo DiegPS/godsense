@@ -26,6 +26,9 @@ typedef SynchronizeScoutAccount = Future<LocalScoutSyncResult> Function(
   Future<void> Function(LocalScoutSyncProgress progress)? onProgress,
 });
 typedef LoadChampionNames = Future<Map<int, String>> Function();
+typedef LoadScoutMatchDetails = Future<LocalMatchRecord> Function(
+  LocalMatchRecord cached,
+);
 
 class LocalScoutState {
   const LocalScoutState({
@@ -37,6 +40,8 @@ class LocalScoutState {
     this.analytics,
     this.typedMatches = const [],
     this.typedSelectedMatch,
+    this.loadingMatchIds = const {},
+    this.matchDetailErrors = const {},
     this.lastError,
     // Legacy maps for backwards compatibility
     Map<String, dynamic>? profile,
@@ -54,6 +59,8 @@ class LocalScoutState {
   final ScoutProfileAnalytics? analytics;
   final List<ScoutMatchSummary> typedMatches;
   final ScoutMatchSummary? typedSelectedMatch;
+  final Set<int> loadingMatchIds;
+  final Map<int, String> matchDetailErrors;
   final String? lastError;
 
   final Map<String, dynamic>? _legacyProfile;
@@ -176,6 +183,8 @@ class LocalScoutState {
     ScoutProfileAnalytics? analytics,
     List<ScoutMatchSummary>? typedMatches,
     ScoutMatchSummary? typedSelectedMatch,
+    Set<int>? loadingMatchIds,
+    Map<int, String>? matchDetailErrors,
     bool clearSubject = false,
     bool clearSelection = false,
     String? lastError,
@@ -192,6 +201,8 @@ class LocalScoutState {
     rankedSnapshot: rankedSnapshot ?? this.rankedSnapshot,
     analytics: analytics ?? this.analytics,
     typedMatches: typedMatches ?? this.typedMatches,
+    loadingMatchIds: loadingMatchIds ?? this.loadingMatchIds,
+    matchDetailErrors: matchDetailErrors ?? this.matchDetailErrors,
     typedSelectedMatch: clearSelection
         ? null
         : typedSelectedMatch ?? this.typedSelectedMatch,
@@ -209,6 +220,7 @@ class LocalScoutController extends StateNotifier<LocalScoutState> {
     ResolveScoutAccount? resolveAccount,
     SynchronizeScoutAccount? synchronizeAccount,
     LoadChampionNames? loadChampionNames,
+    LoadScoutMatchDetails? loadMatchDetails,
     ScoutProfileAnalyzer analyzer = const ScoutProfileAnalyzer(),
     LocalScoutState initialState = const LocalScoutState(),
   }) : _loadMatches = loadMatches,
@@ -216,6 +228,7 @@ class LocalScoutController extends StateNotifier<LocalScoutState> {
        _resolveAccount = resolveAccount,
        _synchronizeAccount = synchronizeAccount,
        _loadChampionNames = loadChampionNames,
+       _loadMatchDetails = loadMatchDetails,
        _analyzer = analyzer,
        super(initialState);
 
@@ -224,17 +237,22 @@ class LocalScoutController extends StateNotifier<LocalScoutState> {
   final ResolveScoutAccount? _resolveAccount;
   final SynchronizeScoutAccount? _synchronizeAccount;
   final LoadChampionNames? _loadChampionNames;
+  final LoadScoutMatchDetails? _loadMatchDetails;
   final ScoutProfileAnalyzer _analyzer;
   Map<int, String> _championNames = const {};
   LeagueAccountProfile? _subjectAccount;
   LeagueAccountProfile? _connectedAccount;
   bool _showingConnectedAccount = true;
   int _revision = 0;
+  int _detailRevision = 0;
 
   Future<void> loadAccount(LeagueAccountProfile? account) async {
     _connectedAccount = account;
     if (account == null) {
       if (_showingConnectedAccount) {
+        _revision++;
+        _detailRevision++;
+        _subjectAccount = null;
         state = const LocalScoutState();
       }
       return;
@@ -258,9 +276,12 @@ class LocalScoutController extends StateNotifier<LocalScoutState> {
     }
 
     final revision = ++_revision;
+    _detailRevision++;
     state = state.copyWith(
       loading: true,
       loadingLabel: 'Buscando invocador $gameName#$tagLine…',
+      loadingMatchIds: const {},
+      matchDetailErrors: const {},
       clearError: true,
     );
 
@@ -269,8 +290,11 @@ class LocalScoutController extends StateNotifier<LocalScoutState> {
       if (revision != _revision) return;
       _showingConnectedAccount = false;
       _subjectAccount = account;
-      state = state.copyWith(
+      _detailRevision++;
+      state = LocalScoutState(
+        loading: true,
         subjectAccount: account,
+        activeUserAccount: state.activeUserAccount,
         loadingLabel: 'Invocador encontrado. Sincronizando historial…',
       );
       await _hydrate(account, synchronizeIfAvailable: true);
@@ -308,9 +332,22 @@ class LocalScoutController extends StateNotifier<LocalScoutState> {
     required bool synchronizeIfAvailable,
   }) async {
     final revision = ++_revision;
+    final subjectChanged =
+        state.subjectAccount?.puuid != account.puuid ||
+        state.subjectAccount?.platformId != account.platformId;
+    if (subjectChanged) {
+      _detailRevision++;
+      state = LocalScoutState(
+        subjectAccount: account,
+        activeUserAccount: state.activeUserAccount,
+      );
+    }
     state = state.copyWith(
       loading: true,
       loadingLabel: 'Cargando datos locales…',
+      loadingMatchIds: subjectChanged ? const {} : null,
+      matchDetailErrors: subjectChanged ? const {} : null,
+      clearSelection: subjectChanged,
       clearError: true,
     );
 
@@ -336,7 +373,7 @@ class LocalScoutController extends StateNotifier<LocalScoutState> {
         subjectAccount: account,
         rankedSnapshot: ranked,
         analytics: analytics,
-        typedMatches: typedMatches,
+        typedMatches: _preserveLoadedDetails(typedMatches, account),
         loading: synchronizeIfAvailable && _synchronizeAccount != null,
         loadingLabel: synchronizeIfAvailable && _synchronizeAccount != null
             ? 'Sincronizando con League Client…'
@@ -378,7 +415,7 @@ class LocalScoutController extends StateNotifier<LocalScoutState> {
           subjectAccount: account,
           rankedSnapshot: ranked,
           analytics: freshAnalytics,
-          typedMatches: freshTypedMatches,
+          typedMatches: _preserveLoadedDetails(freshTypedMatches, account),
           lastError: syncResult.error,
         );
       } else {
@@ -403,37 +440,101 @@ class LocalScoutController extends StateNotifier<LocalScoutState> {
     } catch (_) {}
   }
 
+  List<ScoutMatchSummary> _preserveLoadedDetails(
+    List<ScoutMatchSummary> matches,
+    LeagueAccountProfile account,
+  ) {
+    if (state.subjectAccount?.puuid != account.puuid ||
+        state.subjectAccount?.platformId != account.platformId) {
+      return matches;
+    }
+    final loaded = {
+      for (final match in state.typedMatches)
+        if (match.hasFullDetails) match.matchId: match,
+    };
+    return [
+      for (final match in matches)
+        if (!match.hasFullDetails && loaded.containsKey(match.matchId))
+          loaded[match.matchId]!
+        else
+          match,
+    ];
+  }
+
   Future<void> selectMatch(int gameId) async {
-    final account = _subjectAccount ?? _connectedAccount;
-    if (account == null) return;
-    final revision = _revision;
+    final account =
+        state.subjectAccount ?? _subjectAccount ?? _connectedAccount;
+    if (account == null || state.loadingMatchIds.contains(gameId)) return;
+    final revision = _detailRevision;
+    state = state.copyWith(
+      loadingMatchIds: {...state.loadingMatchIds, gameId},
+      matchDetailErrors: {...state.matchDetailErrors}..remove(gameId),
+    );
     try {
       final matches = await _loadMatches(account.puuid, limit: 100);
-      if (revision != _revision) return;
-      final match = matches
-          .where((item) => item.match.gameId == gameId)
+      if (revision != _detailRevision) return;
+      var match = matches
+          .where(
+            (item) =>
+                item.match.gameId == gameId &&
+                item.match.platformId == account.platformId,
+          )
           .firstOrNull;
       if (match == null) {
         throw StateError('La partida $gameId no está en caché.');
       }
-      final typedSummary = _buildMatchSummary(
+      var typedSummary = _buildMatchSummary(
         match,
         account.puuid,
         _championNames,
       );
+      if (!typedSummary.hasFullDetails) {
+        final loader = _loadMatchDetails;
+        if (loader == null) {
+          throw StateError(
+            'Conecta League para cargar los detalles de esta partida.',
+          );
+        }
+        match = await loader(match);
+        if (revision != _detailRevision) return;
+        typedSummary = _buildMatchSummary(match, account.puuid, _championNames);
+        if (!typedSummary.hasFullDetails) {
+          throw StateError(
+            'League devolvió detalles incompletos para esta partida.',
+          );
+        }
+      }
       state = state.copyWith(
         typedSelectedMatch: typedSummary,
+        typedMatches: [
+          for (final item in state.typedMatches)
+            if (item.matchId == gameId) typedSummary else item,
+        ],
         clearError: true,
       );
     } catch (error) {
-      if (revision != _revision) return;
-      state = state.copyWith(lastError: error.toString());
+      if (revision != _detailRevision) return;
+      state = state.copyWith(
+        matchDetailErrors: {
+          ...state.matchDetailErrors,
+          gameId: error is StateError
+              ? error.message
+              : 'No se pudieron cargar los detalles. Vuelve a intentarlo.',
+        },
+      );
+    } finally {
+      if (revision == _detailRevision) {
+        state = state.copyWith(
+          loadingMatchIds: {...state.loadingMatchIds}..remove(gameId),
+        );
+      }
     }
   }
 
   @override
   void dispose() {
     _revision++;
+    _detailRevision++;
     super.dispose();
   }
 }
@@ -456,11 +557,27 @@ ScoutMatchSummary _buildMatchSummary(
   final detailsJson = record.detailsJson;
   final details = detailsJson != null ? _map(_decode(detailsJson)) : summary;
 
-  final participant = _subjectParticipant(summary, puuid);
+  final summaryParticipant = _subjectParticipant(summary, puuid);
+  final detailParticipant = _subjectParticipant(details, puuid);
+  final participant = {
+    ...summaryParticipant,
+    ...detailParticipant,
+    'stats': {
+      ..._map(summaryParticipant['stats']),
+      ..._map(detailParticipant['stats']),
+    },
+    'timeline': {
+      ..._map(summaryParticipant['timeline']),
+      ..._map(detailParticipant['timeline']),
+    },
+  };
   final stats = _map(participant['stats']);
   final timeline = _map(participant['timeline']);
   final championId = (participant['championId'] as num?)?.toInt() ?? 0;
-  final seconds = (summary['gameDuration'] as num?)?.toDouble() ?? 0;
+  final seconds =
+      ((details['gameDuration'] ?? summary['gameDuration']) as num?)
+          ?.toDouble() ??
+      0;
   final durationMinutes = seconds <= 0 ? 0.0 : seconds / 60;
 
   final kills = (stats['kills'] as num?)?.toInt() ?? 0;
@@ -508,7 +625,7 @@ ScoutMatchSummary _buildMatchSummary(
 
   // Compute team kills for KP%
   final teamId = (participant['teamId'] as num?)?.toInt();
-  final allParticipants = _mapList(summary['participants']);
+  final allParticipants = _mapList(details['participants']);
   int teamKills = 0;
   if (teamId != null) {
     for (final p in allParticipants) {
@@ -662,7 +779,7 @@ ScoutMatchSummary _buildMatchSummary(
     spell1IconUrl: spell1Id != null ? _spellIcon(spell1Id, patchVersion) : null,
     spell2IconUrl: spell2Id != null ? _spellIcon(spell2Id, patchVersion) : null,
     performanceScore: performanceScore,
-    hasFullDetails: detailsJson != null,
+    hasFullDetails: detailsJson != null && participantsList.isNotEmpty,
     teams: teams,
     participants: participantsList,
   );

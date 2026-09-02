@@ -53,7 +53,7 @@ class MatchupHeroCard extends StatelessWidget {
                   'VS',
                   style: TextStyle(
                     color: CoachColors.secondaryText,
-                    fontWeight: FontWeight.w900,
+                    fontWeight: FontWeight.w700,
                     fontSize: 18,
                   ),
                 ),

@@ -49,7 +49,7 @@ class _Route extends StatelessWidget {
               style: const TextStyle(
                 color: CoachColors.cyan,
                 fontSize: 11,
-                fontWeight: FontWeight.w800,
+                fontWeight: FontWeight.w700,
               ),
             ),
           ),

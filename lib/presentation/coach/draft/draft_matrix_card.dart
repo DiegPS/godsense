@@ -74,7 +74,7 @@ class _Roster extends StatelessWidget {
           style: TextStyle(
             color: color,
             fontSize: 11,
-            fontWeight: FontWeight.w800,
+            fontWeight: FontWeight.w700,
             letterSpacing: .8,
           ),
         ),
@@ -170,7 +170,7 @@ class _DraftPlayerRow extends StatelessWidget {
                       ? CoachColors.emerald
                       : CoachColors.amber,
                   fontSize: 9,
-                  fontWeight: FontWeight.w800,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
             ),

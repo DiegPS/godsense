@@ -24,6 +24,43 @@ class LocalScoutSyncService {
   final int detailLimit;
   final int detailConcurrency;
 
+  Future<LocalMatchRecord> loadMatchDetails(LocalMatchRecord cached) async {
+    final response = await transport.getDetailed(
+      '/lol-match-history/v1/games/${cached.match.gameId}',
+    );
+    if (!response.isSuccess) {
+      throw StateError(
+        response.statusCode == 404
+            ? 'League no tiene disponibles los detalles de esta partida.'
+            : 'No se pudieron cargar los detalles. Comprueba que League esté abierto y vuelve a intentarlo.',
+      );
+    }
+    final body = response.body;
+    if (body is! Map ||
+        body['participants'] is! List ||
+        (body['participants'] as List).isEmpty ||
+        (body['gameId'] != null &&
+            _int(body['gameId']) != cached.match.gameId)) {
+      throw StateError(
+        'League devolvió detalles incompletos para esta partida.',
+      );
+    }
+    final record = LocalMatchRecord(
+      match: cached.match,
+      puuid: cached.puuid,
+      patch: cached.patch,
+      queueId: cached.queueId,
+      startedAt: cached.startedAt,
+      endedAt: cached.endedAt,
+      summaryJson: cached.summaryJson,
+      detailsJson: _canonicalJson(body),
+      timelineJson: cached.timelineJson,
+      syncedAt: _now().toUtc(),
+    );
+    await repository.upsertMatch(record);
+    return record;
+  }
+
   Future<LocalScoutSyncResult> synchronize({
     required Puuid puuid,
     required PlatformId platformId,

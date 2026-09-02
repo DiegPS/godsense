@@ -146,6 +146,7 @@ final localScoutProvider =
       final controller = LocalScoutController(
         loadMatches: league.loadLocalMatches,
         loadRanked: league.loadLocalRanked,
+        loadMatchDetails: league.loadScoutMatchDetails,
         resolveAccount: league.resolveScoutAccount,
         synchronizeAccount: league.synchronizeScoutAccount,
         loadChampionNames: league.loadChampionNames,

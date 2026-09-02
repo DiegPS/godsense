@@ -45,13 +45,13 @@ class NativeSpeechSettingsCard extends ConsumerWidget {
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
             child: Wrap(
               spacing: 12,
-              runSpacing: 10,
-              crossAxisAlignment: WrapCrossAlignment.center,
+              runSpacing: 16,
+              crossAxisAlignment: WrapCrossAlignment.start,
               children: [
                 GsSelect<String>(
-                  label: 'TECLA PARA HABLAR',
+                  label: 'Tecla para hablar',
                   value: settings.pushToTalkKey,
-                  width: 110,
+                  width: 160,
                   items: const {
                     'delete': 'Delete',
                     'space': 'Space',
@@ -65,9 +65,9 @@ class NativeSpeechSettingsCard extends ConsumerWidget {
                       update(settings.copyWith(pushToTalkKey: value)),
                 ),
                 GsSelect<String>(
-                  label: 'IDIOMA QUE HABLAS',
+                  label: 'Idioma que hablas',
                   value: settings.sttLanguage,
-                  width: 120,
+                  width: 180,
                   items: {
                     for (final language in SpeechModelCatalog.canary.languages)
                       language.code: language.label,
@@ -82,7 +82,7 @@ class NativeSpeechSettingsCard extends ConsumerWidget {
                     const Text(
                       'Claridad del micrófono',
                       style: TextStyle(
-                        fontSize: 11,
+                        fontSize: 13,
                         fontWeight: FontWeight.w600,
                         color: GsColors.textSecondary,
                       ),
@@ -104,7 +104,7 @@ class NativeSpeechSettingsCard extends ConsumerWidget {
                     const Text(
                       'Reconocimiento de voz',
                       style: TextStyle(
-                        fontSize: 11,
+                        fontSize: 13,
                         fontWeight: FontWeight.w600,
                         color: GsColors.textSecondary,
                       ),
@@ -163,7 +163,7 @@ class NativeSpeechSettingsCard extends ConsumerWidget {
                     child: SelectableText(
                       'Última transcripción: "${state.transcript}"',
                       style: const TextStyle(
-                        fontSize: 11,
+                        fontSize: 13,
                         color: GsColors.textPrimary,
                       ),
                     ),
@@ -186,13 +186,13 @@ class NativeSpeechSettingsCard extends ConsumerWidget {
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
             child: Wrap(
               spacing: 12,
-              runSpacing: 10,
-              crossAxisAlignment: WrapCrossAlignment.center,
+              runSpacing: 16,
+              crossAxisAlignment: WrapCrossAlignment.start,
               children: [
                 GsSelect<String>(
-                  label: 'TIPO DE VOZ',
+                  label: 'Tipo de voz',
                   value: selectedModel.id,
-                  width: 200,
+                  width: 300,
                   items: {
                     for (final model in TtsModelCatalog.models)
                       model.id: '${model.name} · ${model.description}',
@@ -214,7 +214,7 @@ class NativeSpeechSettingsCard extends ConsumerWidget {
                 GsSelect<String>(
                   label: 'Voz',
                   value: selectedModel.voice(settings.ttsVoice).id,
-                  width: 140,
+                  width: 200,
                   items: {
                     for (final voice in selectedModel.voices)
                       voice.id: voice.label,
@@ -223,11 +223,11 @@ class NativeSpeechSettingsCard extends ConsumerWidget {
                       update(settings.copyWith(ttsVoice: value)),
                 ),
                 GsSelect<String>(
-                  label: 'IDIOMA DE RESPUESTA',
+                  label: 'Idioma de respuesta',
                   value: selectedModel.supportsLanguage(settings.ttsLanguage)
                       ? settings.ttsLanguage
                       : selectedModel.languages.first.code,
-                  width: 120,
+                  width: 180,
                   items: {
                     for (final language in selectedModel.languages)
                       language.code: language.label,
@@ -247,7 +247,7 @@ class NativeSpeechSettingsCard extends ConsumerWidget {
                   child: Text(
                     'Velocidad',
                     style: TextStyle(
-                      fontSize: 12,
+                      fontSize: 13,
                       color: GsColors.textSecondary,
                     ),
                   ),
@@ -266,11 +266,11 @@ class NativeSpeechSettingsCard extends ConsumerWidget {
                   ),
                 ),
                 SizedBox(
-                  width: 40,
+                  width: 56,
                   child: Text(
                     '${settings.ttsSpeed.toStringAsFixed(2)}x',
                     style: const TextStyle(
-                      fontSize: 11,
+                      fontSize: 13,
                       fontWeight: FontWeight.w700,
                       color: GsColors.cyan,
                     ),
@@ -285,7 +285,7 @@ class NativeSpeechSettingsCard extends ConsumerWidget {
               child: Wrap(
                 spacing: 12,
                 runSpacing: 8,
-                crossAxisAlignment: WrapCrossAlignment.center,
+                crossAxisAlignment: WrapCrossAlignment.start,
                 children: [
                   GsButton(
                     label: 'Elegir WAV autorizado',
@@ -315,7 +315,7 @@ class NativeSpeechSettingsCard extends ConsumerWidget {
                           : settings.referenceAudioPath,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        fontSize: 11,
+                        fontSize: 13,
                         color: GsColors.textSecondary,
                       ),
                     ),
@@ -401,7 +401,7 @@ class NativeSpeechSettingsCard extends ConsumerWidget {
               ),
               child: Text(
                 'No pudimos preparar el audio. Vuelve a intentarlo o elige otra voz.',
-                style: const TextStyle(color: GsColors.crimson, fontSize: 11),
+                style: const TextStyle(color: GsColors.crimson, fontSize: 13),
               ),
             ),
           ],
@@ -474,7 +474,7 @@ class _ModelAvailability extends StatelessWidget {
       Text(
         checking ? 'Comprobando…' : 'Instalado',
         style: TextStyle(
-          fontSize: 12,
+          fontSize: 13,
           fontWeight: FontWeight.w600,
           color: checking ? GsColors.textSecondary : GsColors.emerald,
         ),

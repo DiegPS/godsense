@@ -28,7 +28,7 @@ class GoldTimelineCard extends StatelessWidget {
           '${favorable ? '+' : '−'}${differential.abs()}',
           style: TextStyle(
             color: favorable ? CoachColors.emerald : CoachColors.crimson,
-            fontWeight: FontWeight.w800,
+            fontWeight: FontWeight.w700,
             fontSize: 18,
           ),
         ),

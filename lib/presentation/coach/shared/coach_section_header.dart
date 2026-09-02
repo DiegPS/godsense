@@ -43,7 +43,7 @@ class CoachSectionHeader extends StatelessWidget {
               'Coach',
               style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                 color: CoachColors.primaryText,
-                fontWeight: FontWeight.w800,
+                fontWeight: FontWeight.w700,
               ),
             ),
             const Text(

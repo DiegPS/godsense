@@ -218,7 +218,10 @@ class _GodSenseOverlayState extends ConsumerState<GodSenseOverlay> {
                                 ),
                                 now: _now,
                               ),
-                        style: const TextStyle(color: Color(0xFFCBD5E1)),
+                        style: const TextStyle(
+                          color: Color(0xFFCBD5E1),
+                          fontFeatures: [FontFeature.tabularFigures()],
+                        ),
                       ),
                     ),
                     if (nativeSighting != null || sighting != null)
@@ -238,7 +241,10 @@ class _GodSenseOverlayState extends ConsumerState<GodSenseOverlay> {
                           nativeSighting != null
                               ? '${nativeSighting.region} · hace ${_formatDuration(_now.difference(nativeSighting.timestamp).inSeconds)}'
                               : '${sighting!.message} · hace ${_formatDuration(_now.difference(sighting.receivedAt).inSeconds)}',
-                          style: const TextStyle(color: Color(0xFF94A3B8)),
+                          style: const TextStyle(
+                            color: Color(0xFF94A3B8),
+                            fontFeatures: [FontFeature.tabularFigures()],
+                          ),
                         ),
                       ),
                     const Divider(color: Color(0x3338BDF8), height: 1),
@@ -276,7 +282,10 @@ class _GodSenseOverlayState extends ConsumerState<GodSenseOverlay> {
                             ),
                             now: _now,
                           ),
-                          style: const TextStyle(color: Color(0xFF94A3B8)),
+                          style: const TextStyle(
+                            color: Color(0xFF94A3B8),
+                            fontFeatures: [FontFeature.tabularFigures()],
+                          ),
                         ),
                       ),
                   ],

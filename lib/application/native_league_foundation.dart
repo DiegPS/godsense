@@ -120,6 +120,20 @@ class NativeLeagueFoundation {
     return _scoutRepository!.loadLatestRanked(puuid);
   }
 
+  Future<LocalMatchRecord> loadScoutMatchDetails(
+    LocalMatchRecord cached,
+  ) async {
+    await _ensureInitialized();
+    if (_disposed) throw StateError('La conexión con League se ha cerrado.');
+    final connected = _accounts?.state.context?.account;
+    if (connected != null && connected.platformId != cached.match.platformId) {
+      throw StateError(
+        'Abre League en la región de esta partida para consultar sus detalles.',
+      );
+    }
+    return _scoutSync!.loadMatchDetails(cached);
+  }
+
   Future<LeagueAccountProfile> resolveAndSyncScout({
     required String gameName,
     required String tagLine,

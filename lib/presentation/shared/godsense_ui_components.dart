@@ -25,8 +25,8 @@ abstract class GsColors {
   static const amberGlow = Color(0x1FF59E0B);
 
   static const textPrimary = Color(0xFFF8FAFC);
-  static const textSecondary = Color(0xFF94A3B8);
-  static const textMuted = Color(0xFF64748B);
+  static const textSecondary = Color(0xFFAAB8CA);
+  static const textMuted = Color(0xFF8B9BB0);
 }
 
 /// Standardized Obsidian Card Container
@@ -90,9 +90,9 @@ class GsCard extends StatelessWidget {
                           Text(
                             title!,
                             style: const TextStyle(
-                              fontSize: 14,
+                              fontSize: 16,
                               fontWeight: FontWeight.w700,
-                              letterSpacing: 0.3,
+                              letterSpacing: 0,
                               color: GsColors.textPrimary,
                             ),
                           ),
@@ -101,7 +101,7 @@ class GsCard extends StatelessWidget {
                             Text(
                               subtitle!,
                               style: const TextStyle(
-                                fontSize: 11,
+                                fontSize: 13,
                                 color: GsColors.textSecondary,
                               ),
                             ),
@@ -207,9 +207,10 @@ class _GsButtonState extends State<GsButton> {
         onTap: enabled ? widget.onPressed : null,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 120),
+          constraints: const BoxConstraints(minHeight: 40),
           padding: EdgeInsets.symmetric(
             horizontal: widget.compact ? 10 : 14,
-            vertical: widget.compact ? 6 : 8,
+            vertical: widget.compact ? 8 : 10,
           ),
           decoration: BoxDecoration(
             color: bg,
@@ -237,9 +238,9 @@ class _GsButtonState extends State<GsButton> {
               Text(
                 widget.label,
                 style: TextStyle(
-                  fontSize: widget.compact ? 11 : 12,
+                  fontSize: 14,
                   fontWeight: FontWeight.w600,
-                  letterSpacing: 0.3,
+                  letterSpacing: 0,
                   color: fg,
                 ),
               ),
@@ -294,7 +295,7 @@ class GsToggleSwitch extends StatelessWidget {
                   Text(
                     title,
                     style: TextStyle(
-                      fontSize: 13,
+                      fontSize: 14,
                       fontWeight: FontWeight.w600,
                       color: enabled
                           ? GsColors.textPrimary
@@ -306,7 +307,7 @@ class GsToggleSwitch extends StatelessWidget {
                     Text(
                       subtitle!,
                       style: const TextStyle(
-                        fontSize: 11,
+                        fontSize: 13,
                         color: GsColors.textSecondary,
                       ),
                     ),
@@ -370,6 +371,7 @@ class GsPillToggle extends StatelessWidget {
       onTap: () => onToggle(!selected),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 120),
+        constraints: const BoxConstraints(minHeight: 40),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
           color: selected ? GsColors.cyanGlow : GsColors.surfaceElevated,
@@ -393,7 +395,7 @@ class GsPillToggle extends StatelessWidget {
             Text(
               label,
               style: TextStyle(
-                fontSize: 11,
+                fontSize: 13,
                 fontWeight: FontWeight.w600,
                 color: selected ? GsColors.cyan : GsColors.textSecondary,
               ),
@@ -436,7 +438,9 @@ class GsSelect<T> extends StatelessWidget {
     final enabled = onChanged != null;
 
     final content = Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      constraints: const BoxConstraints(minHeight: 40),
+      alignment: Alignment.center,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: GsColors.surfaceElevated,
         borderRadius: BorderRadius.circular(6),
@@ -453,8 +457,8 @@ class GsSelect<T> extends StatelessWidget {
             color: GsColors.cyan,
           ),
           dropdownColor: GsColors.surfaceElevated,
-          style: const TextStyle(
-            fontSize: 12,
+          style: Theme.of(context).textTheme.bodyMedium!.copyWith(
+            fontSize: 14,
             fontWeight: FontWeight.w500,
             color: GsColors.textPrimary,
           ),
@@ -475,25 +479,27 @@ class GsSelect<T> extends StatelessWidget {
       ),
     );
 
-    if (label == null) {
-      return SizedBox(width: width, child: content);
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          label!,
-          style: const TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
-            color: GsColors.textSecondary,
-          ),
-        ),
-        const SizedBox(height: 4),
-        SizedBox(width: width, child: content),
-      ],
+    return SizedBox(
+      width: width,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (label != null) ...[
+            Text(
+              label!,
+              style: Theme.of(context).textTheme.labelMedium!.copyWith(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: GsColors.textSecondary,
+                letterSpacing: 0,
+              ),
+            ),
+            const SizedBox(height: 6),
+          ],
+          Tooltip(message: items[value] ?? '', child: content),
+        ],
+      ),
     );
   }
 }
@@ -573,9 +579,9 @@ class GsBadge extends StatelessWidget {
           Text(
             label,
             style: TextStyle(
-              fontSize: 10,
+              fontSize: 12,
               fontWeight: FontWeight.w700,
-              letterSpacing: 0.3,
+              letterSpacing: 0,
               color: fg,
             ),
           ),
@@ -618,9 +624,9 @@ class GsMetricStat extends StatelessWidget {
             Text(
               label.toUpperCase(),
               style: const TextStyle(
-                fontSize: 10,
+                fontSize: 12,
                 fontWeight: FontWeight.w700,
-                letterSpacing: 0.5,
+                letterSpacing: 0,
                 color: GsColors.textMuted,
               ),
             ),
@@ -630,8 +636,9 @@ class GsMetricStat extends StatelessWidget {
         Text(
           value,
           style: TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.w800,
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+            fontFeatures: const [FontFeature.tabularFigures()],
             color: valueColor ?? GsColors.textPrimary,
           ),
         ),
@@ -639,7 +646,7 @@ class GsMetricStat extends StatelessWidget {
           const SizedBox(height: 1),
           Text(
             subtitle!,
-            style: const TextStyle(fontSize: 10, color: GsColors.textSecondary),
+            style: const TextStyle(fontSize: 12, color: GsColors.textSecondary),
           ),
         ],
       ],
@@ -699,9 +706,9 @@ class GsHealthMatrix extends StatelessWidget {
                     Text(
                       name.toUpperCase(),
                       style: const TextStyle(
-                        fontSize: 11,
+                        fontSize: 13,
                         fontWeight: FontWeight.w700,
-                        letterSpacing: 0.4,
+                        letterSpacing: 0,
                         color: GsColors.textPrimary,
                       ),
                     ),
@@ -712,7 +719,7 @@ class GsHealthMatrix extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        fontSize: 10,
+                        fontSize: 12,
                         fontWeight: FontWeight.w500,
                         color: isAlive ? GsColors.emerald : GsColors.crimson,
                       ),

@@ -308,7 +308,7 @@ class _GodSenseCustomTitleBar extends StatelessWidget {
                     'GodSense',
                     style: TextStyle(
                       fontSize: 13,
-                      fontWeight: FontWeight.w800,
+                      fontWeight: FontWeight.w700,
                       letterSpacing: 0.5,
                       color: Color(0xFF38BDF8),
                     ),

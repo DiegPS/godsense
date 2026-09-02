@@ -43,7 +43,13 @@ class _ResilientNetworkImageState extends State<ResilientNetworkImage> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => SizedBox(
+    width: widget.width,
+    height: widget.height,
+    child: _buildImage(context),
+  );
+
+  Widget _buildImage(BuildContext context) {
     if (_index >= _urls.length) return widget.fallback;
     return Image.network(
       _urls[_index],

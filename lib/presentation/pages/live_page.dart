@@ -604,7 +604,7 @@ class _LiveMatchup extends StatelessWidget {
                   'VS',
                   style: TextStyle(
                     fontSize: 12,
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w700,
                     letterSpacing: 1,
                     color: GsColors.cyan,
                   ),

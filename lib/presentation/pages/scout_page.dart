@@ -481,7 +481,7 @@ class _ScoutPageState extends ConsumerState<ScoutPage> {
                         'LVL',
                         style: TextStyle(
                           fontSize: 9,
-                          fontWeight: FontWeight.w800,
+                          fontWeight: FontWeight.w700,
                           color: GsColors.cyan,
                         ),
                       ),
@@ -500,7 +500,7 @@ class _ScoutPageState extends ConsumerState<ScoutPage> {
                       '$name#$tag',
                       style: const TextStyle(
                         fontSize: 20,
-                        fontWeight: FontWeight.w800,
+                        fontWeight: FontWeight.w700,
                         letterSpacing: 0.3,
                         color: GsColors.textPrimary,
                       ),
@@ -597,7 +597,7 @@ class _ScoutPageState extends ConsumerState<ScoutPage> {
                                 won ? 'W' : 'L',
                                 style: TextStyle(
                                   fontSize: 10,
-                                  fontWeight: FontWeight.w800,
+                                  fontWeight: FontWeight.w700,
                                   color: won
                                       ? GsColors.emerald
                                       : GsColors.crimson,
@@ -1047,7 +1047,7 @@ class _ScoutPageState extends ConsumerState<ScoutPage> {
             value,
             style: TextStyle(
               fontSize: 16,
-              fontWeight: FontWeight.w800,
+              fontWeight: FontWeight.w700,
               color: valueColor,
             ),
           ),
@@ -1114,9 +1114,14 @@ class _ScoutPageState extends ConsumerState<ScoutPage> {
                 child: _ModernMatchCard(
                   match: match,
                   isExpanded: isExpanded,
+                  loadingDetails: state.loadingMatchIds.contains(match.matchId),
+                  detailError: state.matchDetailErrors[match.matchId],
+                  onRetryDetails: () => ref
+                      .read(localScoutProvider.notifier)
+                      .selectMatch(match.matchId),
                   onToggleExpand: () {
                     _toggleExpand(match.matchId);
-                    if (!match.hasFullDetails) {
+                    if (!isExpanded && !match.hasFullDetails) {
                       ref
                           .read(localScoutProvider.notifier)
                           .selectMatch(match.matchId);
@@ -1160,11 +1165,17 @@ class _ModernMatchCard extends StatelessWidget {
     required this.match,
     required this.isExpanded,
     required this.onToggleExpand,
+    required this.loadingDetails,
+    required this.detailError,
+    required this.onRetryDetails,
   });
 
   final ScoutMatchSummary match;
   final bool isExpanded;
   final VoidCallback onToggleExpand;
+  final bool loadingDetails;
+  final String? detailError;
+  final VoidCallback onRetryDetails;
 
   @override
   Widget build(BuildContext context) {
@@ -1217,7 +1228,7 @@ class _ModernMatchCard extends StatelessWidget {
                                 isWin ? 'VICTORIA' : 'DERROTA',
                                 style: TextStyle(
                                   fontSize: 11,
-                                  fontWeight: FontWeight.w800,
+                                  fontWeight: FontWeight.w700,
                                   letterSpacing: 0.3,
                                   color: isWin
                                       ? GsColors.emerald
@@ -1440,7 +1451,7 @@ class _ModernMatchCard extends StatelessWidget {
                               '$score',
                               style: TextStyle(
                                 fontSize: 13,
-                                fontWeight: FontWeight.w800,
+                                fontWeight: FontWeight.w700,
                                 color: score >= 70
                                     ? GsColors.emerald
                                     : score >= 50
@@ -1486,16 +1497,50 @@ class _ModernMatchCard extends StatelessWidget {
             // Expanded 5v5 Scoreboard
             if (isExpanded) ...[
               const Divider(height: 1, color: Color(0x14FFFFFF)),
-              if (match.participants.isNotEmpty)
-                _buildExpandedScoreboard(match)
-              else
+              if (loadingDetails)
                 const Padding(
                   padding: EdgeInsets.all(16),
-                  child: Text(
-                    'Detalles completos de participantes no sincronizados para esta partida histórica.',
-                    style: TextStyle(fontSize: 11, color: GsColors.textMuted),
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                      SizedBox(width: 12),
+                      Expanded(
+                        child: Text('Cargando detalles de esta partida…'),
+                      ),
+                    ],
+                  ),
+                )
+              else if (detailError != null || !match.hasFullDetails)
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Semantics(
+                        liveRegion: true,
+                        child: Text(
+                          detailError ?? 'Faltan los detalles de esta partida.',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: GsColors.textSecondary,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      OutlinedButton.icon(
+                        onPressed: onRetryDetails,
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Reintentar detalles'),
+                      ),
+                    ],
                   ),
                 ),
+              if (match.participants.isNotEmpty)
+                _buildExpandedScoreboard(match),
             ],
           ],
         ),

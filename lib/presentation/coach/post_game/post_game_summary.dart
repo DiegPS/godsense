@@ -63,7 +63,7 @@ class _Fact extends StatelessWidget {
             style: const TextStyle(
               color: CoachColors.mutedText,
               fontSize: 10,
-              fontWeight: FontWeight.w800,
+              fontWeight: FontWeight.w700,
             ),
           ),
           const SizedBox(height: 4),
