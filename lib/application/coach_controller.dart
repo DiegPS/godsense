@@ -127,6 +127,28 @@ class RecommendedItemViewData {
   final String? imageUrl;
 }
 
+class RecommendedItemGroupViewData {
+  const RecommendedItemGroupViewData({
+    required this.title,
+    required this.items,
+  });
+
+  final String title;
+  final List<RecommendedItemViewData> items;
+}
+
+class PickAdviceViewData {
+  const PickAdviceViewData({
+    required this.champion,
+    required this.score,
+    required this.reasons,
+  });
+
+  final String champion;
+  final num? score;
+  final List<String> reasons;
+}
+
 enum CoachImportStatus { idle, importing, succeeded, failed }
 
 class CoachImportFeedback {
@@ -181,7 +203,8 @@ class CoachState {
     this.localChampion = '',
     this.selectedEnemy,
     this.runeRecommendations = const [],
-    this.itemRecommendations = const [],
+    this.itemRecommendationGroups = const [],
+    this.pickAdvice = const [],
     this.jungle,
     this.allyComposition,
     this.enemyComposition,
@@ -201,7 +224,8 @@ class CoachState {
   final String localChampion;
   final String? selectedEnemy;
   final List<RuneRecommendationViewData> runeRecommendations;
-  final List<RecommendedItemViewData> itemRecommendations;
+  final List<RecommendedItemGroupViewData> itemRecommendationGroups;
+  final List<PickAdviceViewData> pickAdvice;
   final JungleRecommendationBundle? jungle;
   final DeterministicCompositionProfile? allyComposition;
   final DeterministicCompositionProfile? enemyComposition;
@@ -222,7 +246,8 @@ class CoachState {
     String? selectedEnemy,
     bool clearSelectedEnemy = false,
     List<RuneRecommendationViewData>? runeRecommendations,
-    List<RecommendedItemViewData>? itemRecommendations,
+    List<RecommendedItemGroupViewData>? itemRecommendationGroups,
+    List<PickAdviceViewData>? pickAdvice,
     JungleRecommendationBundle? jungle,
     DeterministicCompositionProfile? allyComposition,
     DeterministicCompositionProfile? enemyComposition,
@@ -243,7 +268,9 @@ class CoachState {
         ? null
         : selectedEnemy ?? this.selectedEnemy,
     runeRecommendations: runeRecommendations ?? this.runeRecommendations,
-    itemRecommendations: itemRecommendations ?? this.itemRecommendations,
+    itemRecommendationGroups:
+        itemRecommendationGroups ?? this.itemRecommendationGroups,
+    pickAdvice: pickAdvice ?? this.pickAdvice,
     jungle: jungle ?? this.jungle,
     allyComposition: allyComposition ?? this.allyComposition,
     enemyComposition: enemyComposition ?? this.enemyComposition,
@@ -339,7 +366,8 @@ class CoachController extends StateNotifier<CoachState> {
       selectedEnemy: selectedEnemy,
       clearSelectedEnemy: selectedEnemy == null,
       runeRecommendations: _runes(inputs.runes, inputs.assets),
-      itemRecommendations: _items(inputs.items, inputs.assets),
+      itemRecommendationGroups: _items(inputs.items, inputs.assets),
+      pickAdvice: _pickAdvice(inputs.lobby?.pickAdvice),
       jungle: inputs.jungle,
       allyComposition: _compositionAnalyzer.typedProfile(allyMaps),
       enemyComposition: _compositionAnalyzer.typedProfile(enemyMaps),
@@ -367,6 +395,15 @@ class CoachController extends StateNotifier<CoachState> {
 
   Future<void> importItemSet() =>
       _runImport('Set de objetos importado en League.', _importItems);
+
+  Future<void> importCurrentSetup() async {
+    final runes = state.runeRecommendations.firstOrNull;
+    if (runes != null) {
+      await importRune(runes.variant);
+      if (state.importFeedback.status == CoachImportStatus.failed) return;
+    }
+    if (state.itemRecommendationGroups.isNotEmpty) await importItemSet();
+  }
 
   Future<void> _runImport(
     String successMessage,
@@ -437,37 +474,67 @@ List<RuneRecommendationViewData> _runes(
         .toList(growable: false) ??
     const [];
 
-List<RecommendedItemViewData> _items(
+List<RecommendedItemGroupViewData> _items(
   ItemRecommendationBundle? bundle,
   GameAssetCatalogSnapshot? assets,
 ) {
   if (bundle == null) return const [];
-  final unique = <int, RecommendedItem>{};
-  for (final group in bundle.startingBundles) {
-    for (final item in group.items) {
-      unique[item.id] = item;
-    }
+  RecommendedItemViewData project(RecommendedItem item) {
+    final metadata = assets?.items[item.id];
+    return RecommendedItemViewData(
+      item: item,
+      metadata: metadata,
+      imageUrl: metadata == null || metadata.iconPath.isEmpty
+          ? null
+          : 'https://ddragon.leagueoflegends.com/cdn/'
+                '${metadata.provenance.sourceVersion}/img/item/'
+                '${metadata.iconPath}',
+    );
   }
-  for (final range in bundle.purchaseRanges) {
-    for (final item in range.items) {
-      unique[item.id] = item;
-    }
-  }
-  return unique.values
-      .map((item) {
-        final metadata = assets?.items[item.id];
-        return RecommendedItemViewData(
-          item: item,
-          metadata: metadata,
-          imageUrl: metadata == null || metadata.iconPath.isEmpty
-              ? null
-              : 'https://ddragon.leagueoflegends.com/cdn/'
-                    '${metadata.provenance.sourceVersion}/img/item/'
-                    '${metadata.iconPath}',
-        );
-      })
-      .toList(growable: false);
+
+  return [
+    for (var index = 0; index < bundle.startingBundles.length; index++)
+      RecommendedItemGroupViewData(
+        title: 'Inicio ${index + 1}',
+        items: bundle.startingBundles[index].items
+            .map(project)
+            .toList(growable: false),
+      ),
+    for (var index = 0; index < bundle.purchaseRanges.length; index++)
+      RecommendedItemGroupViewData(
+        title:
+            'Compra ${index + 1}'
+            '${bundle.purchaseRanges[index].maxCompletedItems == null ? '' : ' · hasta ${bundle.purchaseRanges[index].maxCompletedItems} completos'}',
+        items: bundle.purchaseRanges[index].items
+            .map(project)
+            .toList(growable: false),
+      ),
+  ];
 }
+
+List<PickAdviceViewData> _pickAdvice(List<Map<String, dynamic>>? raw) =>
+    raw
+        ?.map((item) {
+          final reasons = _mapList(item['reasons'])
+              .map(
+                (reason) => [
+                  reason['kind'],
+                  reason['enemy'],
+                  reason['play'],
+                  reason['trait'],
+                  reason['tier'],
+                ].where((value) => value != null).join(' · '),
+              )
+              .where((value) => value.isNotEmpty)
+              .toList(growable: false);
+          return PickAdviceViewData(
+            champion: item['champion']?.toString() ?? 'Campeón',
+            score: item['score'] as num?,
+            reasons: reasons,
+          );
+        })
+        .toList(growable: false) ??
+    const [];
 
 List<Map<String, dynamic>> _mapList(Object? value) => value is List
     ? value

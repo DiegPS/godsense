@@ -18,6 +18,28 @@ String _formatGameTime(double seconds) {
 
 String _formatDuration(num seconds) => _formatGameTime(seconds.toDouble());
 
+String _buildDescription(Map<String, dynamic> builds) {
+  final names = <String>[];
+
+  void collect(Object? value) {
+    if (value is Map) {
+      final name = value['name'];
+      if (name is String && name.isNotEmpty) names.add(name);
+      for (final child in value.values) {
+        collect(child);
+      }
+    } else if (value is List) {
+      for (final child in value) {
+        collect(child);
+      }
+    }
+  }
+
+  collect(builds);
+  if (names.isNotEmpty) return names.toSet().take(12).join(' · ');
+  return builds.keys.join(' · ');
+}
+
 String _formatTimestamp(DateTime timestamp) {
   final local = timestamp.toLocal();
   String two(int value) => value.toString().padLeft(2, '0');
@@ -89,10 +111,6 @@ NativeIdentifiedChampion? _nativeForEnemy(
   return null;
 }
 
-String _championLabel(String? champion) {
-  return champion == null || champion.isEmpty ? '—' : champion;
-}
-
 List<String> _stringValues(Object? value) {
   if (value is! List) return const [];
   return value.map((item) => item.toString()).toList(growable: false);
@@ -101,30 +119,6 @@ List<String> _stringValues(Object? value) {
 String _mapDescription(Map<dynamic, dynamic> map) {
   if (map.isEmpty) return 'Sin datos';
   return map.entries.map((entry) => '${entry.key}: ${entry.value}').join('\n');
-}
-
-String _operationResultDescription(Map<String, dynamic> result) {
-  final parts = <String>[];
-  final runes = result['runes'];
-  if (runes is Map && runes['page_name'] != null) {
-    parts.add('Runas importadas: ${runes['page_name']}');
-  }
-  if (result['runes_error'] != null) {
-    parts.add('Error de runas: ${result['runes_error']}');
-  }
-  final build = result['build'];
-  if (build is Map && build['set_title'] != null) {
-    parts.add('Build importada: ${build['set_title']}');
-  }
-  if (result['build_error'] != null) {
-    parts.add('Error de build: ${result['build_error']}');
-  }
-  final failed = result['failed'];
-  if (failed is Map && failed.isNotEmpty) {
-    parts.add('No aplicado: ${_mapDescription(failed)}');
-  }
-  if (parts.isEmpty && result['ok'] == true) return 'Operación completada.';
-  return parts.isEmpty ? _mapDescription(result) : parts.join('\n');
 }
 
 class _NetworkPortrait extends StatelessWidget {
