@@ -30,9 +30,9 @@ class PickAdviceCard extends StatelessWidget {
                     subtitle: suggestion.reasons.isEmpty
                         ? null
                         : Text(suggestion.reasons.join('\n')),
-                    trailing: suggestion.score == null
+                    trailing: suggestion.scoreLabel == null
                         ? null
-                        : Text('${suggestion.score}'),
+                        : Text(suggestion.scoreLabel!),
                   ),
               ],
             ),

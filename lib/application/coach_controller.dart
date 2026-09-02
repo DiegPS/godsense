@@ -140,12 +140,12 @@ class RecommendedItemGroupViewData {
 class PickAdviceViewData {
   const PickAdviceViewData({
     required this.champion,
-    required this.score,
+    required this.scoreLabel,
     required this.reasons,
   });
 
   final String champion;
-  final num? score;
+  final String? scoreLabel;
   final List<String> reasons;
 }
 
@@ -529,7 +529,7 @@ List<PickAdviceViewData> _pickAdvice(List<Map<String, dynamic>>? raw) =>
               .toList(growable: false);
           return PickAdviceViewData(
             champion: item['champion']?.toString() ?? 'Campeón',
-            score: item['score'] as num?,
+            scoreLabel: item['score']?.toString(),
             reasons: reasons,
           );
         })
