@@ -312,7 +312,14 @@ class AiConversationController extends StateNotifier<AiConversationState> {
         }
 
         if (event.isCompleted) {
-          _commitAssistantMessage(targetGeneration);
+          // Solo procesar completitud si ya se ha generado texto o si es un evento explícito de mensaje finalizado
+          if (state.streamedText.trim().isNotEmpty ||
+              event.type == 'message.completed' ||
+              (event.type == 'message.updated' &&
+                  event.properties['info'] is Map &&
+                  (event.properties['info'] as Map)['finish'] != null)) {
+            _commitAssistantMessage(targetGeneration);
+          }
         }
       },
       onError: (e) {
@@ -397,12 +404,12 @@ class AiConversationController extends StateNotifier<AiConversationState> {
     if (targetGeneration != null && targetGeneration != _currentGenerationId) {
       return;
     }
-    _stopStreaming();
     final text = state.streamedText.trim();
     if (text.isEmpty) {
-      state = state.copyWith(status: AiConversationStatus.idle);
+      // Si aún no hay texto, no cerrar el streaming (ej. eventos iniciales de estado del servidor)
       return;
     }
+    _stopStreaming();
 
     final assistantMessage = AiChatMessage(
       id: 'assistant-${_now().microsecondsSinceEpoch}',

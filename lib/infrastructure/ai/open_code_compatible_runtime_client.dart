@@ -170,31 +170,36 @@ class OpenCodeCompatibleRuntimeClient implements AiRuntimeClient {
   Stream<AiRuntimeEvent> _parseEventStream(Stream<List<int>> byteStream) async* {
     final data = StringBuffer();
     String? currentEventType;
-    await for (final line
-        in byteStream
-            .transform(utf8.decoder)
-            .transform(const LineSplitter())) {
-      if (line.isEmpty) {
-        if (data.isEmpty) {
-          currentEventType = null;
-          continue;
-        }
-        final decoded = jsonDecode(data.toString());
-        data.clear();
-        if (decoded is Map) {
-          final map = Map<String, dynamic>.from(decoded);
-          if (!map.containsKey('type') && currentEventType != null) {
-            map['type'] = currentEventType;
+    try {
+      await for (final line
+          in byteStream
+              .transform(utf8.decoder)
+              .transform(const LineSplitter())) {
+        if (line.isEmpty) {
+          if (data.isEmpty) {
+            currentEventType = null;
+            continue;
           }
-          yield AiRuntimeEvent.fromJson(map);
+          final decoded = jsonDecode(data.toString());
+          data.clear();
+          if (decoded is Map) {
+            final map = Map<String, dynamic>.from(decoded);
+            if (!map.containsKey('type') && currentEventType != null) {
+              map['type'] = currentEventType;
+            }
+            yield AiRuntimeEvent.fromJson(map);
+          }
+          currentEventType = null;
+        } else if (line.startsWith('event:')) {
+          currentEventType = line.substring(6).trim();
+        } else if (line.startsWith('data:')) {
+          if (data.isNotEmpty) data.write('\n');
+          data.write(line.substring(5).trimLeft());
         }
-        currentEventType = null;
-      } else if (line.startsWith('event:')) {
-        currentEventType = line.substring(6).trim();
-      } else if (line.startsWith('data:')) {
-        if (data.isNotEmpty) data.write('\n');
-        data.write(line.substring(5).trimLeft());
       }
+    } catch (_) {
+      // Si la conexión se interrumpe o el proceso servidor finaliza,
+      // el stream de eventos concluye pacíficamente sin derramar excepciones.
     }
   }
 
