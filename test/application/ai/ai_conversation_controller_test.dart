@@ -529,7 +529,7 @@ void main() {
     await send2;
   });
 
-  test('user message event arriving before assistant response is ignored and does not anchor messageId', () async {
+  test('user message event followed by role-less part update is ignored and does not anchor messageId', () async {
     final controller = AiConversationController(
       supervisor: FakeSupervisor(ready: true),
       clientFactory: () => mockClient,
@@ -538,7 +538,7 @@ void main() {
     final send = controller.sendMessage('¿Qué compro?');
     await pumpEventQueue();
 
-    // Kilo emite primero un evento del mensaje del usuario (eco o actualización de entrada)
+    // 1. Kilo emite primero un evento del mensaje del usuario (eco con role: 'user')
     mockClient.emitEvent(
       const AiRuntimeEvent(
         type: 'message.updated',
@@ -555,13 +555,31 @@ void main() {
     // No debe haber anclado al usuario ni mostrado texto del usuario como respuesta
     expect(controller.state.streamedText, isEmpty);
 
-    // Luego llega el delta legítimo del asistente
+    // 2. Llega una actualización de una parte del mismo mensaje del usuario, SIN campo role
+    mockClient.emitEvent(
+      const AiRuntimeEvent(
+        type: 'message.part.delta',
+        properties: {
+          'messageId': 'user-msg-echo',
+          'partId': 'part-user-0',
+          'delta': '¿Qué compro? (eco)',
+          // SIN campo role
+        },
+        raw: {},
+      ),
+    );
+    await pumpEventQueue();
+
+    // El controlador debe recordar que 'user-msg-echo' pertenece al usuario y descartarlo
+    expect(controller.state.streamedText, isEmpty);
+
+    // 3. Luego llega el delta legítimo del asistente con otro messageId
     mockClient.emitEvent(
       const AiRuntimeEvent(
         type: 'message.part.delta',
         properties: {
           'messageId': 'assistant-reply-msg',
-          'role': 'assistant',
+          'partId': 'part-assistant-0',
           'delta': 'Compra Rabadon.',
         },
         raw: {},

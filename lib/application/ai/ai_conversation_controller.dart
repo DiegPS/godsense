@@ -119,6 +119,7 @@ class AiConversationController extends StateNotifier<AiConversationState> {
   bool _disposed = false;
 
   final Map<String, String> _parts = {};
+  final Set<String> _userMessageIds = {};
   String? _currentAssistantMessageId;
 
   AiRuntimeClient get _activeClient {
@@ -238,6 +239,7 @@ class AiConversationController extends StateNotifier<AiConversationState> {
   ) {
     _eventsSubscription?.cancel();
     _parts.clear();
+    _userMessageIds.clear();
     _currentAssistantMessageId = null;
 
     _eventsSubscription = stream.listen(
@@ -259,13 +261,18 @@ class AiConversationController extends StateNotifier<AiConversationState> {
 
         final msgId = event.messageId;
 
+        // Registrar persistentemente cualquier ID identificado como mensaje del usuario
+        if (msgId != null && event.isUser) {
+          _userMessageIds.add(msgId);
+        }
+
         // 1. Descartar eventos de mensajes de turnos anteriores (nunca deben anclarse)
         if (msgId != null && knownPriorMessageIds.contains(msgId)) {
           return;
         }
 
-        // 2. Descartar eventos de mensajes del usuario (ecos o actualizaciones del prompt)
-        if (event.isUser) {
+        // 2. Descartar cualquier evento perteneciente al usuario (con o sin role en este evento de parte)
+        if (event.isUser || (msgId != null && _userMessageIds.contains(msgId))) {
           return;
         }
 
@@ -417,6 +424,7 @@ class AiConversationController extends StateNotifier<AiConversationState> {
     _reconciliationTimer?.cancel();
     _reconciliationTimer = null;
     _parts.clear();
+    _userMessageIds.clear();
     _currentAssistantMessageId = null;
   }
 
