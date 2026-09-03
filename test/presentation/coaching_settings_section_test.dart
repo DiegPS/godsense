@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import '../support/ai_models.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -28,6 +30,9 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            aiModelSelectionProvider.overrideWith(
+              (ref) => ReadyModelSelection(),
+            ),
             aiRuntimeSupervisorProvider.overrideWithValue(supervisor),
             aiRuntimeSupervisorStateProvider.overrideWith(
               (ref) => supervisor.states,
@@ -112,6 +117,7 @@ Future<void> _show(WidgetTester tester, _DownloadSupervisor supervisor) async {
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        aiModelSelectionProvider.overrideWith((ref) => ReadyModelSelection()),
         aiRuntimeSupervisorProvider.overrideWithValue(supervisor),
         aiRuntimeSupervisorStateProvider.overrideWith(
           (ref) => supervisor.states,

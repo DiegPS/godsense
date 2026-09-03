@@ -481,14 +481,19 @@ List<RecommendedItemGroupViewData> _items(
   if (bundle == null) return const [];
   RecommendedItemViewData project(RecommendedItem item) {
     final metadata = assets?.items[item.id];
+    final version = metadata?.provenance.sourceVersion ?? bundle.patch.value;
+    final iconFile = metadata != null && metadata.iconPath.isNotEmpty
+        ? (metadata.iconPath.endsWith('.png')
+            ? metadata.iconPath
+            : '${metadata.iconPath}.png')
+        : '${item.id}.png';
+    final imageUrl = item.id > 0
+        ? 'https://ddragon.leagueoflegends.com/cdn/$version/img/item/$iconFile'
+        : null;
     return RecommendedItemViewData(
       item: item,
       metadata: metadata,
-      imageUrl: metadata == null || metadata.iconPath.isEmpty
-          ? null
-          : 'https://ddragon.leagueoflegends.com/cdn/'
-                '${metadata.provenance.sourceVersion}/img/item/'
-                '${metadata.iconPath}',
+      imageUrl: imageUrl,
     );
   }
 

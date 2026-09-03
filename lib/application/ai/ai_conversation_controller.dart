@@ -99,14 +99,17 @@ class AiConversationController extends StateNotifier<AiConversationState> {
     required AiRuntimeSupervisor supervisor,
     required AiRuntimeClient Function() clientFactory,
     DateTime Function()? now,
+    AiModelInfo? Function()? modelSelection,
   }) : _supervisor = supervisor,
        _clientFactory = clientFactory,
        _now = now ?? DateTime.now,
+       _modelSelection = modelSelection,
        super(const AiConversationState());
 
   final AiRuntimeSupervisor _supervisor;
   final AiRuntimeClient Function() _clientFactory;
   final DateTime Function() _now;
+  final AiModelInfo? Function()? _modelSelection;
 
   int _currentGenerationId = 0;
   StreamSubscription<AiRuntimeEvent>? _eventsSubscription;
@@ -155,6 +158,16 @@ class AiConversationController extends StateNotifier<AiConversationState> {
       return;
     }
 
+    final selected = _modelSelection?.call();
+    if (_modelSelection != null && selected == null) {
+      state = state.copyWith(
+        status: AiConversationStatus.error,
+        errorMessage: 'Selecciona un modelo disponible antes de enviar.',
+      );
+      return;
+    }
+    final providerId = selected?.providerId ?? state.selectedProviderId;
+    final modelId = selected?.id ?? state.selectedModelId;
     final generation = ++_currentGenerationId;
     _turnFinished = false;
 
@@ -168,6 +181,8 @@ class AiConversationController extends StateNotifier<AiConversationState> {
     state = state.copyWith(
       messages: [...state.messages, userMessage],
       status: AiConversationStatus.sending,
+      selectedProviderId: providerId,
+      selectedModelId: modelId,
       streamedText: '',
       clearError: true,
     );
@@ -207,8 +222,8 @@ class AiConversationController extends StateNotifier<AiConversationState> {
       _listenEvents(eventStream, sessionId, generation, knownPriorMessageIds);
 
       final prompt = AiPrompt(
-        providerId: state.selectedProviderId,
-        modelId: state.selectedModelId,
+        providerId: providerId,
+        modelId: modelId,
         system:
             systemPrompt ??
             'Eres el asistente táctico de League of Legends de GodSense. '

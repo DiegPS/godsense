@@ -455,6 +455,7 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
           },
           gameId: _currentGameId,
         );
+        _ensureLiveItemRecommendationsLoaded(processed.snapshot);
         state = state.copyWith(
           lcuConnected: lcuConnected,
           gameflowPhase: phase,
@@ -1017,6 +1018,46 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
       loadItemRecommendations(
         championId: championId,
         championAlias: championAlias,
+        position: position,
+      ),
+    );
+  }
+
+  void _ensureLiveItemRecommendationsLoaded(Map<String, dynamic> game) {
+    if (state.itemRecommendations != null || state.itemRecommendationsLoading) {
+      return;
+    }
+    final active = _stringMap(game['active_player']);
+    final rawChampion = active['championName']?.toString() ??
+        active['champion_name']?.toString() ??
+        '';
+    if (rawChampion.isEmpty) return;
+    final championKey = _championKey(rawChampion);
+
+    int championId = 0;
+    for (final entry in _championNames.entries) {
+      if (_championKey(entry.value) == championKey) {
+        championId = entry.key;
+        break;
+      }
+    }
+    if (championId <= 0) return;
+
+    final position = LeaguePosition.tryParse(active['position']) ??
+        LeaguePosition.tryParse(active['role']) ??
+        LeaguePosition.middle;
+
+    final patch = foundation?.state.account.context?.account.patchKey;
+    if (patch == null) return;
+
+    final key = '$championId|$rawChampion|${position.lcuValue}|${patch.value}';
+    if (_itemRecommendationRequestKey == key) return;
+    _itemRecommendationRequestKey = key;
+
+    unawaited(
+      loadItemRecommendations(
+        championId: championId,
+        championAlias: rawChampion,
         position: position,
       ),
     );

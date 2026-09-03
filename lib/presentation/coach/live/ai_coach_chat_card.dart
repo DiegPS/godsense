@@ -5,6 +5,7 @@ import '../../../application/ai/ai_conversation_controller.dart';
 import '../../../application/dependencies.dart';
 import '../../../domain/ai/ai_runtime_models.dart';
 import '../shared/coach_surface.dart';
+import '../shared/ai_model_selector.dart';
 import 'coach_message_body.dart';
 
 class AiCoachChatCard extends ConsumerStatefulWidget {
@@ -36,7 +37,16 @@ class _AiCoachChatCardState extends ConsumerState<AiCoachChatCard> {
     final text = presetText ?? _textController.text;
     if (text.trim().isEmpty) return;
     _textController.clear();
-    ref.read(aiConversationProvider.notifier).sendMessage(text);
+
+    String? systemPrompt;
+    try {
+      systemPrompt = ref.read(gameContextPromptProvider);
+    } catch (_) {}
+
+    ref.read(aiConversationProvider.notifier).sendMessage(
+      text,
+      systemPrompt: systemPrompt,
+    );
     _scrollToBottom();
   }
 
@@ -58,8 +68,10 @@ class _AiCoachChatCardState extends ConsumerState<AiCoachChatCard> {
     final supervisor = ref.watch(aiRuntimeSupervisorProvider);
     final supervisorState =
         ref.watch(aiRuntimeSupervisorStateProvider).value ?? supervisor.state;
+    final models = ref.watch(aiModelSelectionProvider);
+    final selectedModel = models.selected;
     final isReady =
-        supervisorState.isReady && supervisorState.kind == AiRuntimeKind.kilo;
+        supervisorState.isReady && !models.loading && selectedModel != null;
     final isBusy = conversation.isBusy;
 
     ref.listen(
@@ -69,16 +81,14 @@ class _AiCoachChatCardState extends ConsumerState<AiCoachChatCard> {
 
     return CoachSurface(
       title: 'Coach IA conversacional',
-      subtitle: isReady
-          ? 'Kilo Code activo · Modelo: kilo/kilo-auto/free'
-          : supervisorState.isReady
-          ? 'OpenCode iniciado · La selección de sus modelos aún está pendiente'
-          : 'Instala Kilo en Ajustes → Coaching y actívalo para chatear',
+      subtitle: supervisorState.isReady
+          ? '${supervisorState.kind!.displayName} · ${selectedModel?.name ?? "Selecciona un modelo"}'
+          : 'Instala un motor en Ajustes → Coaching y actívalo para chatear',
       icon: Icons.psychology_rounded,
       action: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (isReady)
+          if (supervisorState.isReady)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               decoration: BoxDecoration(
@@ -94,7 +104,7 @@ class _AiCoachChatCardState extends ConsumerState<AiCoachChatCard> {
                   CircleAvatar(radius: 3, backgroundColor: CoachColors.emerald),
                   SizedBox(width: 5),
                   Text(
-                    'KILO AUTO FREE',
+                    'CONECTADO',
                     style: TextStyle(
                       color: CoachColors.emerald,
                       fontSize: 10,
@@ -105,46 +115,49 @@ class _AiCoachChatCardState extends ConsumerState<AiCoachChatCard> {
               ),
             )
           else
-            OutlinedButton.icon(
-              onPressed: _startingRuntime || supervisorState.isBusy || isBusy
-                  ? null
-                  : () async {
-                      setState(() => _startingRuntime = true);
-                      try {
-                        if (!await supervisor.isInstalled(AiRuntimeKind.kilo)) {
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'Descarga Kilo Code en Ajustes → Coaching antes de iniciar.',
-                                ),
-                              ),
-                            );
-                          }
-                          return;
-                        }
-                        await supervisor.start(AiRuntimeKind.kilo);
-                      } catch (error) {
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('No se pudo iniciar Kilo: $error'),
-                            ),
-                          );
-                        }
-                      } finally {
-                        if (mounted) setState(() => _startingRuntime = false);
-                      }
-                    },
-              icon: const Icon(Icons.power_settings_new_rounded, size: 14),
-              label: Text(_startingRuntime ? 'Iniciando...' : 'Iniciar Kilo'),
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 4,
-                ),
-                minimumSize: Size.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            PopupMenuButton<AiRuntimeKind>(
+              tooltip: 'Iniciar motor',
+              enabled: !_startingRuntime && !supervisorState.isBusy && !isBusy,
+              itemBuilder: (_) => [
+                for (final kind in AiRuntimeKind.values)
+                  PopupMenuItem(
+                    value: kind,
+                    child: Text('Iniciar ${kind.displayName}'),
+                  ),
+              ],
+              onSelected: (kind) async {
+                setState(() => _startingRuntime = true);
+                try {
+                  if (!await supervisor.isInstalled(kind)) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            'Descarga ${kind.displayName} en Ajustes → Coaching antes de iniciar.',
+                          ),
+                        ),
+                      );
+                    }
+                    return;
+                  }
+                  await supervisor.start(kind);
+                } catch (error) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          'No se pudo iniciar ${kind.displayName}: $error',
+                        ),
+                      ),
+                    );
+                  }
+                } finally {
+                  if (mounted) setState(() => _startingRuntime = false);
+                }
+              },
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Text(_startingRuntime ? 'Iniciando…' : 'Iniciar motor'),
               ),
             ),
           if (conversation.messages.isNotEmpty) ...[
@@ -164,6 +177,15 @@ class _AiCoachChatCardState extends ConsumerState<AiCoachChatCard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          if (supervisorState.isReady) ...[
+            const ExpansionTile(
+              title: Text('Proveedor y modelo'),
+              children: [
+                Padding(padding: EdgeInsets.all(12), child: AiModelSelector()),
+              ],
+            ),
+            const SizedBox(height: 12),
+          ],
           if (conversation.errorMessage != null) ...[
             Container(
               padding: const EdgeInsets.all(10),

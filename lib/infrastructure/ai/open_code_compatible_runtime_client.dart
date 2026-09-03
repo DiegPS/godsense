@@ -44,6 +44,7 @@ class OpenCodeCompatibleRuntimeClient implements AiRuntimeClient {
           final provider = Map<String, dynamic>.from(raw);
           final id = provider['id']?.toString() ?? '';
           final rawModels = provider['models'];
+          final defaults = root['default'];
           final modelEntries = rawModels is Map
               ? rawModels.entries
               : const Iterable<MapEntry<dynamic, dynamic>>.empty();
@@ -53,6 +54,19 @@ class OpenCodeCompatibleRuntimeClient implements AiRuntimeClient {
             connected: connected.contains(id),
             models: modelEntries
                 .where((entry) => entry.value is Map)
+                .where((entry) {
+                  final model = entry.value as Map;
+                  if (model['status'] == 'deprecated') return false;
+                  final capabilities = model['capabilities'];
+                  final input = capabilities is Map
+                      ? capabilities['input']
+                      : null;
+                  if (input is Map && input['text'] == false) return false;
+                  final output = capabilities is Map
+                      ? capabilities['output']
+                      : null;
+                  return output is! Map || output['text'] != false;
+                })
                 .map((entry) {
                   final model = Map<String, dynamic>.from(entry.value as Map);
                   final modelId =
@@ -61,6 +75,7 @@ class OpenCodeCompatibleRuntimeClient implements AiRuntimeClient {
                     id: modelId,
                     name: model['name']?.toString() ?? modelId,
                     providerId: id,
+                    isDefault: defaults is Map && defaults[id] == modelId,
                     isFree: _isFreeModel(id, modelId, model),
                     supportsReasoning:
                         model['reasoning'] == true ||
@@ -167,7 +182,9 @@ class OpenCodeCompatibleRuntimeClient implements AiRuntimeClient {
     return _parseEventStream(response.stream);
   }
 
-  Stream<AiRuntimeEvent> _parseEventStream(Stream<List<int>> byteStream) async* {
+  Stream<AiRuntimeEvent> _parseEventStream(
+    Stream<List<int>> byteStream,
+  ) async* {
     final data = StringBuffer();
     String? currentEventType;
     try {
@@ -276,8 +293,10 @@ class OpenCodeCompatibleRuntimeClient implements AiRuntimeClient {
     }
     final cost = model['cost'];
     if (cost is! Map || cost.isEmpty) return false;
-    final numeric = cost.values.whereType<num>().toList(growable: false);
-    return numeric.isNotEmpty && numeric.every((value) => value == 0);
+    return cost['input'] is num &&
+        cost['input'] == 0 &&
+        cost['output'] is num &&
+        cost['output'] == 0;
   }
 
   @override

@@ -620,7 +620,6 @@ class NativeVisionController extends StateNotifier<NativeVisionState> {
     if (bounds == null) return;
     final epoch = _frameEpoch;
     _captureInProgress = true;
-    state = state.copyWith(processing: true);
     try {
       final previousFrame = state.frame;
       final generatePreview = previousFrame == null || _previewFrame++ % 6 == 0;
@@ -657,6 +656,7 @@ class NativeVisionController extends StateNotifier<NativeVisionState> {
                 'stages=${frame.stageMicroseconds.map((key, value) => MapEntry(key, (value / 1000).toStringAsFixed(2)))}',
             detectionCount: frame.detections.length,
           ),
+          notifyUi: false,
         );
       }
       if (!_loggedCaptureStart) {
@@ -736,7 +736,6 @@ class NativeVisionController extends StateNotifier<NativeVisionState> {
       state = state.copyWith(processing: false, error: error.toString());
     } finally {
       _captureInProgress = false;
-      if (!_disposed) state = state.copyWith(processing: false);
     }
   }
 
@@ -880,9 +879,11 @@ class NativeVisionController extends StateNotifier<NativeVisionState> {
 
   void clearLogs() => state = state.copyWith(logs: const []);
 
-  void _appendLog(TrackerLogEntry entry) {
-    final logs = [entry, ...state.logs].take(200).toList();
-    state = state.copyWith(logs: logs);
+  void _appendLog(TrackerLogEntry entry, {bool notifyUi = true}) {
+    if (notifyUi) {
+      final logs = [entry, ...state.logs].take(15).toList();
+      state = state.copyWith(logs: logs);
+    }
     final line = jsonEncode(entry.toJson());
     debugPrint('[TRACKER][${entry.source.name.toUpperCase()}] $line');
     _logWriteQueue = _logWriteQueue.then((_) => _writeLog('$line\n'));

@@ -365,16 +365,23 @@ class _GodSenseOverlayState extends ConsumerState<GodSenseOverlay> {
               child: _OverlayInfoCard(
                 title: 'Build recomendada',
                 width: 360,
-                child: Text(
-                  backend.coaching['builds'] is Map
-                      ? _buildDescription(
-                          Map<String, dynamic>.from(
-                            backend.coaching['builds'] as Map,
-                          ),
+                child: _OverlayBuildsView(
+                  coachGroups: ref
+                      .watch(coachControllerProvider)
+                      .itemRecommendationGroups,
+                  rawBuilds: backend.coaching['builds'] is Map
+                      ? Map<String, dynamic>.from(
+                          backend.coaching['builds'] as Map,
                         )
-                      : 'Esperando build recomendada…',
-                  maxLines: 4,
-                  overflow: TextOverflow.ellipsis,
+                      : (ref.watch(nativeLeagueProvider).liveGame?['builds']
+                                is Map
+                            ? Map<String, dynamic>.from(
+                                ref
+                                        .watch(nativeLeagueProvider)
+                                        .liveGame!['builds']
+                                    as Map,
+                              )
+                            : null),
                 ),
               ),
             ),

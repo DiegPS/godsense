@@ -643,13 +643,10 @@ class _CoachingSettingsSectionState
           },
         ),
         const SizedBox(height: 16),
-        const _SettingsPlanCard(
+        const GsCard(
           title: 'Modelo y respuestas',
           icon: Icons.tune_outlined,
-          items: [
-            'Kilo Code: chat conectado a Kilo Auto Free.',
-            'OpenCode: instalación y arranque disponibles; selección de modelos pendiente.',
-          ],
+          child: AiModelSelector(),
         ),
         const SizedBox(height: 16),
         const _SettingsPlanCard(

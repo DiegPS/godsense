@@ -9,6 +9,8 @@ class GodSenseApp extends ConsumerWidget {
       title: 'GodSense',
       debugShowCheckedModeBanner: false,
       theme: godsenseTheme(),
+      builder: (context, child) =>
+          ExcludeSemantics(child: child ?? const SizedBox.shrink()),
       home: GettingStartedGate(
         onDestination: (destination) =>
             ref.read(selectedPageProvider.notifier).state = destination,

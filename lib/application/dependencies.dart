@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -17,8 +18,11 @@ import '../infrastructure/ai/ai_runtime_paths.dart';
 import '../infrastructure/ai/local_ai_runtime_process_service.dart';
 import '../infrastructure/ai/open_code_compatible_runtime_client.dart';
 import '../infrastructure/ai/pinned_ai_runtime_installer.dart';
+import '../infrastructure/ai/shared_preferences_ai_models.dart';
+import 'ai/ai_model_selection_controller.dart';
 import 'ai/ai_conversation_controller.dart';
 import 'ai/ai_runtime_supervisor.dart';
+import 'ai/game_context_prompt_builder.dart';
 import 'coach_controller.dart';
 import 'companion_controller.dart';
 import 'local_scout_controller.dart';
@@ -253,6 +257,22 @@ final aiConversationProvider =
       final paths = ref.watch(aiRuntimePathsProvider);
       final controller = AiConversationController(
         supervisor: supervisor,
+        modelSelection: () {
+          final displayedEndpoint = ref
+              .read(aiRuntimeSupervisorStateProvider)
+              .value
+              ?.endpoint;
+          final activeEndpoint = supervisor.state.endpoint;
+          if (displayedEndpoint == null ||
+              activeEndpoint == null ||
+              displayedEndpoint.kind != activeEndpoint.kind ||
+              displayedEndpoint.pid != activeEndpoint.pid ||
+              displayedEndpoint.password != activeEndpoint.password) {
+            return null;
+          }
+          final models = ref.read(aiModelSelectionProvider);
+          return models.loading ? null : models.selected;
+        },
         clientFactory: () {
           final endpoint = supervisor.state.endpoint;
           if (endpoint == null) {
@@ -266,3 +286,45 @@ final aiConversationProvider =
       );
       return controller;
     });
+
+final aiModelPreferencesProvider = Provider<AiModelPreferences>(
+  (ref) => SharedPreferencesAiModels(),
+);
+
+final aiModelSelectionProvider =
+    StateNotifierProvider<AiModelSelectionController, AiModelSelectionState>((
+      ref,
+    ) {
+      final supervisor = ref.watch(aiRuntimeSupervisorProvider);
+      final snapshot =
+          ref.watch(aiRuntimeSupervisorStateProvider).value ?? supervisor.state;
+      final endpoint = snapshot.isReady ? snapshot.endpoint : null;
+      final paths = ref.watch(aiRuntimePathsProvider);
+      final client = endpoint == null
+          ? null
+          : OpenCodeCompatibleRuntimeClient(
+              endpoint: endpoint,
+              directory: paths.root.path,
+            );
+      if (client != null) ref.onDispose(client.dispose);
+      final controller = AiModelSelectionController(
+        runtimeId: endpoint?.kind.id ?? 'inactive',
+        loadProviders: () => client?.providers() ?? Future.value([]),
+        preferences: ref.watch(aiModelPreferencesProvider),
+      );
+      if (endpoint != null) {
+        scheduleMicrotask(() {
+          if (controller.mounted) unawaited(controller.refresh());
+        });
+      }
+      return controller;
+    });
+
+final gameContextPromptProvider = Provider<String>((ref) {
+  final coachState = ref.watch(coachControllerProvider);
+  final liveGame = ref.watch(nativeLeagueProvider.select((s) => s.liveGame));
+  return const GameContextPromptBuilder().buildSystemPrompt(
+    coachState: coachState,
+    liveGame: liveGame,
+  );
+});

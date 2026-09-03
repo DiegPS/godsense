@@ -109,6 +109,8 @@ class VisionPage extends ConsumerWidget {
               Expanded(
                 child: Text(
                   _calibrationDescription(calibration),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     fontSize: 12,
                     color: GsColors.textPrimary,
@@ -259,7 +261,7 @@ class VisionPage extends ConsumerWidget {
                   ),
                 )
               : Column(
-                  children: native.logs.take(50).map((entry) {
+                  children: native.logs.take(6).map((entry) {
                     return Container(
                       margin: const EdgeInsets.only(bottom: 4),
                       padding: const EdgeInsets.symmetric(
@@ -284,6 +286,8 @@ class VisionPage extends ConsumerWidget {
                               children: [
                                 Text(
                                   entry.message,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                   style: const TextStyle(
                                     fontSize: 12,
                                     color: GsColors.textPrimary,

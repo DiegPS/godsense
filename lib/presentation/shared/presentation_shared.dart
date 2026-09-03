@@ -20,28 +20,6 @@ String _formatGameTime(double seconds) {
 
 String _formatDuration(num seconds) => _formatGameTime(seconds.toDouble());
 
-String _buildDescription(Map<String, dynamic> builds) {
-  final names = <String>[];
-
-  void collect(Object? value) {
-    if (value is Map) {
-      final name = value['name'];
-      if (name is String && name.isNotEmpty) names.add(name);
-      for (final child in value.values) {
-        collect(child);
-      }
-    } else if (value is List) {
-      for (final child in value) {
-        collect(child);
-      }
-    }
-  }
-
-  collect(builds);
-  if (names.isNotEmpty) return names.toSet().take(12).join(' · ');
-  return builds.keys.join(' · ');
-}
-
 String _formatTimestamp(DateTime timestamp) {
   final local = timestamp.toLocal();
   String two(int value) => value.toString().padLeft(2, '0');

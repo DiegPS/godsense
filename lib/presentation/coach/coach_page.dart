@@ -80,6 +80,11 @@ class CoachPage extends ConsumerWidget {
               children: [
                 LiveDirectivesCard(directives: state.directives),
                 ThreatAndSightingsCard(threats: state.threats),
+                ItemBundlesView(
+                  groups: state.itemRecommendationGroups,
+                  importing: importing,
+                  onImport: controller.importItemSet,
+                ),
                 GoldTimelineCard(
                   differential: state.goldDifferential,
                   points: state.goldTimeline,

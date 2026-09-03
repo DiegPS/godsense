@@ -5,6 +5,7 @@ class AiModelInfo {
     required this.providerId,
     required this.isFree,
     this.supportsReasoning = false,
+    this.isDefault = false,
   });
 
   final String id;
@@ -12,6 +13,10 @@ class AiModelInfo {
   final String providerId;
   final bool isFree;
   final bool supportsReasoning;
+  final bool isDefault;
+
+  String get key =>
+      '${Uri.encodeComponent(providerId)}/${Uri.encodeComponent(id)}';
 }
 
 class AiProviderInfo {

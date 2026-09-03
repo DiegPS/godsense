@@ -115,3 +115,29 @@ real y valida la respuesta sin consumir saldo de pago.
   esperar «Instalado», pulsar «Iniciar» y comprobar «Listo» y su versión; repetir
   con el otro motor. Kilo permite después probar el chat. OpenCode tiene descarga
   y arranque, pero su selección de modelos para el chat continúa pendiente.
+
+## Selectores de modelos (2026-09-02)
+
+La selección pendiente del bloque anterior ya está implementada. Se adaptó el
+patrón de `cheating-daddy/src/utils/opencodeIntegration.js` y `AssistantView.js`:
+catálogo del runtime, proveedores conectados, selección persistente y envío de
+`providerID`/`modelID` al prompt. GodSense consulta `/provider`, que incluye modelos
+y conectividad; no filtra exclusivamente modelos de visión, porque el coach usa texto.
+
+- Ajustes → Coaching y el chat comparten `AiModelSelectionController`: proveedor,
+  buscador de modelos, actualización, carga, errores y estados sin modelos.
+- SharedPreferences guarda un par proveedor/modelo por motor. No guarda claves.
+  El modelo guardado se valida contra el catálogo actual. No hay reemplazo
+  silencioso si desaparece ni elección automática de un modelo de pago.
+- Kilo Auto Free es preferido cuando está disponible para una primera selección.
+  Otros modelos gratuitos se eligen desde el catálogo; los de pago requieren
+  selección explícita y muestran advertencia. Los precios/gratuidad dependen
+  de los metadatos publicados por el motor, no de una garantía de GodSense.
+- Las selecciones se bloquean durante una generación; el prompt captura sus IDs.
+  Un cambio de proceso invalida su catálogo y renueva la sesión del chat.
+- Se verificaron catálogos reales con instalaciones existentes: OpenCode 1.18.25
+  (52 modelos de 2 proveedores conectados) y Kilo 7.5.9 (302 modelos de 1 proveedor).
+  No se descargaron runtimes ni se ejecutó inferencia en esta verificación.
+  Esto no certifica todos esos modelos ni sustituye la prueba del ZIP de OpenCode
+  1.18.27 fijado para distribución. Autenticación de nuevas cuentas sigue fuera
+  de este bloque: solo son seleccionables proveedores que el motor reporta conectados.

@@ -10,6 +10,7 @@ import 'package:godsense/domain/ai/ai_runtime_models.dart';
 class MockAiRuntimeClient implements AiRuntimeClient {
   final _eventController = StreamController<AiRuntimeEvent>.broadcast();
   final List<String> promptsSent = [];
+  final List<AiPrompt> promptPayloads = [];
   final List<String> abortedSessions = [];
   List<Map<String, dynamic>> mockMessages = [];
   bool throwOnPrompt = false;
@@ -39,6 +40,7 @@ class MockAiRuntimeClient implements AiRuntimeClient {
   Future<void> promptAsync(String sessionId, AiPrompt prompt) async {
     if (throwOnPrompt) throw StateError('Connection failed');
     promptsSent.add(prompt.text);
+    promptPayloads.add(prompt);
   }
 
   @override
@@ -97,6 +99,44 @@ class FakeSupervisor implements AiRuntimeSupervisor {
 }
 
 void main() {
+  test(
+    'selected model identifiers reach the prompt without Kilo hardcoding',
+    () async {
+      final client = MockAiRuntimeClient();
+      const model = AiModelInfo(
+        id: 'provider/model-v2',
+        name: 'Selected',
+        providerId: 'opencode',
+        isFree: true,
+      );
+      final controller = AiConversationController(
+        supervisor: FakeSupervisor(),
+        clientFactory: () => client,
+        modelSelection: () => model,
+      );
+      addTearDown(controller.dispose);
+      await controller.sendMessage('Hola');
+      expect(client.promptPayloads.single.toJson()['model'], {
+        'providerID': 'opencode',
+        'modelID': 'provider/model-v2',
+      });
+      await controller.abort();
+    },
+  );
+
+  test('unavailable model blocks prompt submission', () async {
+    final client = MockAiRuntimeClient();
+    final controller = AiConversationController(
+      supervisor: FakeSupervisor(),
+      clientFactory: () => client,
+      modelSelection: () => null,
+    );
+    addTearDown(controller.dispose);
+    await controller.sendMessage('Hola');
+    expect(client.promptsSent, isEmpty);
+    expect(controller.state.errorMessage, contains('Selecciona un modelo'));
+    client.dispose();
+  });
   late MockAiRuntimeClient mockClient;
 
   setUp(() {

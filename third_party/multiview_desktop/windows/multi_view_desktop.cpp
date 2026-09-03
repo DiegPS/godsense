@@ -1,4 +1,4 @@
-﻿// This must be included before many other Windows headers.
+// This must be included before many other Windows headers.
 #include <windows.h>
 
 #include <flutter/method_channel.h>
@@ -435,6 +435,8 @@ namespace multi_view_desktop {
 }
 
 switch (message) {
+case WM_GETOBJECT:
+  return 0;
 case WM_SIZE: {
 MultiViewDesktop *window =
         MultiViewDesktop::Instance().FindByHwnd(hwnd);

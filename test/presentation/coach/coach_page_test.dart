@@ -24,7 +24,7 @@ void main() {
     expect(find.text('Draft 5v5 y bans'), findsOneWidget);
     expect(find.text('Ashe'), findsWidgets);
     expect(find.text('Ahri'), findsWidgets);
-    expect(find.text('LOCKED'), findsNWidgets(2));
+    expect(find.text('CONFIRMADO'), findsNWidgets(2));
     expect(tester.takeException(), isNull);
   });
 
@@ -76,7 +76,7 @@ void main() {
     await tester.pumpWidget(_app(controller));
     await tester.pump();
 
-    expect(find.text('Directivas tácticas locales'), findsOneWidget);
+    expect(find.text('Recomendaciones tácticas'), findsOneWidget);
     expect(find.text('Coloca visión'), findsOneWidget);
     expect(find.textContaining('Lee Sin'), findsOneWidget);
     expect(find.text('−900'), findsOneWidget);
@@ -123,7 +123,7 @@ void main() {
     await tester.tap(liveButton);
     await tester.pump();
 
-    expect(find.text('Directivas tácticas locales'), findsOneWidget);
+    expect(find.text('Recomendaciones tácticas'), findsOneWidget);
     final semantics = tester.getSemantics(liveButton);
     expect(semantics.flagsCollection.isButton, isTrue);
   });

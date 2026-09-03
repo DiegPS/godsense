@@ -308,3 +308,175 @@ class _EditableOverlayPanel extends ConsumerWidget {
     );
   }
 }
+
+class _OverlayBuildsView extends StatelessWidget {
+  const _OverlayBuildsView({
+    required this.coachGroups,
+    this.rawBuilds,
+  });
+
+  final List<RecommendedItemGroupViewData> coachGroups;
+  final Map<String, dynamic>? rawBuilds;
+
+  @override
+  Widget build(BuildContext context) {
+    if (coachGroups.isNotEmpty) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (final group in coachGroups.take(3)) ...[
+            Text(
+              group.title,
+              style: const TextStyle(
+                color: Color(0xFF94A3B8),
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Wrap(
+              spacing: 6,
+              runSpacing: 4,
+              children: [
+                for (final item in group.items)
+                  Tooltip(
+                    message:
+                        '${item.metadata?.name ?? item.item.name}\n${item.metadata?.totalPrice != null ? "${item.metadata!.totalPrice} oro" : ""}',
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(6),
+                          child: SizedBox.square(
+                            dimension: 34,
+                            child: ResilientNetworkImage(
+                              urls: [item.imageUrl],
+                              width: 34,
+                              height: 34,
+                              fallback: Container(
+                                color: const Color(0xFF1E293B),
+                                child: const Icon(
+                                  Icons.inventory_2_outlined,
+                                  size: 18,
+                                  color: Color(0xFF64748B),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        if (item.metadata?.totalPrice != null)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 2),
+                            child: Text(
+                              '${item.metadata!.totalPrice}',
+                              style: const TextStyle(
+                                color: Color(0xFFFBBF24),
+                                fontSize: 9,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+          ],
+        ],
+      );
+    }
+
+    if (rawBuilds != null) {
+      final itemsGroups = rawBuilds!['items'] as List?;
+      final patch = rawBuilds!['patch']?.toString() ?? '15.4.1';
+      if (itemsGroups != null && itemsGroups.isNotEmpty) {
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (final group in itemsGroups.take(3)) ...[
+              if (group is Map) ...[
+                Text(
+                  group['category']?.toString() ?? 'Objetos',
+                  style: const TextStyle(
+                    color: Color(0xFF94A3B8),
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  children: [
+                    if (group['items'] is List)
+                      for (final rawItem in group['items'] as List)
+                        if (rawItem is Map)
+                          _buildRawItem(rawItem, patch),
+                  ],
+                ),
+                const SizedBox(height: 8),
+              ],
+            ],
+          ],
+        );
+      }
+    }
+
+    return const Text(
+      'Esperando build recomendada…',
+      style: TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
+    );
+  }
+
+  Widget _buildRawItem(Map rawItem, String patch) {
+    final itemId = (rawItem['item_id'] as num?)?.toInt() ?? 0;
+    final name = rawItem['name']?.toString() ?? '$itemId';
+    final count = (rawItem['count'] as num?)?.toInt() ?? 1;
+    final imageUrl = itemId > 0
+        ? 'https://ddragon.leagueoflegends.com/cdn/$patch/img/item/$itemId.png'
+        : null;
+
+    return Tooltip(
+      message: count > 1 ? '$name (x$count)' : name,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: SizedBox.square(
+              dimension: 34,
+              child: ResilientNetworkImage(
+                urls: [imageUrl],
+                width: 34,
+                height: 34,
+                fallback: Container(
+                  color: const Color(0xFF1E293B),
+                  child: const Icon(
+                    Icons.inventory_2_outlined,
+                    size: 18,
+                    color: Color(0xFF64748B),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          if (count > 1)
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text(
+                'x$count',
+                style: const TextStyle(
+                  color: Color(0xFF38BDF8),
+                  fontSize: 9,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}

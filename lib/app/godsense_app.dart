@@ -9,6 +9,7 @@ import 'package:file_selector/file_selector.dart';
 import 'package:multiview_desktop/multiview_desktop.dart';
 
 import '../application/account_context_coordinator.dart';
+import '../application/coach_controller.dart';
 import '../application/dependencies.dart';
 import '../application/artifacts/artifact_downloader.dart';
 import '../application/native_calibration_controller.dart';
@@ -25,6 +26,7 @@ import '../domain/identity/league_identity.dart';
 import '../domain/vision/vision_observation.dart';
 import '../presentation/native_speech_settings_card.dart';
 import '../presentation/coach/coach_page.dart';
+import '../presentation/coach/shared/ai_model_selector.dart';
 import '../presentation/shared/live_rank_badge.dart';
 import '../presentation/shared/getting_started_guide.dart';
 import '../presentation/shared/resilient_network_image.dart';

@@ -55,6 +55,11 @@ LRESULT FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
                                       LPARAM const lparam) noexcept {
   LRESULT result = 0;
 
+  // Disable Windows Accessibility / UI Automation queries
+  if (message == WM_GETOBJECT) {
+    return 0;
+  }
+
   if (message == WM_FONTCHANGE) {
     FlutterDesktopEngineReloadSystemFonts(MultiViewDesktopGetEngineRef());
   }

@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:background_downloader/background_downloader.dart';
 import 'package:crypto/crypto.dart';
+import 'package:path/path.dart' as p;
 
 import '../../application/artifacts/artifact_downloader.dart';
 
@@ -40,23 +41,16 @@ class BackgroundArtifactDownloader implements ControllableArtifactDownloader {
       );
     }
     cancellation?.throwIfCancelled();
-    final destination = File(request.destinationPath);
+    final destination = File(request.destinationPath).absolute;
     await destination.parent.create(recursive: true);
-    final split = await Task.split(file: destination);
-    final task = DownloadTask(
-      taskId: _taskId(request.id),
-      url: request.uri.toString(),
-      filename: split.$3,
-      directory: split.$2,
-      baseDirectory: split.$1,
-      group: request.group,
-      headers: request.headers,
-      retries: request.retries.clamp(0, 10),
-      allowPause: true,
-      updates: Updates.statusAndProgress,
-      displayName: request.id,
-      metaData: request.id,
-    );
+    final task = await createTask(request);
+    final resolved = await task.filePath();
+    if (!p.isAbsolute(resolved) ||
+        !p.equals(p.normalize(resolved), p.normalize(destination.path))) {
+      throw const ArtifactDownloadException(
+        'No se pudo resolver la carpeta de descarga. No se inició la transferencia.',
+      );
+    }
     if (_pending.containsKey(task.taskId)) {
       throw ArtifactDownloadException(
         'Download ${request.id} is already running.',
@@ -129,6 +123,35 @@ class BackgroundArtifactDownloader implements ControllableArtifactDownloader {
         _tasksByRequestId.remove(request.id);
       }
     }
+  }
+
+  static Future<DownloadTask> createTask(
+    ArtifactDownloadRequest request,
+  ) async {
+    final destination = File(request.destinationPath).absolute;
+    // Task.split in background_downloader 9.5.9 strips the Windows drive.
+    // BaseDirectory.root on Windows requires the COMPLETE absolute directory.
+    final split = Platform.isWindows
+        ? (
+            BaseDirectory.root,
+            destination.parent.path,
+            p.basename(destination.path),
+          )
+        : await Task.split(file: destination);
+    return DownloadTask(
+      taskId: _taskId(request.id),
+      url: request.uri.toString(),
+      filename: split.$3,
+      directory: split.$2,
+      baseDirectory: split.$1,
+      group: request.group,
+      headers: request.headers,
+      retries: request.retries.clamp(0, 10),
+      allowPause: true,
+      updates: Updates.statusAndProgress,
+      displayName: request.id,
+      metaData: request.id,
+    );
   }
 
   Future<void> _enqueue(DownloadTask task, _PendingDownload pending) async {
@@ -223,7 +246,8 @@ class BackgroundArtifactDownloader implements ControllableArtifactDownloader {
         .convert(utf8.encode(value))
         .toString()
         .substring(0, 12);
-    return '$prefix-$digest';
+    // Ignore persisted tasks created with the old drive-stripping destination.
+    return 'v2-$prefix-$digest';
   }
 }
 

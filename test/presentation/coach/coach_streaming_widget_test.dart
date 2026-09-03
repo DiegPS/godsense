@@ -1,3 +1,5 @@
+import '../../support/ai_models.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -23,11 +25,15 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            aiModelSelectionProvider.overrideWith(
+              (ref) => ReadyModelSelection(),
+            ),
             aiRuntimeSupervisorProvider.overrideWithValue(supervisor),
             aiRuntimeSupervisorStateProvider.overrideWith(
               (ref) => Stream.value(supervisor.state),
             ),
             aiConversationProvider.overrideWith((ref) => controller),
+            gameContextPromptProvider.overrideWithValue('mock-context'),
           ],
           child: const MaterialApp(
             home: Scaffold(
