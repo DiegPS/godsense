@@ -29,6 +29,21 @@ abstract class GsColors {
   static const textMuted = Color(0xFF8B9BB0);
 }
 
+/// Standard Sizing Tokens for Controls across GodSense
+abstract class GsSizes {
+  /// Standard control height for desktop form controls (buttons, inputs, selects, icon buttons)
+  static const double controlHeight = 36.0;
+
+  /// Compact control height for dense toolbars, table actions, inline chips
+  static const double controlHeightCompact = 30.0;
+
+  /// Large control height for prominent CTA buttons or hero search inputs
+  static const double controlHeightLarge = 42.0;
+
+  /// Standard border radius across all controls
+  static const double radius = 6.0;
+}
+
 /// Standardized Obsidian Card Container
 class GsCard extends StatelessWidget {
   const GsCard({
@@ -137,6 +152,7 @@ class GsButton extends StatefulWidget {
     this.variant = GsButtonVariant.primary,
     this.loading = false,
     this.compact = false,
+    this.height,
   });
 
   final String label;
@@ -145,6 +161,7 @@ class GsButton extends StatefulWidget {
   final GsButtonVariant variant;
   final bool loading;
   final bool compact;
+  final double? height;
 
   @override
   State<GsButton> createState() => _GsButtonState();
@@ -200,6 +217,10 @@ class _GsButtonState extends State<GsButton> {
         break;
     }
 
+    final double targetHeight =
+        widget.height ?? (widget.compact ? GsSizes.controlHeightCompact : GsSizes.controlHeight);
+    final double iconSize = widget.compact ? 13.0 : 15.0;
+
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
@@ -207,24 +228,24 @@ class _GsButtonState extends State<GsButton> {
         onTap: enabled ? widget.onPressed : null,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 120),
-          constraints: const BoxConstraints(minHeight: 40),
+          height: targetHeight,
           padding: EdgeInsets.symmetric(
             horizontal: widget.compact ? 10 : 14,
-            vertical: widget.compact ? 8 : 10,
           ),
           decoration: BoxDecoration(
             color: bg,
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: BorderRadius.circular(GsSizes.radius),
             border: Border.all(color: border, width: 1),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               if (widget.loading) ...[
                 SizedBox(
-                  width: widget.compact ? 12 : 14,
-                  height: widget.compact ? 12 : 14,
+                  width: iconSize,
+                  height: iconSize,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
                     valueColor: AlwaysStoppedAnimation(fg),
@@ -232,19 +253,227 @@ class _GsButtonState extends State<GsButton> {
                 ),
                 const SizedBox(width: 8),
               ] else if (widget.icon != null) ...[
-                Icon(widget.icon, size: widget.compact ? 14 : 16, color: fg),
+                Icon(widget.icon, size: iconSize, color: fg),
                 const SizedBox(width: 6),
               ],
               Text(
                 widget.label,
                 style: TextStyle(
-                  fontSize: 14,
+                  fontSize: widget.compact ? 12.5 : 13.0,
                   fontWeight: FontWeight.w600,
                   letterSpacing: 0,
                   color: fg,
+                  height: 1.1,
                 ),
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Standardized Icon Button matching GsButton sizing and styling tokens
+class GsIconButton extends StatefulWidget {
+  const GsIconButton({
+    super.key,
+    required this.icon,
+    this.onPressed,
+    this.tooltip,
+    this.size,
+    this.iconSize = 16.0,
+    this.variant = GsButtonVariant.secondary,
+    this.compact = false,
+    this.color,
+  });
+
+  final IconData icon;
+  final VoidCallback? onPressed;
+  final String? tooltip;
+  final double? size;
+  final double iconSize;
+  final GsButtonVariant variant;
+  final bool compact;
+  final Color? color;
+
+  @override
+  State<GsIconButton> createState() => _GsIconButtonState();
+}
+
+class _GsIconButtonState extends State<GsIconButton> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = widget.onPressed != null;
+
+    Color bg;
+    Color border;
+    Color fg;
+
+    switch (widget.variant) {
+      case GsButtonVariant.primary:
+        bg = enabled
+            ? (_hovered ? const Color(0xFF0284C7) : const Color(0xFF0369A1))
+            : const Color(0xFF1E293B);
+        border = enabled
+            ? (_hovered ? GsColors.cyan : const Color(0x6638BDF8))
+            : Colors.transparent;
+        fg = enabled ? Colors.white : GsColors.textMuted;
+        break;
+      case GsButtonVariant.secondary:
+        bg = enabled
+            ? (_hovered ? GsColors.surfaceHover : const Color(0xFF0F172A))
+            : GsColors.surface;
+        border = enabled
+            ? (_hovered ? GsColors.cyan : const Color(0x1FFFFFFF))
+            : const Color(0x1FFFFFFF);
+        fg = enabled ? (widget.color ?? GsColors.cyan) : GsColors.textMuted;
+        break;
+      case GsButtonVariant.ghost:
+        bg = enabled
+            ? (_hovered ? GsColors.surfaceHover : Colors.transparent)
+            : Colors.transparent;
+        border = Colors.transparent;
+        fg = enabled
+            ? (_hovered ? GsColors.cyan : GsColors.textSecondary)
+            : GsColors.textMuted;
+        break;
+      case GsButtonVariant.danger:
+        bg = enabled
+            ? (_hovered ? const Color(0xFFDC2626) : const Color(0xFF991B1B))
+            : const Color(0xFF1E293B);
+        border = enabled
+            ? (_hovered ? GsColors.crimson : const Color(0x66EF4444))
+            : Colors.transparent;
+        fg = enabled ? Colors.white : GsColors.textMuted;
+        break;
+    }
+
+    final targetSize = widget.size ??
+        (widget.compact ? GsSizes.controlHeightCompact : GsSizes.controlHeight);
+
+    Widget content = MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        onTap: enabled ? widget.onPressed : null,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 120),
+          width: targetSize,
+          height: targetSize,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: BorderRadius.circular(GsSizes.radius),
+            border: Border.all(color: border, width: 1),
+          ),
+          child: Icon(
+            widget.icon,
+            size: widget.iconSize,
+            color: fg,
+          ),
+        ),
+      ),
+    );
+
+    if (widget.tooltip != null) {
+      return Tooltip(message: widget.tooltip!, child: content);
+    }
+    return content;
+  }
+}
+
+/// Standardized Single-Line Text Input matching GsButton, GsSelect, GsIconButton
+class GsInput extends StatelessWidget {
+  const GsInput({
+    super.key,
+    this.controller,
+    this.hintText,
+    this.prefixText,
+    this.prefixIcon,
+    this.suffixIcon,
+    this.width,
+    this.height,
+    this.compact = false,
+    this.enabled = true,
+    this.onChanged,
+    this.onSubmitted,
+    this.textInputAction,
+    this.autofocus = false,
+    this.style,
+  });
+
+  final TextEditingController? controller;
+  final String? hintText;
+  final String? prefixText;
+  final IconData? prefixIcon;
+  final Widget? suffixIcon;
+  final double? width;
+  final double? height;
+  final bool compact;
+  final bool enabled;
+  final ValueChanged<String>? onChanged;
+  final ValueChanged<String>? onSubmitted;
+  final TextInputAction? textInputAction;
+  final bool autofocus;
+  final TextStyle? style;
+
+  @override
+  Widget build(BuildContext context) {
+    final targetHeight = height ??
+        (compact ? GsSizes.controlHeightCompact : GsSizes.controlHeight);
+    final fontSize = compact ? 12.0 : 13.0;
+
+    return SizedBox(
+      width: width,
+      height: targetHeight,
+      child: TextField(
+        controller: controller,
+        enabled: enabled,
+        autofocus: autofocus,
+        textInputAction: textInputAction,
+        onChanged: onChanged,
+        onSubmitted: onSubmitted,
+        style: style ??
+            TextStyle(
+              fontSize: fontSize,
+              color: GsColors.textPrimary,
+            ),
+        decoration: InputDecoration(
+          isDense: true,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 10,
+            vertical: 9,
+          ),
+          hintText: hintText,
+          hintStyle: TextStyle(
+            fontSize: fontSize,
+            color: GsColors.textMuted,
+          ),
+          prefixText: prefixText,
+          prefixStyle: const TextStyle(
+            color: GsColors.cyan,
+            fontWeight: FontWeight.bold,
+          ),
+          prefixIcon: prefixIcon != null
+              ? Icon(prefixIcon, size: 15, color: GsColors.textSecondary)
+              : null,
+          suffixIcon: suffixIcon,
+          filled: true,
+          fillColor: const Color(0xFF0F172A),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(GsSizes.radius),
+            borderSide: const BorderSide(color: Color(0x1FFFFFFF)),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(GsSizes.radius),
+            borderSide: const BorderSide(color: Color(0x1FFFFFFF)),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(GsSizes.radius),
+            borderSide: const BorderSide(color: GsColors.cyan),
           ),
         ),
       ),
@@ -425,6 +654,8 @@ class GsSelect<T> extends StatelessWidget {
     required this.onChanged,
     this.label,
     this.width,
+    this.height,
+    this.compact = false,
   });
 
   final T value;
@@ -432,35 +663,44 @@ class GsSelect<T> extends StatelessWidget {
   final ValueChanged<T>? onChanged;
   final String? label;
   final double? width;
+  final double? height;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
     final enabled = onChanged != null;
+    final targetHeight = height ??
+        (compact ? GsSizes.controlHeightCompact : GsSizes.controlHeight);
 
     final content = Container(
-      constraints: const BoxConstraints(minHeight: 40),
+      height: targetHeight,
       alignment: Alignment.center,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? 10 : 12,
+      ),
       decoration: BoxDecoration(
-        color: GsColors.surfaceElevated,
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: GsColors.border, width: 1),
+        color: const Color(0xFF0F172A),
+        borderRadius: BorderRadius.circular(GsSizes.radius),
+        border: Border.all(
+          color: enabled ? const Color(0x2EFFFFFF) : const Color(0x14FFFFFF),
+          width: 1,
+        ),
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<T>(
           value: value,
           isDense: true,
           isExpanded: true,
-          icon: const Icon(
+          icon: Icon(
             Icons.keyboard_arrow_down_rounded,
-            size: 18,
-            color: GsColors.cyan,
+            size: compact ? 16 : 18,
+            color: enabled ? const Color(0xFF38BDF8) : GsColors.textMuted,
           ),
-          dropdownColor: GsColors.surfaceElevated,
+          dropdownColor: const Color(0xFF0F172A),
           style: Theme.of(context).textTheme.bodyMedium!.copyWith(
             fontSize: 14,
             fontWeight: FontWeight.w500,
-            color: GsColors.textPrimary,
+            color: enabled ? GsColors.textPrimary : GsColors.textMuted,
           ),
           items: items.entries.map((entry) {
             return DropdownMenuItem<T>(
@@ -488,14 +728,14 @@ class GsSelect<T> extends StatelessWidget {
           if (label != null) ...[
             Text(
               label!,
-              style: Theme.of(context).textTheme.labelMedium!.copyWith(
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-                color: GsColors.textSecondary,
-                letterSpacing: 0,
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF94A3B8),
+                letterSpacing: 0.3,
               ),
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 4),
           ],
           Tooltip(message: items[value] ?? '', child: content),
         ],

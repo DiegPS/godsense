@@ -14,11 +14,11 @@ void main() {
   ) async {
     await tester.pumpWidget(_scoutApp(const LocalScoutState()));
 
-    expect(find.text('Scout'), findsOneWidget);
     expect(find.text('Conecta una cuenta de League'), findsOneWidget);
     expect(find.byTooltip('Actualizar historial local'), findsOneWidget);
     expect(find.text('Nombre de Riot'), findsOneWidget);
     expect(find.text('Buscar'), findsOneWidget);
+    expect(find.text('Mi Cuenta'), findsOneWidget);
   });
 
   testWidgets('renders cached rank and match data with modern esports card', (
@@ -228,14 +228,14 @@ void main() {
 
     await tester.pumpWidget(_scoutApp(state));
     await tester.pumpAndSettle();
-    expect(find.text('Scout'), findsOneWidget);
+    expect(find.text('Mi Cuenta'), findsOneWidget);
     expect(find.text('Diego#LAN'), findsOneWidget);
 
     // 2. Compact view (800x600)
     tester.view.physicalSize = const Size(800, 600);
     await tester.pumpWidget(_scoutApp(state));
     await tester.pumpAndSettle();
-    expect(find.text('Scout'), findsOneWidget);
+    expect(find.text('Mi Cuenta'), findsOneWidget);
     expect(find.text('Diego#LAN'), findsOneWidget);
   });
 }

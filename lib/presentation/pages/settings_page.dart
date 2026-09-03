@@ -66,28 +66,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         const SizedBox(height: 16),
         Align(
           alignment: Alignment.centerLeft,
-          child: SegmentedButton<_SettingsSection>(
-            segments: const [
-              ButtonSegment(
-                value: _SettingsSection.general,
-                icon: Icon(Icons.tune_rounded),
-                label: Text('General'),
-              ),
-              ButtonSegment(
-                value: _SettingsSection.coaching,
-                icon: Icon(Icons.psychology_outlined),
-                label: Text('Coaching'),
-              ),
-            ],
-            selected: {_section},
-            showSelectedIcon: false,
-            style: const ButtonStyle(
-              minimumSize: WidgetStatePropertyAll(Size(148, 44)),
-              visualDensity: VisualDensity.standard,
-            ),
-            onSelectionChanged: (selection) {
-              setState(() => _section = selection.first);
-            },
+          child: _SettingsSectionSwitch(
+            selected: _section,
+            onChanged: (section) => setState(() => _section = section),
           ),
         ),
         const SizedBox(height: 20),
@@ -110,53 +91,56 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   },
                 ),
                 const Divider(height: 1, color: Color(0x14FFFFFF)),
-                Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Wrap(
-                    spacing: 16,
-                    runSpacing: 12,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      GsSelect<String>(
-                        label: 'IDIOMA',
-                        width: 140,
-                        value: settings?.language ?? 'auto',
-                        items: const {
-                          'auto': 'Automático',
-                          'en': 'ENGLISH',
-                          'es': 'ESPAÑOL',
-                        },
-                        onChanged:
-                            locks.containsKey('language') ||
-                                backend.operationInProgress
-                            ? null
-                            : (value) => ref
-                                  .read(companionControllerProvider.notifier)
-                                  .updateSettings({'language': value}),
-                      ),
-                      GsSelect<String>(
-                        label: 'FRECUENCIA DE CONSEJOS',
-                        width: 140,
-                        value: settings?.cadence ?? 'normal',
-                        items: const {
-                          'quiet': 'Silencioso',
-                          'normal': 'Normal',
-                          'chatty': 'Frecuente',
-                        },
-                        onChanged:
-                            meta['cadence_editable'] != true ||
-                                backend.operationInProgress
-                            ? null
-                            : (value) => ref
-                                  .read(companionControllerProvider.notifier)
-                                  .updateSettings({'cadence': value}),
-                      ),
-                    ],
+                _SettingsSelectRow(
+                  icon: Icons.language_rounded,
+                  title: 'Idioma del asistente',
+                  subtitle: 'Idioma de los textos, alertas y recomendaciones.',
+                  control: GsSelect<String>(
+                    compact: true,
+                    width: 150,
+                    value: settings?.language ?? 'auto',
+                    items: const {
+                      'auto': 'Automático',
+                      'en': 'Inglés',
+                      'es': 'Español',
+                    },
+                    onChanged: locks.containsKey('language') ||
+                            backend.operationInProgress
+                        ? null
+                        : (value) => ref
+                            .read(companionControllerProvider.notifier)
+                            .updateSettings({'language': value}),
+                  ),
+                ),
+                const Divider(height: 1, color: Color(0x14FFFFFF)),
+                _SettingsSelectRow(
+                  icon: Icons.speed_rounded,
+                  title: 'Frecuencia de consejos',
+                  subtitle:
+                      'Intervalo con el que el coach emite directivas tácticas.',
+                  control: GsSelect<String>(
+                    compact: true,
+                    width: 150,
+                    value: settings?.cadence ?? 'normal',
+                    items: const {
+                      'quiet': 'Silencioso',
+                      'normal': 'Normal',
+                      'chatty': 'Frecuente',
+                    },
+                    onChanged: meta['cadence_editable'] != true ||
+                            backend.operationInProgress
+                        ? null
+                        : (value) => ref
+                            .read(companionControllerProvider.notifier)
+                            .updateSettings({'cadence': value}),
                   ),
                 ),
                 const Divider(height: 1, color: Color(0x14FFFFFF)),
                 Padding(
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
                   child: Row(
                     children: [
                       const Icon(
@@ -164,7 +148,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                         size: 18,
                         color: GsColors.cyan,
                       ),
-                      const SizedBox(width: 10),
+                      const SizedBox(width: 12),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -172,23 +156,24 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                             const Text(
                               'Área del minimapa',
                               style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
                                 color: GsColors.textPrimary,
                               ),
                             ),
+                            const SizedBox(height: 2),
                             Text(
                               _calibrationDescription(calibration),
                               style: const TextStyle(
-                                fontSize: 11,
+                                fontSize: 12,
                                 color: GsColors.textSecondary,
                               ),
                             ),
                           ],
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      if (calibration != null)
+                      const SizedBox(width: 12),
+                      if (calibration != null) ...[
                         GsButton(
                           label: 'Borrar',
                           variant: GsButtonVariant.ghost,
@@ -196,10 +181,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                           onPressed: nativeCalibration.saving
                               ? null
                               : () => ref
-                                    .read(nativeCalibrationProvider.notifier)
-                                    .clear(),
+                                  .read(nativeCalibrationProvider.notifier)
+                                  .clear(),
                         ),
-                      const SizedBox(width: 6),
+                        const SizedBox(width: 6),
+                      ],
                       GsButton(
                         label: 'Ajustar',
                         variant: GsButtonVariant.secondary,
@@ -207,10 +193,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                         onPressed: nativeCalibration.saving
                             ? null
                             : () => _showManualCalibrationDialog(
-                                context,
-                                ref,
-                                calibration,
-                              ),
+                                  context,
+                                  ref,
+                                  calibration,
+                                ),
                       ),
                       const SizedBox(width: 6),
                       GsButton(
@@ -910,6 +896,158 @@ class _NumberField extends StatelessWidget {
       decoration: InputDecoration(
         labelText: label,
         border: const OutlineInputBorder(),
+      ),
+    );
+  }
+}
+
+class _SettingsSectionSwitch extends StatelessWidget {
+  const _SettingsSectionSwitch({
+    required this.selected,
+    required this.onChanged,
+  });
+
+  final _SettingsSection selected;
+  final ValueChanged<_SettingsSection> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 38,
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0C1017),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0x1FFFFFFF), width: 1),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _SectionTab(
+            label: 'General',
+            icon: Icons.tune_rounded,
+            isSelected: selected == _SettingsSection.general,
+            onTap: () => onChanged(_SettingsSection.general),
+          ),
+          const SizedBox(width: 4),
+          _SectionTab(
+            label: 'Coaching',
+            icon: Icons.psychology_outlined,
+            isSelected: selected == _SettingsSection.coaching,
+            onTap: () => onChanged(_SettingsSection.coaching),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SectionTab extends StatelessWidget {
+  const _SectionTab({
+    required this.label,
+    required this.icon,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(6),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: isSelected ? const Color(0xFF1E293B) : Colors.transparent,
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(
+              color: isSelected ? const Color(0x3338BDF8) : Colors.transparent,
+              width: 1,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                size: 15,
+                color: isSelected
+                    ? const Color(0xFF38BDF8)
+                    : const Color(0xFF64748B),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                  color: isSelected ? Colors.white : const Color(0xFF94A3B8),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SettingsSelectRow extends StatelessWidget {
+  const _SettingsSelectRow({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.control,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final Widget control;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: GsColors.cyan),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: GsColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: GsColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          control,
+        ],
       ),
     );
   }

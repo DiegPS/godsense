@@ -151,145 +151,22 @@ class _GodSenseOverlayState extends ConsumerState<GodSenseOverlay> {
             _EditableOverlayPanel(
               id: 'gank',
               title: 'Alerta de gank',
-              child: _OverlayGlassCard(
-                borderColor:
-                    nativeGank != null || gank?.raw['threat_level'] == 'DANGER'
-                    ? const Color(0xFFEF4444)
-                    : const Color(0xFFF59E0B),
-                child: ListTile(
-                  leading: Icon(
-                    Icons.warning_amber,
-                    color:
-                        nativeGank != null ||
-                            gank?.raw['threat_level'] == 'DANGER'
-                        ? Colors.redAccent
-                        : Colors.orangeAccent,
-                    size: 32,
-                  ),
-                  title: Text(
-                    nativeGank != null
-                        ? 'DANGER: ${nativeGank.champion}'
-                        : gank?.title ?? 'Amenaza de gank',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                  subtitle: Text(
-                    nativeGank != null
-                        ? '${nativeGank.location} · ${nativeGank.role}'
-                        : gank?.message ?? 'Esperando una amenaza de gank…',
-                    style: const TextStyle(color: Color(0xFFCBD5E1)),
-                  ),
-                ),
+              child: _GankAlertHUD(
+                nativeGank: nativeGank,
+                gank: gank,
               ),
             ),
           if (!hiddenPanels.contains('jungler'))
             _EditableOverlayPanel(
               id: 'jungler',
               title: 'Jungla enemigo',
-              child: _OverlayGlassCard(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    ListTile(
-                      leading: _NetworkPortrait(
-                        url: jungler?['icon_url']?.toString(),
-                        fallbackUrls: _stringValues(
-                          jungler?['icon_fallback_urls'],
-                        ),
-                        size: 56,
-                      ),
-                      title: Text(
-                        '${jungler?['champion_name'] ?? 'Jungla enemigo'} · JUNGLE',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF38BDF8),
-                        ),
-                      ),
-                      subtitle: Text(
-                        jungler == null
-                            ? 'Esperando identificación del jungla…'
-                            : _enemyLocationStatus(
-                                jungler,
-                                native: _nativeForEnemy(
-                                  nativeVision.lastKnown,
-                                  jungler,
-                                ),
-                                now: _now,
-                              ),
-                        style: const TextStyle(
-                          color: Color(0xFFCBD5E1),
-                          fontFeatures: [FontFeature.tabularFigures()],
-                        ),
-                      ),
-                    ),
-                    if (nativeSighting != null || sighting != null)
-                      ListTile(
-                        dense: true,
-                        leading: const Icon(
-                          Icons.visibility,
-                          color: Color(0xFF38BDF8),
-                        ),
-                        title: Text(
-                          nativeSighting != null
-                              ? '${nativeSighting.champion} visto en ${nativeSighting.location}'
-                              : sighting!.title,
-                          style: const TextStyle(color: Colors.white),
-                        ),
-                        subtitle: Text(
-                          nativeSighting != null
-                              ? '${nativeSighting.region} · hace ${_formatDuration(_now.difference(nativeSighting.timestamp).inSeconds)}'
-                              : '${sighting!.message} · hace ${_formatDuration(_now.difference(sighting.receivedAt).inSeconds)}',
-                          style: const TextStyle(
-                            color: Color(0xFF94A3B8),
-                            fontFeatures: [FontFeature.tabularFigures()],
-                          ),
-                        ),
-                      ),
-                    const Divider(color: Color(0x3338BDF8), height: 1),
-                    if (!nativeVision.recognitionReady)
-                      Padding(
-                        padding: const EdgeInsets.all(8),
-                        child: Text(
-                          nativeVision.recognitionStatus,
-                          style: const TextStyle(color: Color(0xFFFBBF24)),
-                        ),
-                      ),
-                    for (final enemy in threats.take(5))
-                      ListTile(
-                        dense: true,
-                        leading: _NetworkPortrait(
-                          url: enemy['icon_url']?.toString(),
-                          fallbackUrls: _stringValues(
-                            enemy['icon_fallback_urls'],
-                          ),
-                          size: 32,
-                        ),
-                        title: Text(
-                          '${enemy['champion_name'] ?? '?'} · ${enemy['role'] ?? ''}',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
-                          ),
-                        ),
-                        subtitle: Text(
-                          _enemyLocationStatus(
-                            enemy,
-                            native: _nativeForEnemy(
-                              nativeVision.lastKnown,
-                              enemy,
-                            ),
-                            now: _now,
-                          ),
-                          style: const TextStyle(
-                            color: Color(0xFF94A3B8),
-                            fontFeatures: [FontFeature.tabularFigures()],
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
+              child: _ThreatRadarHUD(
+                jungler: jungler,
+                threats: threats,
+                nativeSighting: nativeSighting,
+                sighting: sighting,
+                nativeVision: nativeVision,
+                now: _now,
               ),
             ),
           if ((nativeVoiceVisible || voice != null || layout.editing) &&
@@ -297,140 +174,64 @@ class _GodSenseOverlayState extends ConsumerState<GodSenseOverlay> {
             _EditableOverlayPanel(
               id: 'voice_ask',
               title: 'Coach de voz',
-              child: _OverlayGlassCard(
-                borderColor: const Color(0xFF818CF8),
-                child: ListTile(
-                  leading: Icon(
-                    nativeSpeech.pushToTalkPressed
-                        ? Icons.mic
-                        : voice?.raw['state'] == 'recording'
-                        ? Icons.mic
-                        : voice?.raw['state'] == 'thinking'
-                        ? Icons.psychology
-                        : voice?.raw['state'] == 'error'
-                        ? Icons.error_outline
-                        : Icons.record_voice_over,
-                    color: const Color(0xFF818CF8),
-                  ),
-                  title: Text(
-                    nativeSpeech.pushToTalkPressed
-                        ? 'Escuchando…'
-                        : nativeSpeech.transcript.isNotEmpty
-                        ? nativeSpeech.transcript
-                        : voice?.raw['question']?.toString() ??
-                              voice?.title ??
-                              'Coach de voz',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                  subtitle: Text(
-                    nativeSpeech.pushToTalkPressed
-                        ? 'Suelta la tecla para enviar'
-                        : nativeVoiceCoach.processing
-                        ? 'Preparando respuesta…'
-                        : nativeVoiceCoach.advice != null
-                        ? nativeVoiceCoach.advice!.ttsText
-                        : nativeSpeech.transcript.isNotEmpty
-                        ? 'Pregunta entendida'
-                        : voice == null
-                        ? 'Esperando una interacción de voz…'
-                        : _voiceMessage(voice),
-                    style: const TextStyle(color: Color(0xFFCBD5E1)),
-                  ),
-                ),
+              child: _VoiceCapsuleHUD(
+                isListening: nativeSpeech.pushToTalkPressed,
+                transcript: nativeSpeech.transcript,
+                isProcessing: nativeVoiceCoach.processing,
+                adviceText: nativeVoiceCoach.advice?.ttsText,
+                voiceAlert: voice,
               ),
             ),
           if (!hiddenPanels.contains('matchup_info'))
             _EditableOverlayPanel(
               id: 'matchup_info',
               title: 'Enfrentamiento',
-              child: _OverlayInfoCard(
-                title: 'Enfrentamiento',
-                width: 360,
-                child: Text(
-                  backend.coaching['matchup'] is Map
-                      ? (backend.coaching['matchup'] as Map)['win_condition']
-                                ?.toString() ??
-                            'Esperando condición de victoria…'
-                      : 'Esperando análisis del enfrentamiento…',
-                ),
+              child: _MatchupInfoHUD(
+                matchupData: backend.coaching['matchup'],
               ),
             ),
           if (!hiddenPanels.contains('builds'))
             _EditableOverlayPanel(
               id: 'builds',
               title: 'Build recomendada',
-              child: _OverlayInfoCard(
-                title: 'Build recomendada',
-                width: 360,
-                child: _OverlayBuildsView(
-                  coachGroups: ref
-                      .watch(coachControllerProvider)
-                      .itemRecommendationGroups,
-                  rawBuilds: backend.coaching['builds'] is Map
-                      ? Map<String, dynamic>.from(
-                          backend.coaching['builds'] as Map,
-                        )
-                      : (ref.watch(nativeLeagueProvider).liveGame?['builds']
-                                is Map
-                            ? Map<String, dynamic>.from(
-                                ref
-                                        .watch(nativeLeagueProvider)
-                                        .liveGame!['builds']
-                                    as Map,
-                              )
-                            : null),
-                ),
+              child: _LinearBuildsHUD(
+                coachGroups: ref
+                    .watch(coachControllerProvider)
+                    .itemRecommendationGroups,
+                rawBuilds: backend.coaching['builds'] is Map
+                    ? Map<String, dynamic>.from(
+                        backend.coaching['builds'] as Map,
+                      )
+                    : (ref.watch(nativeLeagueProvider).liveGame?['builds']
+                            is Map
+                        ? Map<String, dynamic>.from(
+                            ref
+                                    .watch(nativeLeagueProvider)
+                                    .liveGame!['builds']
+                                as Map,
+                          )
+                        : null),
               ),
             ),
           if (!hiddenPanels.contains('directives'))
             _EditableOverlayPanel(
               id: 'directives',
               title: 'Directivas',
-              child: _OverlayInfoCard(
-                title: 'Directivas',
-                width: 360,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: backend.directives.isEmpty
-                      ? const [Text('Esperando directivas…')]
-                      : backend.directives
-                            .take(3)
-                            .map(
-                              (directive) => Padding(
-                                padding: const EdgeInsets.only(bottom: 6),
-                                child: Text('• ${directive.title}'),
-                              ),
-                            )
-                            .toList(),
-                ),
+              child: _PriorityDirectivesHUD(
+                directives: backend.directives,
               ),
             ),
           if (!hiddenPanels.contains('team_comp'))
             _EditableOverlayPanel(
               id: 'team_comp',
               title: 'Composición',
-              child: _OverlayInfoCard(
-                title: 'Composición',
-                width: 360,
-                child: backend.coaching['team_comp'] is Map
-                    ? Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            (backend.coaching['team_comp'] as Map)['identity']
-                                    ?.toString() ??
-                                'Composición detectada',
-                          ),
-                          ..._stringValues(
-                            (backend.coaching['team_comp']
-                                as Map)['guidelines'],
-                          ).map((value) => Text('• $value')),
-                        ],
+              child: _EsportsCompositionHUD(
+                game: game,
+                aiTeamComp: backend.coaching['team_comp'] is Map
+                    ? Map<String, dynamic>.from(
+                        backend.coaching['team_comp'] as Map,
                       )
-                    : _NativeCompositionView(game: game),
+                    : null,
               ),
             ),
           if (gank != null && calibration?.bounds != null)
@@ -443,38 +244,8 @@ class _GodSenseOverlayState extends ConsumerState<GodSenseOverlay> {
             _EditableOverlayPanel(
               id: 'gold_chart',
               title: 'Diferencia de oro',
-              child: _OverlayGlassCard(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 14,
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    const Text(
-                      'Diferencia de oro',
-                      style: TextStyle(
-                        color: Color(0xFF94A3B8),
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    Text(
-                      goldDifference == null
-                          ? 'Esperando partida…'
-                          : _signedNumber(goldDifference),
-                      style: Theme.of(context).textTheme.headlineMedium
-                          ?.copyWith(
-                            color: goldDifference == null || goldDifference == 0
-                                ? const Color(0xFFE2E8F0)
-                                : goldDifference > 0
-                                ? const Color(0xFF4ADE80)
-                                : const Color(0xFFF87171),
-                            fontWeight: FontWeight.bold,
-                          ),
-                    ),
-                  ],
-                ),
+              child: _MiniGoldBadgeHUD(
+                goldDifference: goldDifference,
               ),
             ),
         ],

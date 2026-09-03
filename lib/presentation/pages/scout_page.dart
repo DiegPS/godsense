@@ -42,54 +42,11 @@ class _ScoutPageState extends ConsumerState<ScoutPage> {
         final isWide = constraints.maxWidth >= 1020;
 
         return ListView(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
           children: [
-            // Page Title Header
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Scout',
-                        style: Theme.of(context).textTheme.headlineMedium,
-                      ),
-                      const Text(
-                        'Analiza perfiles, tendencias y rendimiento reciente por partida.',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: GsColors.textSecondary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                IconButton.outlined(
-                  tooltip: 'Actualizar historial',
-                  style: IconButton.styleFrom(
-                    side: BorderSide.none,
-                    backgroundColor: GsColors.surfaceElevated,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  onPressed: state.loading
-                      ? null
-                      : () => ref.read(localScoutProvider.notifier).refresh(),
-                  icon: const Icon(
-                    Icons.refresh_rounded,
-                    size: 18,
-                    color: GsColors.cyan,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-
             // 1. Search Console Bar
             _buildSearchConsole(state),
-            const SizedBox(height: 16),
+            const SizedBox(height: 14),
 
             // 2. Empty State when no profile is available
             if (subject == null && state.profile.isEmpty && !state.loading)
@@ -216,155 +173,77 @@ class _ScoutPageState extends ConsumerState<ScoutPage> {
   }
 
   Widget _buildSearchConsole(LocalScoutState state) {
-    return Container(
-      decoration: BoxDecoration(
-        color: GsColors.surface,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x14000000),
-            blurRadius: 12,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(11),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          crossAxisAlignment: WrapCrossAlignment.center,
           children: [
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Wrap(
-                spacing: 10,
-                runSpacing: 10,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  SizedBox(
-                    width: 220,
-                    child: TextField(
-                      controller: _gameName,
-                      textInputAction: TextInputAction.next,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: GsColors.textPrimary,
-                      ),
-                      decoration: InputDecoration(
-                        isDense: true,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 10,
-                        ),
-                        labelText: 'Nombre de Riot',
-                        hintText: 'Invocador…',
-                        hintStyle: const TextStyle(
-                          fontSize: 13,
-                          color: GsColors.textMuted,
-                        ),
-                        filled: true,
-                        fillColor: GsColors.surfaceElevated,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: BorderSide.none,
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: const BorderSide(color: GsColors.cyan),
-                        ),
-                      ),
-                    ),
-                  ),
-                  SizedBox(
-                    width: 100,
-                    child: TextField(
-                      controller: _tagLine,
-                      textInputAction: TextInputAction.search,
-                      onSubmitted: state.loading ? null : (_) => _search(),
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: GsColors.textPrimary,
-                      ),
-                      decoration: InputDecoration(
-                        isDense: true,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 10,
-                        ),
-                        labelText: 'Tag',
-                        prefixText: '# ',
-                        prefixStyle: const TextStyle(
-                          color: GsColors.cyan,
-                          fontWeight: FontWeight.bold,
-                        ),
-                        filled: true,
-                        fillColor: GsColors.surfaceElevated,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: BorderSide.none,
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: const BorderSide(color: GsColors.cyan),
-                        ),
-                      ),
-                    ),
-                  ),
-                  GsButton(
-                    label: 'Buscar',
-                    icon: Icons.search_rounded,
-                    onPressed: state.loading ? null : _search,
-                  ),
-                  GsButton(
-                    label: 'Mi Cuenta',
-                    icon: Icons.account_circle_outlined,
-                    variant: GsButtonVariant.secondary,
-                    onPressed: state.loading
-                        ? null
-                        : () => ref
-                              .read(localScoutProvider.notifier)
-                              .useConnectedAccount(),
-                  ),
-                ],
-              ),
+            GsInput(
+              width: 200,
+              controller: _gameName,
+              hintText: 'Nombre de Riot',
+              prefixIcon: Icons.sports_esports_outlined,
+              textInputAction: TextInputAction.next,
             ),
-            if (state.loading) ...[
-              const LinearProgressIndicator(
-                minHeight: 2,
-                backgroundColor: Colors.transparent,
-                color: GsColors.cyan,
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 6,
-                ),
-                color: GsColors.cyanGlow,
-                child: Row(
-                  children: [
-                    const SizedBox(
-                      width: 12,
-                      height: 12,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: GsColors.cyan,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      state.loadingLabel ?? 'Consultando datos del invocador…',
-                      style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w500,
-                        color: GsColors.cyan,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+            GsInput(
+              width: 90,
+              controller: _tagLine,
+              hintText: 'Tag',
+              prefixText: '# ',
+              textInputAction: TextInputAction.search,
+              onSubmitted: state.loading ? null : (_) => _search(),
+            ),
+            GsButton(
+              label: 'Buscar',
+              icon: Icons.search_rounded,
+              loading: state.loading,
+              onPressed: state.loading ? null : _search,
+            ),
+            GsButton(
+              label: 'Mi Cuenta',
+              icon: Icons.account_circle_outlined,
+              variant: GsButtonVariant.secondary,
+              onPressed: state.loading
+                  ? null
+                  : () => ref
+                        .read(localScoutProvider.notifier)
+                        .useConnectedAccount(),
+            ),
+            GsIconButton(
+              icon: Icons.refresh_rounded,
+              tooltip: 'Actualizar historial local',
+              onPressed: state.loading
+                  ? null
+                  : () => ref.read(localScoutProvider.notifier).refresh(),
+            ),
           ],
         ),
-      ),
+        if (state.loading) ...[
+          const SizedBox(height: 6),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(2),
+            child: const LinearProgressIndicator(
+              minHeight: 2,
+              backgroundColor: Colors.transparent,
+              color: GsColors.cyan,
+            ),
+          ),
+          if (state.loadingLabel != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              state.loadingLabel!,
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+                color: GsColors.cyan,
+              ),
+            ),
+          ],
+        ],
+      ],
     );
   }
 
@@ -438,191 +317,127 @@ class _ScoutPageState extends ConsumerState<ScoutPage> {
         : (formWins * 100 / recentForm.length).round();
 
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
         color: GsColors.surface,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x14000000),
-            blurRadius: 12,
-            offset: Offset(0, 4),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(GsSizes.radius + 2),
+        border: Border.all(color: GsColors.border),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              // Avatar with Level Badge Overlay
-              Stack(
-                clipBehavior: Clip.none,
-                alignment: Alignment.bottomCenter,
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: _NetworkPortrait(url: iconUrl, size: 68),
-                  ),
-                  Positioned(
-                    bottom: -6,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 1,
-                      ),
-                      decoration: BoxDecoration(
-                        color: GsColors.canvas,
-                        borderRadius: BorderRadius.circular(4),
-                        border: Border.all(color: GsColors.border, width: 1),
-                      ),
-                      child: const Text(
-                        'LVL',
-                        style: TextStyle(
-                          fontSize: 9,
-                          fontWeight: FontWeight.w700,
-                          color: GsColors.cyan,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(width: 18),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: _NetworkPortrait(url: iconUrl, size: 52),
+          ),
+          const SizedBox(width: 14),
 
-              // Name, Tag & Rank Pill
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+          // Name, Tag & Rank info (Clean flat typography, zero nested cards)
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  '$name#$tag',
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: GsColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 2,
+                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                     Text(
-                      '$name#$tag',
+                      '$tier $division · $lp LP',
                       style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0.3,
-                        color: GsColors.textPrimary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF38BDF8),
                       ),
                     ),
-                    const SizedBox(height: 6),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 6,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 3,
-                          ),
-                          decoration: BoxDecoration(
-                            color: GsColors.cyanGlow,
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            '$tier $division · $lp LP',
-                            style: const TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                              color: GsColors.cyan,
-                            ),
-                          ),
-                        ),
-                        if (analytics != null &&
-                            analytics.roleDistribution.isNotEmpty)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 3,
-                            ),
-                            decoration: BoxDecoration(
-                              color: GsColors.surfaceElevated,
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Text(
-                              '${analytics.roleDistribution.first.role.label} Main · ${analytics.roleDistribution.first.percentage.toStringAsFixed(0)}%',
-                              style: const TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: GsColors.textSecondary,
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-
-              // Recent Form Matrix (Últimas 10 partidas)
-              if (recentForm.isNotEmpty)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 10,
-                  ),
-                  decoration: BoxDecoration(
-                    color: GsColors.surfaceElevated,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
+                    if (analytics != null &&
+                        analytics.roleDistribution.isNotEmpty) ...[
                       const Text(
-                        'FORMA RECIENTE (ÚLTIMAS 10)',
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 0.5,
-                          color: GsColors.textMuted,
-                        ),
+                        '·',
+                        style: TextStyle(color: GsColors.textMuted, fontSize: 11),
                       ),
-                      const SizedBox(height: 6),
-                      Wrap(
-                        spacing: 4,
-                        runSpacing: 4,
-                        children: recentForm.map((won) {
-                          return Container(
-                            width: 18,
-                            height: 18,
-                            decoration: BoxDecoration(
-                              color: won
-                                  ? GsColors.emeraldGlow
-                                  : GsColors.crimsonGlow,
-                              borderRadius: BorderRadius.circular(3),
-                            ),
-                            child: Center(
-                              child: Text(
-                                won ? 'W' : 'L',
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w700,
-                                  color: won
-                                      ? GsColors.emerald
-                                      : GsColors.crimson,
-                                ),
-                              ),
-                            ),
-                          );
-                        }).toList(),
-                      ),
-                      const SizedBox(height: 4),
                       Text(
-                        '${formWins}W - ${formLosses}L · $formWr% WR',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: formWr >= 50
-                              ? GsColors.emerald
-                              : GsColors.crimson,
+                        '${analytics.roleDistribution.first.role.label} Main (${analytics.roleDistribution.first.percentage.toStringAsFixed(0)}%)',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: GsColors.textSecondary,
                         ),
                       ),
                     ],
-                  ),
+                  ],
                 ),
-            ],
+              ],
+            ),
           ),
+
+          // Recent Form (Streak Bar: clean flat segments, zero nested cards)
+          if (recentForm.isNotEmpty)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      'FORMA RECIENTE: ',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.5,
+                        color: GsColors.textMuted,
+                      ),
+                    ),
+                    Text(
+                      '${formWins}W ${formLosses}L ($formWr% WR)',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: formWr >= 50
+                            ? GsColors.emerald
+                            : GsColors.crimson,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: recentForm.map((won) {
+                    return Container(
+                      width: 14,
+                      height: 16,
+                      margin: const EdgeInsets.only(left: 2),
+                      decoration: BoxDecoration(
+                        color: won
+                            ? const Color(0xFF10B981)
+                            : const Color(0xFFEF4444),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        won ? 'W' : 'L',
+                        style: const TextStyle(
+                          fontSize: 8.5,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ],
+            ),
         ],
       ),
     );
@@ -751,26 +566,14 @@ class _ScoutPageState extends ConsumerState<ScoutPage> {
                     ],
                   ),
                 ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
+                Text(
+                  '${rel.winrate.toStringAsFixed(0)}% WR',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
                     color: rel.winrate >= 50
-                        ? GsColors.emeraldGlow
-                        : GsColors.crimsonGlow,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text(
-                    '${rel.winrate.toStringAsFixed(0)}%',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: rel.winrate >= 50
-                          ? GsColors.emerald
-                          : GsColors.crimson,
-                    ),
+                        ? GsColors.emerald
+                        : GsColors.crimson,
                   ),
                 ),
               ],
@@ -794,11 +597,11 @@ class _ScoutPageState extends ConsumerState<ScoutPage> {
         children: [
           // 8 KPI Grid
           Wrap(
-            spacing: 12,
-            runSpacing: 12,
+            spacing: 8,
+            runSpacing: 8,
             children: [
               _buildKpiTile(
-                'VICTORIAS RECIENTES',
+                'RECENT WIN RATE',
                 '${kpis.recentWinRate.toStringAsFixed(1)}%',
                 '${kpis.wins}W · ${kpis.losses}L',
                 GsColors.emerald,
@@ -1023,35 +826,32 @@ class _ScoutPageState extends ConsumerState<ScoutPage> {
     String sub,
     Color valueColor,
   ) {
-    return Container(
-      width: 140,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: GsColors.surfaceElevated,
-        borderRadius: BorderRadius.circular(8),
-      ),
+    return SizedBox(
+      width: 125,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
           Text(
             label,
             style: const TextStyle(
               fontSize: 9,
               fontWeight: FontWeight.w700,
-              letterSpacing: 0.4,
+              letterSpacing: 0.5,
               color: GsColors.textMuted,
             ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 3),
           Text(
             value,
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w700,
+              letterSpacing: -0.2,
               color: valueColor,
             ),
           ),
-          const SizedBox(height: 2),
+          const SizedBox(height: 1),
           Text(
             sub,
             style: const TextStyle(fontSize: 10, color: GsColors.textSecondary),
@@ -1181,14 +981,18 @@ class _ModernMatchCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final isWin = match.isWin;
     final score = match.performanceScore?.value ?? 50;
+    final accentColor = isWin ? const Color(0xFF10B981) : const Color(0xFFEF4444);
+    final cardBg = isWin ? const Color(0xFF071B14) : const Color(0xFF1C0A0E);
+    final cardBorder = isWin ? const Color(0x3310B981) : const Color(0x33EF4444);
 
     return Container(
       decoration: BoxDecoration(
-        color: GsColors.surface,
-        borderRadius: BorderRadius.circular(10),
+        color: cardBg,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: cardBorder, width: 1),
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(7),
         child: Column(
           children: [
             // Collapsed Row
@@ -1199,10 +1003,10 @@ class _ModernMatchCard extends StatelessWidget {
                   children: [
                     // Solid Left Accent Stripe
                     Container(
-                      width: 5,
-                      color: isWin ? GsColors.emerald : GsColors.crimson,
+                      width: 4,
+                      color: accentColor,
                     ),
-                    const SizedBox(width: 14),
+                    const SizedBox(width: 12),
 
                     // Result & Queue Info
                     SizedBox(

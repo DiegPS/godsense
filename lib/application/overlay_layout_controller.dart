@@ -48,14 +48,14 @@ class OverlayPanelLayout {
         ? viewport.height.clamp(0.0, double.infinity)
         : 0.0;
     final fittedWidth = (width.isFinite ? width : 360.0).clamp(
-      maxWidth < 240 ? maxWidth : 240.0,
+      maxWidth < 130 ? maxWidth : 130.0,
       maxWidth,
     );
     final fittedHeight = (collapsed ? 48.0 : (height.isFinite ? height : 120.0))
         .clamp(
-          maxHeight < (collapsed ? 48 : 80)
+          maxHeight < (collapsed ? 48 : 36)
               ? maxHeight
-              : (collapsed ? 48.0 : 80.0),
+              : (collapsed ? 48.0 : 36.0),
           maxHeight,
         );
     return Rect.fromLTWH(
@@ -220,43 +220,43 @@ class OverlayLayoutController extends StateNotifier<OverlayLayoutState> {
   }
 
   Map<String, OverlayPanelLayout> _defaultLayouts() => {
-    'gank': const OverlayPanelLayout(x: 24, y: 24, width: 360, height: 104),
+    'gank': const OverlayPanelLayout(x: 24, y: 24, width: 340, height: 62),
     'voice_ask': const OverlayPanelLayout(
       x: 24,
-      y: 250,
-      width: 420,
-      height: 130,
+      y: 96,
+      width: 380,
+      height: 48,
     ),
     'matchup_info': const OverlayPanelLayout(
-      x: 1520,
-      y: 144,
-      width: 370,
-      height: 130,
+      x: 1540,
+      y: 100,
+      width: 340,
+      height: 90,
     ),
     'builds': const OverlayPanelLayout(
-      x: 1140,
-      y: 144,
-      width: 370,
-      height: 130,
+      x: 1180,
+      y: 100,
+      width: 340,
+      height: 90,
     ),
     'directives': const OverlayPanelLayout(
-      x: 1520,
-      y: 284,
-      width: 370,
-      height: 170,
+      x: 1540,
+      y: 200,
+      width: 340,
+      height: 125,
     ),
     'team_comp': const OverlayPanelLayout(
-      x: 1140,
-      y: 284,
-      width: 370,
-      height: 130,
+      x: 1180,
+      y: 200,
+      width: 340,
+      height: 95,
     ),
-    'jungler': const OverlayPanelLayout(x: 24, y: 700, width: 390, height: 310),
+    'jungler': const OverlayPanelLayout(x: 24, y: 800, width: 340, height: 120),
     'gold_chart': const OverlayPanelLayout(
-      x: 1520,
-      y: 900,
-      width: 370,
-      height: 100,
+      x: 1540,
+      y: 920,
+      width: 150,
+      height: 40,
     ),
   };
 }

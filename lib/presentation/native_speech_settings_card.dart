@@ -49,9 +49,10 @@ class NativeSpeechSettingsCard extends ConsumerWidget {
               crossAxisAlignment: WrapCrossAlignment.start,
               children: [
                 GsSelect<String>(
+                  compact: true,
                   label: 'Tecla para hablar',
                   value: settings.pushToTalkKey,
-                  width: 160,
+                  width: 140,
                   items: const {
                     'delete': 'Delete',
                     'space': 'Space',
@@ -65,9 +66,10 @@ class NativeSpeechSettingsCard extends ConsumerWidget {
                       update(settings.copyWith(pushToTalkKey: value)),
                 ),
                 GsSelect<String>(
+                  compact: true,
                   label: 'Idioma que hablas',
                   value: settings.sttLanguage,
-                  width: 180,
+                  width: 170,
                   items: {
                     for (final language in SpeechModelCatalog.canary.languages)
                       language.code: language.label,
@@ -133,13 +135,40 @@ class NativeSpeechSettingsCard extends ConsumerWidget {
               ],
             ),
           ),
-          if (state.speech.progress case final progress?) ...[
+          if (state.speech.phase == LiveCaptionsPhase.downloading)
+            if (state.speech.progress case final progress?) ...[
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-              child: LinearProgressIndicator(
-                value: progress,
-                backgroundColor: GsColors.surfaceElevated,
-                color: GsColors.cyan,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Descargando modelo de reconocimiento…',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: GsColors.textSecondary,
+                        ),
+                      ),
+                      Text(
+                        '${(progress * 100).toInt()}%',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: GsColors.cyan,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  LinearProgressIndicator(
+                    value: progress,
+                    backgroundColor: GsColors.surfaceElevated,
+                    color: GsColors.cyan,
+                  ),
+                ],
               ),
             ),
           ],
@@ -190,9 +219,10 @@ class NativeSpeechSettingsCard extends ConsumerWidget {
               crossAxisAlignment: WrapCrossAlignment.start,
               children: [
                 GsSelect<String>(
+                  compact: true,
                   label: 'Tipo de voz',
                   value: selectedModel.id,
-                  width: 300,
+                  width: 280,
                   items: {
                     for (final model in TtsModelCatalog.models)
                       model.id: '${model.name} · ${model.description}',
@@ -212,9 +242,10 @@ class NativeSpeechSettingsCard extends ConsumerWidget {
                   },
                 ),
                 GsSelect<String>(
+                  compact: true,
                   label: 'Voz',
                   value: selectedModel.voice(settings.ttsVoice).id,
-                  width: 200,
+                  width: 170,
                   items: {
                     for (final voice in selectedModel.voices)
                       voice.id: voice.label,
@@ -223,11 +254,12 @@ class NativeSpeechSettingsCard extends ConsumerWidget {
                       update(settings.copyWith(ttsVoice: value)),
                 ),
                 GsSelect<String>(
+                  compact: true,
                   label: 'Idioma de respuesta',
                   value: selectedModel.supportsLanguage(settings.ttsLanguage)
                       ? settings.ttsLanguage
                       : selectedModel.languages.first.code,
-                  width: 180,
+                  width: 160,
                   items: {
                     for (final language in selectedModel.languages)
                       language.code: language.label,
@@ -381,13 +413,42 @@ class NativeSpeechSettingsCard extends ConsumerWidget {
               ],
             ),
           ),
-          if (state.tts.progress case final progress?) ...[
+          if (state.tts.isLoading)
+            if (state.tts.progress case final progress?) ...[
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-              child: LinearProgressIndicator(
-                value: progress,
-                backgroundColor: GsColors.surfaceElevated,
-                color: GsColors.cyan,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        state.tts.phase == TtsLoadPhase.downloading
+                            ? 'Descargando modelo de voz…'
+                            : 'Preparando voz…',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: GsColors.textSecondary,
+                        ),
+                      ),
+                      Text(
+                        '${(progress * 100).toInt()}%',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: GsColors.cyan,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  LinearProgressIndicator(
+                    value: progress,
+                    backgroundColor: GsColors.surfaceElevated,
+                    color: GsColors.cyan,
+                  ),
+                ],
               ),
             ),
           ],
