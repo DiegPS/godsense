@@ -16,13 +16,20 @@ class MockAiRuntimeClient implements AiRuntimeClient {
   bool throwOnAbort = false;
   int disposedCount = 0;
 
+  Completer<void>? connectEventsDelay;
+
   void emitEvent(AiRuntimeEvent event) => _eventController.add(event);
 
   @override
   Stream<AiRuntimeEvent> events() => _eventController.stream;
 
   @override
-  Future<Stream<AiRuntimeEvent>> connectEvents() async => _eventController.stream;
+  Future<Stream<AiRuntimeEvent>> connectEvents() async {
+    if (connectEventsDelay != null) {
+      await connectEventsDelay!.future;
+    }
+    return _eventController.stream;
+  }
 
   @override
   Future<AiSession> createSession({String? title}) async =>
@@ -364,6 +371,150 @@ void main() {
     await pumpEventQueue();
 
     expect(controller.state.messages.last.content, 'Respuesta limpia 2');
+
+    await send1;
+    await send2;
+  });
+
+  test('cancelling while connectEvents is pending stops execution without dispatching promptAsync', () async {
+    final controller = AiConversationController(
+      supervisor: FakeSupervisor(ready: true),
+      clientFactory: () => mockClient,
+    );
+
+    mockClient.connectEventsDelay = Completer<void>();
+
+    final sendFuture = controller.sendMessage('Pregunta cancelada en conexión');
+    await pumpEventQueue();
+
+    // User aborts while connection is still establishing
+    await controller.abort();
+    await pumpEventQueue();
+
+    // Now connection finishes
+    mockClient.connectEventsDelay!.complete();
+    await pumpEventQueue();
+
+    // Prompt MUST NOT have been dispatched to the server
+    expect(mockClient.promptsSent, isEmpty);
+    expect(controller.state.status, AiConversationStatus.idle);
+
+    await sendFuture;
+  });
+
+  test('repeating the exact same question does not pick up the previous turn answer', () async {
+    final controller = AiConversationController(
+      supervisor: FakeSupervisor(ready: true),
+      clientFactory: () => mockClient,
+    );
+
+    // Prior history already has this exact question and a finished answer
+    mockClient.mockMessages = [
+      {
+        'info': {'role': 'user'},
+        'parts': [
+          {'type': 'text', 'text': '¿Qué runas uso?'},
+        ],
+      },
+      {
+        'info': {'role': 'assistant', 'finish': 'stop'},
+        'parts': [
+          {'type': 'text', 'text': 'Electrocutar antigua.'},
+        ],
+      },
+    ];
+
+    final send = controller.sendMessage('¿Qué runas uso?');
+    await pumpEventQueue();
+
+    // Polling runs while server has not yet added the new response
+    await Future<void>.delayed(const Duration(milliseconds: 700));
+
+    // Must NOT have grabbed 'Electrocutar antigua.'
+    expect(controller.state.status, AiConversationStatus.streaming);
+    expect(controller.state.streamedText, isEmpty);
+
+    // Now the real answer arrives
+    mockClient.emitEvent(
+      const AiRuntimeEvent(
+        type: 'message.part.delta',
+        properties: {'delta': 'Cometa arcano nueva.'},
+        raw: {},
+      ),
+    );
+    await pumpEventQueue();
+
+    mockClient.emitEvent(
+      const AiRuntimeEvent(
+        type: 'message.completed',
+        properties: {},
+        raw: {},
+      ),
+    );
+    await pumpEventQueue();
+
+    expect(controller.state.messages.last.content, 'Cometa arcano nueva.');
+    await send;
+  });
+
+  test('late event arriving after question 2 has already started is ignored by message/part filter', () async {
+    final controller = AiConversationController(
+      supervisor: FakeSupervisor(ready: true),
+      clientFactory: () => mockClient,
+    );
+
+    final send1 = controller.sendMessage('Pregunta 1');
+    await pumpEventQueue();
+    await controller.abort();
+    await pumpEventQueue();
+
+    // Start question 2
+    final send2 = controller.sendMessage('Pregunta 2');
+    await pumpEventQueue();
+
+    // A delta for question 2 begins streaming
+    mockClient.emitEvent(
+      const AiRuntimeEvent(
+        type: 'message.part.delta',
+        properties: {
+          'messageId': 'assistant-msg-2',
+          'partId': 'part-1',
+          'delta': 'Inicio de respuesta 2',
+        },
+        raw: {},
+      ),
+    );
+    await pumpEventQueue();
+    expect(controller.state.streamedText, 'Inicio de respuesta 2');
+
+    // While question 2 is in-flight, a late event from question 1 arrives with old messageId
+    mockClient.emitEvent(
+      const AiRuntimeEvent(
+        type: 'message.part.delta',
+        properties: {
+          'messageId': 'assistant-msg-1',
+          'partId': 'part-1',
+          'delta': '... residuo peligroso de pregunta 1',
+        },
+        raw: {},
+      ),
+    );
+    await pumpEventQueue();
+
+    // Residue MUST NOT have been concatenated into question 2
+    expect(controller.state.streamedText, 'Inicio de respuesta 2');
+
+    // Complete question 2
+    mockClient.emitEvent(
+      const AiRuntimeEvent(
+        type: 'message.completed',
+        properties: {'messageId': 'assistant-msg-2'},
+        raw: {},
+      ),
+    );
+    await pumpEventQueue();
+
+    expect(controller.state.messages.last.content, 'Inicio de respuesta 2');
 
     await send1;
     await send2;

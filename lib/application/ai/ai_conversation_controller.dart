@@ -118,6 +118,9 @@ class AiConversationController extends StateNotifier<AiConversationState> {
   AiRuntimeClient? _client;
   bool _disposed = false;
 
+  final Map<String, String> _parts = {};
+  String? _currentAssistantMessageId;
+
   AiRuntimeClient get _activeClient {
     final currentEndpoint = _supervisor.state.endpoint;
     if (currentEndpoint == null) {
@@ -179,10 +182,20 @@ class AiConversationController extends StateNotifier<AiConversationState> {
         state = state.copyWith(sessionId: sessionId);
       }
 
+      // Obtener la cantidad de mensajes previos como línea base inmutable
+      final initialMessages = await client.messages(sessionId);
+      final baselineCount = initialMessages.length;
+
+      // Comprobación anti-cancelación previa a la conexión
+      if (_disposed || generation != _currentGenerationId) return;
+
       // 1. Garantía física de conexión SSE:
       // connectEvents() espera a que el servidor devuelva HTTP 200 para /event
-      // antes de enviar el prompt, asegurando no perder los primeros eventos.
       final eventStream = await client.connectEvents();
+
+      // Comprobación anti-cancelación: si el usuario canceló mientras connectEvents() conectaba
+      if (_disposed || generation != _currentGenerationId) return;
+
       _listenEvents(eventStream, sessionId, generation);
 
       final prompt = AiPrompt(
@@ -194,12 +207,15 @@ class AiConversationController extends StateNotifier<AiConversationState> {
         text: text,
       );
 
-      // 2. Despacho del prompt solo tras verificar el SSE activo
+      // Comprobación estricta inmediatamente antes del promptAsync
+      if (_disposed || generation != _currentGenerationId) return;
+
+      // 2. Despacho del prompt solo si no ha sido cancelado
       await client.promptAsync(sessionId, prompt);
 
       if (_disposed || generation != _currentGenerationId) return;
       state = state.copyWith(status: AiConversationStatus.streaming);
-      _startReconciliation(sessionId, generation, text);
+      _startReconciliation(sessionId, generation, baselineCount);
     } catch (e) {
       if (_disposed || generation != _currentGenerationId) return;
       _stopStreaming();
@@ -216,6 +232,9 @@ class AiConversationController extends StateNotifier<AiConversationState> {
     int targetGeneration,
   ) {
     _eventsSubscription?.cancel();
+    _parts.clear();
+    _currentAssistantMessageId = null;
+
     _eventsSubscription = stream.listen(
       (event) {
         if (_disposed || targetGeneration != _currentGenerationId) return;
@@ -233,23 +252,35 @@ class AiConversationController extends StateNotifier<AiConversationState> {
           return;
         }
 
-        // Manejo diferenciado: fragmento incremental vs texto completo de la parte
+        // Filtrar y anclar el ID de mensaje del asistente para este turno
+        final msgId = event.messageId;
+        if (msgId != null) {
+          _currentAssistantMessageId ??= msgId;
+          if (_currentAssistantMessageId != msgId) {
+            // Ignorar eventos que pertenezcan a mensajes de otros turnos o usuarios
+            return;
+          }
+        }
+
+        // Reconstrucción estricta de partes por identificador (partId)
+        final partKey = event.partId ?? 'default_part';
+
         final delta = event.textDelta;
         if (delta != null && delta.isNotEmpty) {
+          _parts[partKey] = (_parts[partKey] ?? '') + delta;
           state = state.copyWith(
-            streamedText: state.streamedText + delta,
+            streamedText: _parts.values.join(),
             status: AiConversationStatus.streaming,
           );
         }
 
         final fullText = event.fullPartText;
         if (fullText != null && fullText.isNotEmpty) {
-          if (fullText.length >= state.streamedText.length) {
-            state = state.copyWith(
-              streamedText: fullText,
-              status: AiConversationStatus.streaming,
-            );
-          }
+          _parts[partKey] = fullText;
+          state = state.copyWith(
+            streamedText: _parts.values.join(),
+            status: AiConversationStatus.streaming,
+          );
         }
 
         if (event.isCompleted) {
@@ -265,7 +296,7 @@ class AiConversationController extends StateNotifier<AiConversationState> {
   void _startReconciliation(
     String targetSessionId,
     int targetGeneration,
-    String targetPromptText,
+    int baselineCount,
   ) {
     _reconciliationTimer?.cancel();
     var attempts = 0;
@@ -282,8 +313,25 @@ class AiConversationController extends StateNotifier<AiConversationState> {
         attempts++;
         if (attempts > 100) {
           timer.cancel();
+          _stopStreaming();
           if (state.status == AiConversationStatus.streaming) {
-            _commitAssistantMessage(targetGeneration);
+            final partial = state.streamedText.trim();
+            final errorContent = partial.isNotEmpty
+                ? '$partial\n\n[Respuesta incompleta: tiempo de espera agotado]'
+                : 'El motor de IA local no completó la respuesta a tiempo.';
+            final assistantMessage = AiChatMessage(
+              id: 'assistant-${_now().microsecondsSinceEpoch}',
+              role: 'assistant',
+              content: errorContent,
+              timestamp: _now(),
+            );
+            state = state.copyWith(
+              messages: [...state.messages, assistantMessage],
+              streamedText: '',
+              status: AiConversationStatus.error,
+              errorMessage:
+                  'Tiempo de espera agotado esperando la respuesta del motor.',
+            );
           }
           return;
         }
@@ -295,17 +343,17 @@ class AiConversationController extends StateNotifier<AiConversationState> {
             return;
           }
 
-          // Correlación estricta: buscar la respuesta del asistente que corresponde
-          // EXCLUSIVAMENTE a este prompt específico, nunca a preguntas previas.
-          final assistantText = _extractAssistantTextForPrompt(
+          // Correlación estricta por índice posicional y rol:
+          // Solo examinamos mensajes posteriores a la línea base de este turno.
+          final assistantText = _extractAssistantTextAfter(
             messages,
-            targetPromptText,
+            baselineCount,
           );
           if (assistantText != null && assistantText.isNotEmpty) {
             if (assistantText.length > state.streamedText.length) {
               state = state.copyWith(streamedText: assistantText);
             }
-            if (_isAssistantFinishedForPrompt(messages, targetPromptText)) {
+            if (_isAssistantFinishedAfter(messages, baselineCount)) {
               timer.cancel();
               _commitAssistantMessage(targetGeneration);
             }
@@ -347,6 +395,8 @@ class AiConversationController extends StateNotifier<AiConversationState> {
     _eventsSubscription = null;
     _reconciliationTimer?.cancel();
     _reconciliationTimer = null;
+    _parts.clear();
+    _currentAssistantMessageId = null;
   }
 
   Future<void> abort() async {
@@ -409,36 +459,11 @@ class AiConversationController extends StateNotifier<AiConversationState> {
     state = state.copyWith(clearError: true, status: AiConversationStatus.idle);
   }
 
-  static int _findUserMessageIndexForPrompt(
+  static String? _extractAssistantTextAfter(
     List<Map<String, dynamic>> messages,
-    String targetPromptText,
+    int baselineCount,
   ) {
-    for (var i = messages.length - 1; i >= 0; i--) {
-      final msg = messages[i];
-      final info = msg['info'];
-      if (info is! Map || info['role'] != 'user') continue;
-      final parts = msg['parts'];
-      if (parts is! List) continue;
-      final userText = parts
-          .whereType<Map>()
-          .where((p) => p['type'] == 'text')
-          .map((p) => p['text']?.toString() ?? '')
-          .join();
-      if (userText.trim() == targetPromptText.trim()) {
-        return i;
-      }
-    }
-    return -1;
-  }
-
-  static String? _extractAssistantTextForPrompt(
-    List<Map<String, dynamic>> messages,
-    String targetPromptText,
-  ) {
-    final userIdx = _findUserMessageIndexForPrompt(messages, targetPromptText);
-    if (userIdx == -1) return null;
-
-    for (var i = userIdx + 1; i < messages.length; i++) {
+    for (var i = baselineCount; i < messages.length; i++) {
       final msg = messages[i];
       final info = msg['info'];
       if (info is! Map || info['role'] != 'assistant') continue;
@@ -454,14 +479,11 @@ class AiConversationController extends StateNotifier<AiConversationState> {
     return null;
   }
 
-  static bool _isAssistantFinishedForPrompt(
+  static bool _isAssistantFinishedAfter(
     List<Map<String, dynamic>> messages,
-    String targetPromptText,
+    int baselineCount,
   ) {
-    final userIdx = _findUserMessageIndexForPrompt(messages, targetPromptText);
-    if (userIdx == -1) return false;
-
-    for (var i = userIdx + 1; i < messages.length; i++) {
+    for (var i = baselineCount; i < messages.length; i++) {
       final msg = messages[i];
       final info = msg['info'];
       if (info is! Map || info['role'] != 'assistant') continue;
