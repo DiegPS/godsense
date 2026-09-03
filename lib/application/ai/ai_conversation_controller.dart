@@ -5,6 +5,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../domain/ai/ai_runtime_api_models.dart';
+import '../../domain/ai/ai_runtime_models.dart';
 import 'ai_runtime_services.dart';
 import 'ai_runtime_supervisor.dart';
 
@@ -113,10 +114,30 @@ class AiConversationController extends StateNotifier<AiConversationState> {
   int _currentGenerationId = 0;
   StreamSubscription<AiRuntimeEvent>? _eventsSubscription;
   Timer? _reconciliationTimer;
+  AiRuntimeEndpoint? _cachedEndpoint;
   AiRuntimeClient? _client;
   bool _disposed = false;
 
-  AiRuntimeClient get _activeClient => _client ??= _clientFactory();
+  AiRuntimeClient get _activeClient {
+    final currentEndpoint = _supervisor.state.endpoint;
+    if (currentEndpoint == null) {
+      throw StateError('El motor de IA local no está encendido.');
+    }
+    if (_client == null ||
+        _cachedEndpoint?.baseUri != currentEndpoint.baseUri ||
+        _cachedEndpoint?.password != currentEndpoint.password ||
+        _cachedEndpoint?.pid != currentEndpoint.pid) {
+      _client?.dispose();
+      _client = _clientFactory();
+      _cachedEndpoint = currentEndpoint;
+      // Si el endpoint cambió (ej. Kilo se apagó y volvió a encender),
+      // la sesión previa en el proceso anterior ya no existe en el nuevo servidor.
+      if (state.sessionId != null) {
+        state = state.copyWith(clearSessionId: true);
+      }
+    }
+    return _client!;
+  }
 
   Future<void> sendMessage(
     String promptText, {
@@ -158,8 +179,11 @@ class AiConversationController extends StateNotifier<AiConversationState> {
         state = state.copyWith(sessionId: sessionId);
       }
 
-      // Orden estricto: suscribirse primero a eventos antes de emitir el prompt
-      _listenEvents(sessionId, generation);
+      // 1. Garantía física de conexión SSE:
+      // connectEvents() espera a que el servidor devuelva HTTP 200 para /event
+      // antes de enviar el prompt, asegurando no perder los primeros eventos.
+      final eventStream = await client.connectEvents();
+      _listenEvents(eventStream, sessionId, generation);
 
       final prompt = AiPrompt(
         providerId: state.selectedProviderId,
@@ -170,11 +194,12 @@ class AiConversationController extends StateNotifier<AiConversationState> {
         text: text,
       );
 
+      // 2. Despacho del prompt solo tras verificar el SSE activo
       await client.promptAsync(sessionId, prompt);
 
       if (_disposed || generation != _currentGenerationId) return;
       state = state.copyWith(status: AiConversationStatus.streaming);
-      _startReconciliation(sessionId, generation);
+      _startReconciliation(sessionId, generation, text);
     } catch (e) {
       if (_disposed || generation != _currentGenerationId) return;
       _stopStreaming();
@@ -185,48 +210,63 @@ class AiConversationController extends StateNotifier<AiConversationState> {
     }
   }
 
-  void _listenEvents(String targetSessionId, int targetGeneration) {
+  void _listenEvents(
+    Stream<AiRuntimeEvent> stream,
+    String targetSessionId,
+    int targetGeneration,
+  ) {
     _eventsSubscription?.cancel();
-    try {
-      _eventsSubscription = _activeClient.events().listen(
-        (event) {
-          if (_disposed || targetGeneration != _currentGenerationId) return;
-          if (event.sessionId != null && event.sessionId != targetSessionId) {
-            return;
-          }
+    _eventsSubscription = stream.listen(
+      (event) {
+        if (_disposed || targetGeneration != _currentGenerationId) return;
+        if (event.sessionId != null && event.sessionId != targetSessionId) {
+          return;
+        }
 
-          if (event.isError) {
-            final err = event.properties['error'] ?? event.raw['error'];
-            state = state.copyWith(
-              status: AiConversationStatus.error,
-              errorMessage: err?.toString() ?? 'Error en la generación.',
-            );
-            _stopStreaming();
-            return;
-          }
+        if (event.isError) {
+          final err = event.properties['error'] ?? event.raw['error'];
+          state = state.copyWith(
+            status: AiConversationStatus.error,
+            errorMessage: err?.toString() ?? 'Error en la generación.',
+          );
+          _stopStreaming();
+          return;
+        }
 
-          final delta = event.textDelta;
-          if (delta != null && delta.isNotEmpty) {
+        // Manejo diferenciado: fragmento incremental vs texto completo de la parte
+        final delta = event.textDelta;
+        if (delta != null && delta.isNotEmpty) {
+          state = state.copyWith(
+            streamedText: state.streamedText + delta,
+            status: AiConversationStatus.streaming,
+          );
+        }
+
+        final fullText = event.fullPartText;
+        if (fullText != null && fullText.isNotEmpty) {
+          if (fullText.length >= state.streamedText.length) {
             state = state.copyWith(
-              streamedText: state.streamedText + delta,
+              streamedText: fullText,
               status: AiConversationStatus.streaming,
             );
           }
+        }
 
-          if (event.isCompleted) {
-            _commitAssistantMessage(targetGeneration);
-          }
-        },
-        onError: (e) {
-          // El stream SSE puede desconectarse; la reconciliación por polling completará la respuesta
-        },
-      );
-    } catch (_) {
-      // Ignorar fallo de SSE inmediato; el polling resolverá
-    }
+        if (event.isCompleted) {
+          _commitAssistantMessage(targetGeneration);
+        }
+      },
+      onError: (e) {
+        // La reconciliación por polling garantiza recuperación ante caídas del stream
+      },
+    );
   }
 
-  void _startReconciliation(String targetSessionId, int targetGeneration) {
+  void _startReconciliation(
+    String targetSessionId,
+    int targetGeneration,
+    String targetPromptText,
+  ) {
     _reconciliationTimer?.cancel();
     var attempts = 0;
     _reconciliationTimer = Timer.periodic(
@@ -254,12 +294,18 @@ class AiConversationController extends StateNotifier<AiConversationState> {
             timer.cancel();
             return;
           }
-          final assistantText = _extractAssistantText(messages);
+
+          // Correlación estricta: buscar la respuesta del asistente que corresponde
+          // EXCLUSIVAMENTE a este prompt específico, nunca a preguntas previas.
+          final assistantText = _extractAssistantTextForPrompt(
+            messages,
+            targetPromptText,
+          );
           if (assistantText != null && assistantText.isNotEmpty) {
             if (assistantText.length > state.streamedText.length) {
               state = state.copyWith(streamedText: assistantText);
             }
-            if (_isAssistantFinished(messages)) {
+            if (_isAssistantFinishedForPrompt(messages, targetPromptText)) {
               timer.cancel();
               _commitAssistantMessage(targetGeneration);
             }
@@ -313,8 +359,13 @@ class AiConversationController extends StateNotifier<AiConversationState> {
 
     try {
       await _activeClient.abort(sessionId);
-    } catch (_) {
-      // Si el abort falla (ej. ya había terminado en el servidor), continuar limpiamente
+    } catch (e) {
+      if (_disposed) return;
+      state = state.copyWith(
+        status: AiConversationStatus.error,
+        errorMessage: 'Fallo al confirmar la cancelación en el motor local: $e',
+      );
+      return;
     }
 
     if (_disposed) return;
@@ -358,25 +409,61 @@ class AiConversationController extends StateNotifier<AiConversationState> {
     state = state.copyWith(clearError: true, status: AiConversationStatus.idle);
   }
 
-  static String? _extractAssistantText(List<Map<String, dynamic>> messages) {
-    for (final message in messages.reversed) {
-      final info = message['info'];
+  static int _findUserMessageIndexForPrompt(
+    List<Map<String, dynamic>> messages,
+    String targetPromptText,
+  ) {
+    for (var i = messages.length - 1; i >= 0; i--) {
+      final msg = messages[i];
+      final info = msg['info'];
+      if (info is! Map || info['role'] != 'user') continue;
+      final parts = msg['parts'];
+      if (parts is! List) continue;
+      final userText = parts
+          .whereType<Map>()
+          .where((p) => p['type'] == 'text')
+          .map((p) => p['text']?.toString() ?? '')
+          .join();
+      if (userText.trim() == targetPromptText.trim()) {
+        return i;
+      }
+    }
+    return -1;
+  }
+
+  static String? _extractAssistantTextForPrompt(
+    List<Map<String, dynamic>> messages,
+    String targetPromptText,
+  ) {
+    final userIdx = _findUserMessageIndexForPrompt(messages, targetPromptText);
+    if (userIdx == -1) return null;
+
+    for (var i = userIdx + 1; i < messages.length; i++) {
+      final msg = messages[i];
+      final info = msg['info'];
       if (info is! Map || info['role'] != 'assistant') continue;
-      final parts = message['parts'];
+      final parts = msg['parts'];
       if (parts is! List) continue;
       final text = parts
           .whereType<Map>()
-          .where((part) => part['type'] == 'text')
-          .map((part) => part['text']?.toString() ?? '')
+          .where((p) => p['type'] == 'text')
+          .map((p) => p['text']?.toString() ?? '')
           .join();
       if (text.isNotEmpty) return text;
     }
     return null;
   }
 
-  static bool _isAssistantFinished(List<Map<String, dynamic>> messages) {
-    for (final message in messages.reversed) {
-      final info = message['info'];
+  static bool _isAssistantFinishedForPrompt(
+    List<Map<String, dynamic>> messages,
+    String targetPromptText,
+  ) {
+    final userIdx = _findUserMessageIndexForPrompt(messages, targetPromptText);
+    if (userIdx == -1) return false;
+
+    for (var i = userIdx + 1; i < messages.length; i++) {
+      final msg = messages[i];
+      final info = msg['info'];
       if (info is! Map || info['role'] != 'assistant') continue;
       final finish = info['finish'];
       if (finish != null && finish.toString() != 'null') return true;

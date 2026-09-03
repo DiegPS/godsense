@@ -67,10 +67,13 @@ real y valida la respuesta sin consumir saldo de pago.
    se preserva una lista blanca explícita de variables de sistema indispensables de
    Windows (`SYSTEMROOT`, `COMSPEC`, `PATH`, etc.), filtrando y excluyendo activamente
    cualquier clave o token de API (`OPENAI_*`, `ANTHROPIC_*`, `GEMINI_*`, `GITHUB_*`, etc.).
-2. **Bloqueo comprobado de herramientas:** Se fuerzan las variables de entorno
-   `KILO_DISABLE_TOOLS=1`, `KILO_DISABLE_EXTERNAL_SKILLS=1` y `OPENCODE_DISABLE_TOOLS=1`,
-   y se envían los prompts con `tools: {}` y `toolChoice: none` para impedir la ejecución
-   de comandos o acceso a archivos desde el modelo.
-3. **Conversación y streaming:** Integrado con Riverpod (`aiConversationProvider`),
-   recibiendo deltas de texto progresivos vía SSE con capacidad de cancelación inmediata
-   (`abort`) y control desde la interfaz de Coach (`AiCoachChatCard`) y Ajustes (`CoachingSettingsSection`).
+2. **Bloqueo comprobado de herramientas:** En Kilo / OpenCode `prompt.ts`, el mapa
+   `tools` define reglas de permisos por patrón. Se envía estrictamente `tools: {'*': false}`
+   para denegar formalmente cualquier ejecución de herramientas, complementado con las
+   directivas de inicio `--pure` y variables `KILO_DISABLE_EXTERNAL_SKILLS=1`.
+3. **Conversación y streaming robusto:** Integrado con Riverpod (`aiConversationProvider`):
+   - Handshake físico de SSE verificado vía `connectEvents()` (esperando HTTP 200) antes de despachar `promptAsync()`.
+   - Distinción estricta entre deltas incrementales (`message.part.delta`) y texto consolidado (`message.part.updated`) evitando duplicación de texto.
+   - Correlación estricta de respuestas en sondeo vinculadas al mensaje de usuario del prompt actual, evitando que preguntas consecutivas capturen respuestas anteriores.
+   - Control de generaciones (`_currentGenerationId`): descarte absoluto de eventos en búfer o rezagados tras un `abort()`.
+   - Renovación automática del cliente HTTP y purga de sesión obsoleta si el endpoint del runtime cambia tras un reinicio.

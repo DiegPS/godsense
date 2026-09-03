@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:godsense/domain/ai/ai_runtime_api_models.dart';
 import 'package:godsense/domain/ai/ai_runtime_models.dart';
 import 'package:godsense/infrastructure/ai/ai_runtime_paths.dart';
 import 'package:godsense/infrastructure/ai/local_ai_runtime_process_service.dart';
@@ -52,5 +53,21 @@ void main() {
     expect(sanitized['KILO_SERVER_PASSWORD'], 'test-password-123');
     expect(sanitized['KILO_SERVER_USERNAME'], 'kilo');
     expect(sanitized['KILO_CLIENT'], 'godsense');
+  });
+
+  test('AiPrompt payload strictly enforces tools: {"*": false} to forbid all tool execution in Kilo', () {
+    const prompt = AiPrompt(
+      providerId: 'kilo',
+      modelId: 'kilo-auto/free',
+      system: 'No uses herramientas.',
+      text: '¿Cómo juego?',
+    );
+
+    final json = prompt.toJson();
+    final tools = json['tools'];
+
+    expect(tools, isA<Map>());
+    final toolsMap = tools as Map;
+    expect(toolsMap['*'], isFalse, reason: 'Kilo prompt.ts requires {"*": false} to deny tool permissions.');
   });
 }

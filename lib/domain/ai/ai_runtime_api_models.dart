@@ -73,8 +73,9 @@ class AiPrompt {
   Map<String, Object> toJson() => {
     'model': {'providerID': providerId, 'modelID': modelId},
     'system': system,
-    'tools': <String, Object>{},
-    'toolChoice': 'none',
+    // En Kilo / OpenCode prompt.ts, tools es un mapa de patrones a permisos booleanos.
+    // {'*': false} deniega expresamente la ejecución de cualquier herramienta.
+    'tools': const <String, Object>{'*': false},
     'parts': [
       {'type': 'text', 'text': text},
     ],
@@ -105,18 +106,46 @@ class AiRuntimeEvent {
     );
   }
 
+  /// Retorna exclusivamente fragmentos incrementales emitidos por message.part.delta
   String? get textDelta {
     final delta = properties['delta'];
     if (delta is String) return delta;
-    final text = properties['text'];
-    if (text is String) return text;
+    return null;
+  }
+
+  /// Retorna el texto consolidado de la parte cuando Kilo emite message.part.updated o message.updated
+  String? get fullPartText {
     final part = properties['part'];
     if (part is Map && part['text'] is String) return part['text'] as String;
+    final text = properties['text'];
+    if (text is String && type != 'message.part.delta') return text;
     return null;
   }
 
   String? get sessionId {
-    final id = properties['sessionID'] ?? properties['sessionId'] ?? raw['sessionID'];
+    final id = properties['sessionID'] ??
+        properties['sessionId'] ??
+        properties['id'] ??
+        (properties['info'] is Map ? (properties['info'] as Map)['sessionID'] : null) ??
+        (properties['part'] is Map ? (properties['part'] as Map)['sessionID'] : null) ??
+        raw['sessionID'];
+    return id?.toString();
+  }
+
+  String? get messageId {
+    final id = properties['messageID'] ??
+        properties['messageId'] ??
+        (properties['info'] is Map ? (properties['info'] as Map)['id'] : null) ??
+        (properties['part'] is Map ? (properties['part'] as Map)['messageID'] : null) ??
+        raw['messageID'];
+    return id?.toString();
+  }
+
+  String? get partId {
+    final id = properties['partID'] ??
+        properties['partId'] ??
+        (properties['part'] is Map ? (properties['part'] as Map)['id'] : null) ??
+        raw['partID'];
     return id?.toString();
   }
 

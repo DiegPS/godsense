@@ -11,13 +11,18 @@ class MockAiRuntimeClient implements AiRuntimeClient {
   final _eventController = StreamController<AiRuntimeEvent>.broadcast();
   final List<String> promptsSent = [];
   final List<String> abortedSessions = [];
-  final List<Map<String, dynamic>> mockMessages = [];
+  List<Map<String, dynamic>> mockMessages = [];
   bool throwOnPrompt = false;
+  bool throwOnAbort = false;
+  int disposedCount = 0;
 
   void emitEvent(AiRuntimeEvent event) => _eventController.add(event);
 
   @override
   Stream<AiRuntimeEvent> events() => _eventController.stream;
+
+  @override
+  Future<Stream<AiRuntimeEvent>> connectEvents() async => _eventController.stream;
 
   @override
   Future<AiSession> createSession({String? title}) async =>
@@ -31,6 +36,7 @@ class MockAiRuntimeClient implements AiRuntimeClient {
 
   @override
   Future<void> abort(String sessionId) async {
+    if (throwOnAbort) throw StateError('Abort failed on server');
     abortedSessions.add(sessionId);
   }
 
@@ -51,15 +57,18 @@ class MockAiRuntimeClient implements AiRuntimeClient {
   Future<AiSession> session(String sessionId) async =>
       const AiSession(id: 'mock-session-1');
 
+  @override
   void dispose() {
+    disposedCount++;
     _eventController.close();
   }
 }
 
 class FakeSupervisor implements AiRuntimeSupervisor {
-  FakeSupervisor({this.ready = true});
+  FakeSupervisor({this.ready = true, this.port = 5555});
 
-  final bool ready;
+  bool ready;
+  int port;
 
   @override
   AiRuntimeSupervisorState get state => AiRuntimeSupervisorState(
@@ -68,10 +77,10 @@ class FakeSupervisor implements AiRuntimeSupervisor {
     endpoint: ready
         ? AiRuntimeEndpoint(
             kind: AiRuntimeKind.kilo,
-            baseUri: Uri.parse('http://127.0.0.1:5555'),
+            baseUri: Uri.parse('http://127.0.0.1:$port'),
             username: 'kilo',
-            password: 'pwd',
-            pid: 1234,
+            password: 'pwd-$port',
+            pid: 1000 + port,
           )
         : null,
   );
@@ -157,37 +166,141 @@ void main() {
     await sendFuture;
   });
 
-  test('aborts in-flight streaming and updates assistant message', () async {
+  test('streaming distinguishes incremental delta from fullPartText without duplicating', () async {
     final controller = AiConversationController(
       supervisor: FakeSupervisor(ready: true),
       clientFactory: () => mockClient,
     );
 
-    final sendFuture = controller.sendMessage('Consejos para mid-game');
+    final send = controller.sendMessage('Prueba de deduplicación');
     await pumpEventQueue();
 
+    // 1. Emit incremental delta
     mockClient.emitEvent(
       const AiRuntimeEvent(
         type: 'message.part.delta',
-        properties: {'delta': 'Controla la visión en '},
+        properties: {'delta': 'Hola'},
+        raw: {},
+      ),
+    );
+    await pumpEventQueue();
+    expect(controller.state.streamedText, 'Hola');
+
+    // 2. Kilo emits message.part.updated with the full consolidated part text
+    mockClient.emitEvent(
+      const AiRuntimeEvent(
+        type: 'message.part.updated',
+        properties: {
+          'part': {'type': 'text', 'text': 'Hola mundo'},
+        },
         raw: {},
       ),
     );
     await pumpEventQueue();
 
-    expect(controller.state.streamedText, 'Controla la visión en ');
+    // Must NOT be "HolaHola mundo"; must be replaced by "Hola mundo"
+    expect(controller.state.streamedText, 'Hola mundo');
 
-    // Abort
+    await controller.abort();
+    await send;
+  });
+
+  test('consecutive question does not pick up previous completed assistant answer during polling', () async {
+    final controller = AiConversationController(
+      supervisor: FakeSupervisor(ready: true),
+      clientFactory: () => mockClient,
+    );
+
+    // Mock history already has Question 1 and Answer 1
+    mockClient.mockMessages = [
+      {
+        'info': {'role': 'user'},
+        'parts': [
+          {'type': 'text', 'text': 'Pregunta previa 1'},
+        ],
+      },
+      {
+        'info': {'role': 'assistant', 'finish': 'stop'},
+        'parts': [
+          {'type': 'text', 'text': 'Respuesta vieja 1'},
+        ],
+      },
+      {
+        'info': {'role': 'user'},
+        'parts': [
+          {'type': 'text', 'text': 'Pregunta nueva 2'},
+        ],
+      },
+      // Notice: No assistant answer yet for Question 2!
+    ];
+
+    final send = controller.sendMessage('Pregunta nueva 2');
+    await pumpEventQueue();
+
+    // Give reconciliation polling loop a chance to run
+    await Future<void>.delayed(const Duration(milliseconds: 700));
+
+    // Must NOT be completed with 'Respuesta vieja 1'
+    expect(controller.state.status, AiConversationStatus.streaming);
+    expect(controller.state.streamedText, isEmpty);
+
+    // Now emit the true answer for Question 2
+    mockClient.emitEvent(
+      const AiRuntimeEvent(
+        type: 'message.part.delta',
+        properties: {'delta': 'Respuesta fresca 2'},
+        raw: {},
+      ),
+    );
+    await pumpEventQueue();
+    expect(controller.state.streamedText, 'Respuesta fresca 2');
+
+    await controller.abort();
+    await send;
+  });
+
+  test('restarting Kilo recreates client and resets session', () async {
+    final supervisor = FakeSupervisor(ready: true, port: 5001);
+    var clientCount = 0;
+    final controller = AiConversationController(
+      supervisor: supervisor,
+      clientFactory: () {
+        clientCount++;
+        return mockClient;
+      },
+    );
+
+    await controller.sendMessage('Pregunta con primer proceso');
+    expect(controller.state.sessionId, 'mock-session-1');
+    expect(clientCount, 1);
+    await controller.abort();
+
+    // Simulate Kilo stopping and restarting on a new port
+    supervisor.port = 5002;
+
+    await controller.sendMessage('Pregunta con nuevo proceso Kilo');
+    // Client should have been recreated
+    expect(clientCount, 2);
+    await controller.abort();
+  });
+
+  test('abort failure reports error state instead of false success', () async {
+    final controller = AiConversationController(
+      supervisor: FakeSupervisor(ready: true),
+      clientFactory: () => mockClient,
+    );
+
+    final send = controller.sendMessage('Pregunta para abortar');
+    await pumpEventQueue();
+
+    mockClient.throwOnAbort = true;
     await controller.abort();
     await pumpEventQueue();
 
-    expect(mockClient.abortedSessions, contains('mock-session-1'));
-    expect(controller.state.status, AiConversationStatus.idle);
-    expect(controller.state.streamedText, isEmpty);
-    expect(controller.state.messages.length, 2);
-    expect(controller.state.messages.last.content, contains('[Cancelado]'));
+    expect(controller.state.status, AiConversationStatus.error);
+    expect(controller.state.errorMessage, contains('Fallo al confirmar la cancelación'));
 
-    await sendFuture;
+    await send;
   });
 
   test('late events after abort are strictly discarded and do not pollute state', () async {

@@ -46,5 +46,6 @@ abstract interface class AiRuntimeClient {
   Future<void> abort(String sessionId);
   Future<void> deleteSession(String sessionId);
   Stream<AiRuntimeEvent> events();
+  Future<Stream<AiRuntimeEvent>> connectEvents();
   void dispose();
 }

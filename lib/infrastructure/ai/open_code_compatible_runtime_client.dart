@@ -149,6 +149,12 @@ class OpenCodeCompatibleRuntimeClient implements AiRuntimeClient {
 
   @override
   Stream<AiRuntimeEvent> events() async* {
+    final stream = await connectEvents();
+    yield* stream;
+  }
+
+  @override
+  Future<Stream<AiRuntimeEvent>> connectEvents() async {
     final request = http.Request('GET', _uri('/event'))
       ..headers.addAll(_headers(acceptSse: true));
     final response = await _client.send(request);
@@ -158,10 +164,14 @@ class OpenCodeCompatibleRuntimeClient implements AiRuntimeClient {
         await response.stream.bytesToString(),
       );
     }
+    return _parseEventStream(response.stream);
+  }
+
+  Stream<AiRuntimeEvent> _parseEventStream(Stream<List<int>> byteStream) async* {
     final data = StringBuffer();
     String? currentEventType;
     await for (final line
-        in response.stream
+        in byteStream
             .transform(utf8.decoder)
             .transform(const LineSplitter())) {
       if (line.isEmpty) {
