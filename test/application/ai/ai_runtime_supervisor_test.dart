@@ -8,6 +8,69 @@ import 'package:godsense/domain/ai/ai_runtime_models.dart';
 import 'package:godsense/domain/artifacts/artifact_spec.dart';
 
 void main() {
+  test(
+    'enabled downloads install and start the downloaded installation',
+    () async {
+      final installer = _FakeInstaller(installedByDefault: false);
+      final processes = _FakeProcesses();
+      final supervisor = AiRuntimeSupervisor(
+        installer: installer,
+        processes: processes,
+        health: _HealthyClient(),
+        allowDownloads: true,
+      );
+      addTearDown(supervisor.dispose);
+      await supervisor.start(AiRuntimeKind.kilo);
+      expect(installer.installCount, 1);
+      expect(processes.paths, ['downloaded/kilo']);
+      expect(supervisor.state.isReady, isTrue);
+    },
+  );
+
+  test('install stops an active runtime before changing lifecycle', () async {
+    final processes = _FakeProcesses();
+    final supervisor = AiRuntimeSupervisor(
+      installer: _FakeInstaller(),
+      processes: processes,
+      health: _HealthyClient(),
+      allowDownloads: true,
+    );
+    addTearDown(supervisor.dispose);
+    await supervisor.start(AiRuntimeKind.kilo);
+    await supervisor.install(AiRuntimeKind.openCode);
+    expect(processes.handles.single.stopped, isTrue);
+    expect(supervisor.state.endpoint, isNull);
+    expect(supervisor.state.lifecycle, AiRuntimeLifecycle.stopped);
+    await supervisor.start(AiRuntimeKind.openCode);
+    expect(supervisor.state.isReady, isTrue);
+  });
+
+  test('cancelling an automatic installation never starts a process', () async {
+    final installer = _FakeInstaller(
+      installedByDefault: false,
+      waitForCancellation: true,
+    );
+    final processes = _FakeProcesses();
+    final supervisor = AiRuntimeSupervisor(
+      installer: installer,
+      processes: processes,
+      health: _HealthyClient(),
+      allowDownloads: true,
+    );
+    addTearDown(supervisor.dispose);
+    final operation = supervisor.start(AiRuntimeKind.kilo);
+    final assertion = expectLater(
+      operation,
+      throwsA(isA<ArtifactDownloadCancelledException>()),
+    );
+    await installer.entered.future;
+    supervisor.cancelInstallation();
+    await assertion;
+    expect(processes.handles, isEmpty);
+    expect(supervisor.state.error, isNull);
+    expect(supervisor.state.lifecycle, AiRuntimeLifecycle.stopped);
+  });
+
   test('switching runtimes stops the previous process first', () async {
     final installer = _FakeInstaller();
     final processes = _FakeProcesses();
@@ -88,9 +151,15 @@ void main() {
 }
 
 class _FakeInstaller implements AiRuntimeInstallService {
-  _FakeInstaller({this.installedByDefault = true});
+  _FakeInstaller({
+    this.installedByDefault = true,
+    this.waitForCancellation = false,
+  });
 
   final bool installedByDefault;
+  final bool waitForCancellation;
+  final entered = Completer<void>();
+  int installCount = 0;
 
   final _catalog = <AiRuntimeKind, AiRuntimeDefinition>{
     for (final kind in AiRuntimeKind.values)
@@ -123,24 +192,32 @@ class _FakeInstaller implements AiRuntimeInstallService {
   @override
   Future<AiRuntimeInstallation?> installed(AiRuntimeKind kind) async =>
       installedByDefault
-          ? AiRuntimeInstallation(
-              definition: definition(kind),
-              directoryPath: '.',
-            )
-          : null;
+      ? AiRuntimeInstallation(definition: definition(kind), directoryPath: '.')
+      : null;
 
   @override
   Future<AiRuntimeInstallation> install(
     AiRuntimeKind kind, {
     ArtifactDownloadCancellation? cancellation,
     void Function(ArtifactInstallProgress progress)? onProgress,
-  }) async =>
-      AiRuntimeInstallation(definition: definition(kind), directoryPath: '.');
+  }) async {
+    installCount++;
+    if (!entered.isCompleted) entered.complete();
+    if (waitForCancellation) {
+      await cancellation!.whenCancelled;
+      cancellation.throwIfCancelled();
+    }
+    return AiRuntimeInstallation(
+      definition: definition(kind),
+      directoryPath: 'downloaded/${kind.id}',
+    );
+  }
 }
 
 class _FakeProcesses implements AiRuntimeProcessService {
   final handles = <_FakeProcess>[];
   final passwords = <String>[];
+  final paths = <String>[];
 
   @override
   Future<AiRuntimeProcessHandle> start(
@@ -148,6 +225,7 @@ class _FakeProcesses implements AiRuntimeProcessService {
     required String password,
   }) async {
     passwords.add(password);
+    paths.add(installation.directoryPath);
     final handle = _FakeProcess(installation.definition.kind, password);
     handles.add(handle);
     return handle;

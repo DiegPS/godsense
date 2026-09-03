@@ -10,6 +10,7 @@ import 'package:multiview_desktop/multiview_desktop.dart';
 
 import '../application/account_context_coordinator.dart';
 import '../application/dependencies.dart';
+import '../application/artifacts/artifact_downloader.dart';
 import '../application/native_calibration_controller.dart';
 import '../application/native_league_controller.dart';
 import '../application/native_speech_controller.dart';
@@ -18,6 +19,7 @@ import '../application/local_scout_controller.dart';
 import '../application/overlay_layout_controller.dart';
 import '../application/overlay_parity_logger.dart';
 import '../domain/ai/ai_runtime_models.dart';
+import '../domain/artifacts/artifact_spec.dart';
 import '../domain/companion_models.dart';
 import '../domain/identity/league_identity.dart';
 import '../domain/vision/vision_observation.dart';

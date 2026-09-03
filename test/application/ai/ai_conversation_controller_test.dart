@@ -107,6 +107,97 @@ void main() {
     mockClient.dispose();
   });
 
+  test(
+    'real session.updated envelope cannot swallow assistant deltas',
+    () async {
+      final controller = AiConversationController(
+        supervisor: FakeSupervisor(),
+        clientFactory: () => mockClient,
+      );
+      addTearDown(controller.dispose);
+      await controller.sendMessage('Una respuesta con Markdown');
+      void emit(String type, Map<String, dynamic> properties) {
+        mockClient.emitEvent(
+          AiRuntimeEvent.fromJson({'type': type, 'properties': properties}),
+        );
+      }
+
+      emit('session.updated', {
+        'sessionID': 'mock-session-1',
+        'info': {'id': 'mock-session-1', 'title': 'Coach'},
+      });
+      emit('message.updated', {
+        'sessionID': 'mock-session-1',
+        'info': {'id': 'user-new', 'role': 'user'},
+      });
+      emit('message.part.updated', {
+        'sessionID': 'mock-session-1',
+        'part': {
+          'id': 'user-part',
+          'messageID': 'user-new',
+          'type': 'text',
+          'text': 'Una respuesta con Markdown',
+        },
+      });
+      emit('message.updated', {
+        'sessionID': 'mock-session-1',
+        'info': {
+          'id': 'assistant-new',
+          'role': 'assistant',
+          'parentID': 'user-new',
+        },
+      });
+      emit('message.part.updated', {
+        'sessionID': 'mock-session-1',
+        'part': {
+          'id': 'reasoning-part',
+          'messageID': 'assistant-new',
+          'type': 'reasoning',
+          'text': 'Private reasoning',
+        },
+      });
+      emit('message.part.delta', {
+        'sessionID': 'mock-session-1',
+        'messageID': 'assistant-new',
+        'partID': 'reasoning-part',
+        'field': 'text',
+        'delta': ' more reasoning',
+      });
+      emit('message.part.updated', {
+        'sessionID': 'mock-session-1',
+        'part': {
+          'id': 'text-part',
+          'messageID': 'assistant-new',
+          'type': 'text',
+          'text': '',
+        },
+      });
+      emit('message.part.delta', {
+        'sessionID': 'mock-session-1',
+        'messageID': 'assistant-new',
+        'partID': 'text-part',
+        'field': 'text',
+        'delta': '**Controla',
+      });
+      await pumpEventQueue();
+      expect(controller.state.streamedText, '**Controla');
+      expect(controller.state.messages, hasLength(1));
+      expect(controller.state.isBusy, isTrue);
+      emit('message.part.delta', {
+        'sessionID': 'mock-session-1',
+        'messageID': 'assistant-new',
+        'partID': 'text-part',
+        'field': 'text',
+        'delta': ' la visión**.',
+      });
+      await pumpEventQueue();
+      expect(controller.state.streamedText, '**Controla la visión**.');
+      emit('session.idle', {'sessionID': 'mock-session-1'});
+      await pumpEventQueue();
+      expect(controller.state.messages.last.content, '**Controla la visión**.');
+    },
+  );
+
   test('refuses to send if supervisor is not ready', () async {
     final controller = AiConversationController(
       supervisor: FakeSupervisor(ready: false),
@@ -156,11 +247,7 @@ void main() {
 
     // Emit completion event
     mockClient.emitEvent(
-      const AiRuntimeEvent(
-        type: 'message.completed',
-        properties: {},
-        raw: {},
-      ),
+      const AiRuntimeEvent(type: 'message.completed', properties: {}, raw: {}),
     );
     await pumpEventQueue();
 
@@ -305,76 +392,85 @@ void main() {
     await pumpEventQueue();
 
     expect(controller.state.status, AiConversationStatus.error);
-    expect(controller.state.errorMessage, contains('Fallo al confirmar la cancelación'));
+    expect(
+      controller.state.errorMessage,
+      contains('Fallo al confirmar la cancelación'),
+    );
 
     await send;
   });
 
-  test('late events after abort are strictly discarded and do not pollute state', () async {
-    final controller = AiConversationController(
-      supervisor: FakeSupervisor(ready: true),
-      clientFactory: () => mockClient,
-    );
+  test(
+    'late events after abort are strictly discarded and do not pollute state',
+    () async {
+      final controller = AiConversationController(
+        supervisor: FakeSupervisor(ready: true),
+        clientFactory: () => mockClient,
+      );
 
-    final send1 = controller.sendMessage('Pregunta 1');
-    await pumpEventQueue();
+      final send1 = controller.sendMessage('Pregunta 1');
+      await pumpEventQueue();
 
-    mockClient.emitEvent(
-      const AiRuntimeEvent(
-        type: 'message.part.delta',
-        properties: {'delta': 'Respuesta inicial'},
-        raw: {},
-      ),
-    );
-    await pumpEventQueue();
+      mockClient.emitEvent(
+        const AiRuntimeEvent(
+          type: 'message.part.delta',
+          properties: {'delta': 'Respuesta inicial'},
+          raw: {},
+        ),
+      );
+      await pumpEventQueue();
 
-    // Abort generation 1
-    await controller.abort();
-    await pumpEventQueue();
+      // Abort generation 1
+      await controller.abort();
+      await pumpEventQueue();
 
-    // A late event arrives from generation 1 after abort
-    mockClient.emitEvent(
-      const AiRuntimeEvent(
-        type: 'message.part.delta',
-        properties: {'delta': '... fragmento rezagado que no debe verse'},
-        raw: {},
-      ),
-    );
-    await pumpEventQueue();
+      // A late event arrives from generation 1 after abort
+      mockClient.emitEvent(
+        const AiRuntimeEvent(
+          type: 'message.part.delta',
+          properties: {'delta': '... fragmento rezagado que no debe verse'},
+          raw: {},
+        ),
+      );
+      await pumpEventQueue();
 
-    // State must NOT have accumulated the late event
-    expect(controller.state.streamedText, isEmpty);
-    expect(controller.state.messages.last.content, isNot(contains('fragmento rezagado')));
+      // State must NOT have accumulated the late event
+      expect(controller.state.streamedText, isEmpty);
+      expect(
+        controller.state.messages.last.content,
+        isNot(contains('fragmento rezagado')),
+      );
 
-    // Start generation 2
-    final send2 = controller.sendMessage('Pregunta 2');
-    await pumpEventQueue();
+      // Start generation 2
+      final send2 = controller.sendMessage('Pregunta 2');
+      await pumpEventQueue();
 
-    mockClient.emitEvent(
-      const AiRuntimeEvent(
-        type: 'message.part.delta',
-        properties: {'delta': 'Respuesta limpia 2'},
-        raw: {},
-      ),
-    );
-    await pumpEventQueue();
+      mockClient.emitEvent(
+        const AiRuntimeEvent(
+          type: 'message.part.delta',
+          properties: {'delta': 'Respuesta limpia 2'},
+          raw: {},
+        ),
+      );
+      await pumpEventQueue();
 
-    expect(controller.state.streamedText, 'Respuesta limpia 2');
+      expect(controller.state.streamedText, 'Respuesta limpia 2');
 
-    mockClient.emitEvent(
-      const AiRuntimeEvent(
-        type: 'message.completed',
-        properties: {},
-        raw: {},
-      ),
-    );
-    await pumpEventQueue();
+      mockClient.emitEvent(
+        const AiRuntimeEvent(
+          type: 'message.completed',
+          properties: {},
+          raw: {},
+        ),
+      );
+      await pumpEventQueue();
 
-    expect(controller.state.messages.last.content, 'Respuesta limpia 2');
+      expect(controller.state.messages.last.content, 'Respuesta limpia 2');
 
-    await send1;
-    await send2;
-  });
+      await send1;
+      await send2;
+    },
+  );
 
   test('cancelling while connectEvents is pending stops execution without dispatching promptAsync', () async {
     final controller = AiConversationController(
@@ -445,11 +541,7 @@ void main() {
     await pumpEventQueue();
 
     mockClient.emitEvent(
-      const AiRuntimeEvent(
-        type: 'message.completed',
-        properties: {},
-        raw: {},
-      ),
+      const AiRuntimeEvent(type: 'message.completed', properties: {}, raw: {}),
     );
     await pumpEventQueue();
 

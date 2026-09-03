@@ -37,6 +37,9 @@ class AiRuntimeSupervisor {
   AiRuntimeSupervisorState get state => _state;
   Stream<AiRuntimeSupervisorState> get states => _states.stream;
 
+  AiRuntimeDefinition definition(AiRuntimeKind kind) =>
+      _installer.definition(kind);
+
   Future<bool> isInstalled(AiRuntimeKind kind) async =>
       await _installer.installed(kind) != null;
 
@@ -59,6 +62,13 @@ class AiRuntimeSupervisor {
       ),
     );
     try {
+      final previousProcess = _process;
+      _process = null;
+      if (previousProcess != null) {
+        _generation++;
+        await previousProcess.stop();
+      }
+      cancellation.throwIfCancelled();
       final installation = await _installer.install(
         kind,
         cancellation: cancellation,
@@ -79,6 +89,15 @@ class AiRuntimeSupervisor {
         ),
       );
       return installation;
+    } on ArtifactDownloadCancelledException {
+      _emit(
+        AiRuntimeSupervisorState(
+          lifecycle: AiRuntimeLifecycle.stopped,
+          kind: kind,
+          version: definition.version,
+        ),
+      );
+      rethrow;
     } catch (error) {
       _emit(
         AiRuntimeSupervisorState(
@@ -143,6 +162,9 @@ class AiRuntimeSupervisor {
       }
       installation = await install(kind);
     }
+    if (generation != _generation || _disposed) {
+      throw const _RuntimeStartCancelled();
+    }
     _emit(
       AiRuntimeSupervisorState(
         lifecycle: AiRuntimeLifecycle.starting,
@@ -200,6 +222,11 @@ class AiRuntimeSupervisor {
   }
 
   Future<void> stop() async {
+    if (_installationCancellation != null) {
+      _generation++;
+      cancelInstallation();
+      return;
+    }
     final process = _process;
     _process = null;
     _generation++;

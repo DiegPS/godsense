@@ -49,6 +49,24 @@ JSON particular del runtime.
 
 ## Validación local
 
+### Regresión de streaming y presentación (2026-09-02)
+
+`integration_test/kilo_streaming_test.dart` deshabilita la consulta de mensajes
+después de capturar el historial inicial. Así el sondeo no puede ocultar un fallo
+de SSE. Antes de la corrección, Kilo emitió 353 deltas y el controlador publicó
+0 respuestas parciales: `session.updated.info.id` se interpretaba como ID de
+mensaje y bloqueaba los mensajes reales. Tras corregir el filtro por tipo de
+evento, una ejecución con Kilo 7.5.9 produjo 431 deltas y 431 textos parciales,
+terminando sin error. Es evidencia de esa ejecución, no una garantía de latencia.
+
+`test/presentation/coach/coach_streaming_widget_test.dart` conecta el controlador
+real a la tarjeta de Coach con transporte simulado. Comprueba que el Markdown
+está renderizado (incluida negrita) y se actualiza antes de finalizar la respuesta.
+Las burbujas parciales y finales comparten `CoachMessageBody`, basado en
+`flutter_markdown_plus`, sin cargar imágenes externas o archivos del modelo.
+
+### Ejecución
+
 La prueba de integración recibe rutas mediante:
 
 ```text
@@ -77,3 +95,23 @@ real y valida la respuesta sin consumir saldo de pago.
    - Correlación estricta de respuestas en sondeo vinculadas al mensaje de usuario del prompt actual, evitando que preguntas consecutivas capturen respuestas anteriores.
    - Control de generaciones (`_currentGenerationId`): descarte absoluto de eventos en búfer o rezagados tras un `abort()`.
    - Renovación automática del cliente HTTP y purga de sesión obsoleta si el endpoint del runtime cambia tras un reinicio.
+
+## Descargas desde Ajustes (2026-09-02)
+
+- Ajustes → Coaching permite descargar e instalar Kilo 7.5.9 y OpenCode
+  1.18.27, comprobar su instalación al abrir la pantalla, mostrar progreso por
+  fase y cancelar/reintentar. Iniciar y detener son acciones separadas.
+- El provider de producción habilita `allowDownloads: true` y no recibe las
+  variables `GODSENSE_TEST_*_EXE`. Las pruebas aún pueden inyectar binarios, pero
+  el instalador da prioridad a una instalación privada válida.
+- El arranque reutiliza la versión fijada instalada por ArtifactInstaller.
+  Solo hay un proceso activo; instalar otro detiene el anterior. La UI bloquea
+  cambios mientras se genera una respuesta y el chat no descarga silenciosamente.
+- Los tamaños y SHA-256 del catálogo se cotejaron con los metadatos de los assets
+  oficiales de GitHub. No se descargaron ZIP reales en este bloque. Las pruebas
+  de interacción usan un supervisor simulado; las del ciclo de vida usan
+  instalador/procesos simulados. No equivalen a validación integral de los binarios.
+- Prueba manual: reiniciar GodSense, descargar un motor desde Ajustes → Coaching,
+  esperar «Instalado», pulsar «Iniciar» y comprobar «Listo» y su versión; repetir
+  con el otro motor. Kilo permite después probar el chat. OpenCode tiene descarga
+  y arranque, pero su selección de modelos para el chat continúa pendiente.

@@ -5,6 +5,7 @@ import '../../../application/ai/ai_conversation_controller.dart';
 import '../../../application/dependencies.dart';
 import '../../../domain/ai/ai_runtime_models.dart';
 import '../shared/coach_surface.dart';
+import 'coach_message_body.dart';
 
 class AiCoachChatCard extends ConsumerStatefulWidget {
   const AiCoachChatCard({super.key});
@@ -57,7 +58,8 @@ class _AiCoachChatCardState extends ConsumerState<AiCoachChatCard> {
     final supervisor = ref.watch(aiRuntimeSupervisorProvider);
     final supervisorState =
         ref.watch(aiRuntimeSupervisorStateProvider).value ?? supervisor.state;
-    final isReady = supervisorState.isReady;
+    final isReady =
+        supervisorState.isReady && supervisorState.kind == AiRuntimeKind.kilo;
     final isBusy = conversation.isBusy;
 
     ref.listen(
@@ -69,7 +71,9 @@ class _AiCoachChatCardState extends ConsumerState<AiCoachChatCard> {
       title: 'Coach IA conversacional',
       subtitle: isReady
           ? 'Kilo Code activo · Modelo: kilo/kilo-auto/free'
-          : 'Motor local apagado · Actívalo para chatear',
+          : supervisorState.isReady
+          ? 'OpenCode iniciado · La selección de sus modelos aún está pendiente'
+          : 'Instala Kilo en Ajustes → Coaching y actívalo para chatear',
       icon: Icons.psychology_rounded,
       action: Row(
         mainAxisSize: MainAxisSize.min,
@@ -102,12 +106,32 @@ class _AiCoachChatCardState extends ConsumerState<AiCoachChatCard> {
             )
           else
             OutlinedButton.icon(
-              onPressed: _startingRuntime
+              onPressed: _startingRuntime || supervisorState.isBusy || isBusy
                   ? null
                   : () async {
                       setState(() => _startingRuntime = true);
                       try {
+                        if (!await supervisor.isInstalled(AiRuntimeKind.kilo)) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Descarga Kilo Code en Ajustes → Coaching antes de iniciar.',
+                                ),
+                              ),
+                            );
+                          }
+                          return;
+                        }
                         await supervisor.start(AiRuntimeKind.kilo);
+                      } catch (error) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('No se pudo iniciar Kilo: $error'),
+                            ),
+                          );
+                        }
                       } finally {
                         if (mounted) setState(() => _startingRuntime = false);
                       }
@@ -115,7 +139,10 @@ class _AiCoachChatCardState extends ConsumerState<AiCoachChatCard> {
               icon: const Icon(Icons.power_settings_new_rounded, size: 14),
               label: Text(_startingRuntime ? 'Iniciando...' : 'Iniciar Kilo'),
               style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 minimumSize: Size.zero,
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
@@ -128,8 +155,8 @@ class _AiCoachChatCardState extends ConsumerState<AiCoachChatCard> {
               onPressed: isBusy
                   ? null
                   : () => ref
-                      .read(aiConversationProvider.notifier)
-                      .clearConversation(),
+                        .read(aiConversationProvider.notifier)
+                        .clearConversation(),
             ),
           ],
         ],
@@ -176,7 +203,8 @@ class _AiCoachChatCardState extends ConsumerState<AiCoachChatCard> {
           ],
           ConstrainedBox(
             constraints: const BoxConstraints(maxHeight: 340, minHeight: 120),
-            child: conversation.messages.isEmpty &&
+            child:
+                conversation.messages.isEmpty &&
                     conversation.streamedText.isEmpty
                 ? Center(
                     child: Column(
@@ -247,8 +275,10 @@ class _AiCoachChatCardState extends ConsumerState<AiCoachChatCard> {
                     conversation.status == AiConversationStatus.sending
                         ? 'Enviando al motor Kilo Auto...'
                         : conversation.status == AiConversationStatus.canceling
-                            ? 'Cancelando respuesta...'
-                            : 'Generando respuesta en streaming...',
+                        ? 'Cancelando respuesta...'
+                        : conversation.streamedText.isEmpty
+                        ? 'Esperando respuesta...'
+                        : 'Escribiendo respuesta...',
                     style: const TextStyle(
                       color: CoachColors.secondaryText,
                       fontSize: 11,
@@ -257,7 +287,8 @@ class _AiCoachChatCardState extends ConsumerState<AiCoachChatCard> {
                   ),
                 ),
                 TextButton.icon(
-                  onPressed: conversation.status == AiConversationStatus.canceling
+                  onPressed:
+                      conversation.status == AiConversationStatus.canceling
                       ? null
                       : () => ref.read(aiConversationProvider.notifier).abort(),
                   icon: const Icon(
@@ -289,7 +320,9 @@ class _AiCoachChatCardState extends ConsumerState<AiCoachChatCard> {
                   controller: _textController,
                   enabled: isReady && !isBusy,
                   textInputAction: TextInputAction.send,
-                  onSubmitted: isReady && !isBusy ? (_) => _sendMessage() : null,
+                  onSubmitted: isReady && !isBusy
+                      ? (_) => _sendMessage()
+                      : null,
                   style: const TextStyle(
                     color: CoachColors.primaryText,
                     fontSize: 13,
@@ -331,8 +364,9 @@ class _AiCoachChatCardState extends ConsumerState<AiCoachChatCard> {
                 style: IconButton.styleFrom(
                   backgroundColor: CoachColors.cyan,
                   foregroundColor: const Color(0xFF041017),
-                  disabledBackgroundColor:
-                      CoachColors.mutedText.withValues(alpha: .2),
+                  disabledBackgroundColor: CoachColors.mutedText.withValues(
+                    alpha: .2,
+                  ),
                   disabledForegroundColor: CoachColors.mutedText,
                 ),
               ),
@@ -370,8 +404,9 @@ class _ChatBubble extends StatelessWidget {
           ),
         ),
         child: Column(
-          crossAxisAlignment:
-              isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+          crossAxisAlignment: isUser
+              ? CrossAxisAlignment.end
+              : CrossAxisAlignment.start,
           children: [
             Row(
               mainAxisSize: MainAxisSize.min,
@@ -393,14 +428,17 @@ class _ChatBubble extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 4),
-            SelectableText(
-              message.content,
-              style: const TextStyle(
-                color: CoachColors.primaryText,
-                fontSize: 13,
-                height: 1.4,
-              ),
-            ),
+            if (isUser)
+              SelectableText(
+                message.content,
+                style: const TextStyle(
+                  color: CoachColors.primaryText,
+                  fontSize: 14,
+                  height: 1.5,
+                ),
+              )
+            else
+              CoachMessageBody(text: message.content),
           ],
         ),
       ),
@@ -432,8 +470,11 @@ class _StreamingBubble extends StatelessWidget {
             const Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.psychology_rounded,
-                    size: 13, color: CoachColors.emerald),
+                Icon(
+                  Icons.psychology_rounded,
+                  size: 13,
+                  color: CoachColors.emerald,
+                ),
                 SizedBox(width: 4),
                 Text(
                   'Coach IA (escribiendo...)',
@@ -446,14 +487,7 @@ class _StreamingBubble extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 4),
-            SelectableText(
-              '$text ▌',
-              style: const TextStyle(
-                color: CoachColors.primaryText,
-                fontSize: 13,
-                height: 1.4,
-              ),
-            ),
+            CoachMessageBody(text: text),
           ],
         ),
       ),

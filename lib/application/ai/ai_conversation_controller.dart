@@ -33,10 +33,7 @@ class AiChatMessage {
   final DateTime timestamp;
   final bool isStreaming;
 
-  AiChatMessage copyWith({
-    String? content,
-    bool? isStreaming,
-  }) {
+  AiChatMessage copyWith({String? content, bool? isStreaming}) {
     return AiChatMessage(
       id: id,
       role: role,
@@ -117,8 +114,10 @@ class AiConversationController extends StateNotifier<AiConversationState> {
   AiRuntimeEndpoint? _cachedEndpoint;
   AiRuntimeClient? _client;
   bool _disposed = false;
+  bool _turnFinished = false;
 
   final Map<String, String> _parts = {};
+  final Map<String, String> _partTypes = {};
   final Set<String> _userMessageIds = {};
   String? _currentAssistantMessageId;
 
@@ -143,22 +142,21 @@ class AiConversationController extends StateNotifier<AiConversationState> {
     return _client!;
   }
 
-  Future<void> sendMessage(
-    String promptText, {
-    String? systemPrompt,
-  }) async {
+  Future<void> sendMessage(String promptText, {String? systemPrompt}) async {
     final text = promptText.trim();
     if (text.isEmpty || state.isBusy) return;
 
     if (!_supervisor.state.isReady) {
       state = state.copyWith(
         status: AiConversationStatus.error,
-        errorMessage: 'El motor de IA local no está encendido. Inícialo en Ajustes.',
+        errorMessage:
+            'El motor de IA local no está encendido. Inícialo en Ajustes.',
       );
       return;
     }
 
     final generation = ++_currentGenerationId;
+    _turnFinished = false;
 
     final userMessage = AiChatMessage(
       id: 'user-${_now().microsecondsSinceEpoch}',
@@ -178,7 +176,9 @@ class AiConversationController extends StateNotifier<AiConversationState> {
       final client = _activeClient;
       var sessionId = state.sessionId;
       if (sessionId == null) {
-        final session = await client.createSession(title: 'GodSense Coach Chat');
+        final session = await client.createSession(
+          title: 'GodSense Coach Chat',
+        );
         sessionId = session.id;
         state = state.copyWith(sessionId: sessionId);
       }
@@ -187,7 +187,10 @@ class AiConversationController extends StateNotifier<AiConversationState> {
       final initialMessages = await client.messages(sessionId);
       final baselineCount = initialMessages.length;
       final knownPriorMessageIds = initialMessages
-          .map((m) => m['info'] is Map ? (m['info'] as Map)['id']?.toString() : null)
+          .map(
+            (m) =>
+                m['info'] is Map ? (m['info'] as Map)['id']?.toString() : null,
+          )
           .whereType<String>()
           .toSet();
 
@@ -206,9 +209,10 @@ class AiConversationController extends StateNotifier<AiConversationState> {
       final prompt = AiPrompt(
         providerId: state.selectedProviderId,
         modelId: state.selectedModelId,
-        system: systemPrompt ??
+        system:
+            systemPrompt ??
             'Eres el asistente táctico de League of Legends de GodSense. '
-            'Responde de forma concisa, analítica y sin usar herramientas.',
+                'Responde de forma concisa, analítica y sin usar herramientas.',
         text: text,
       );
 
@@ -218,7 +222,9 @@ class AiConversationController extends StateNotifier<AiConversationState> {
       // 2. Despacho del prompt solo si no ha sido cancelado
       await client.promptAsync(sessionId, prompt);
 
-      if (_disposed || generation != _currentGenerationId) return;
+      if (_disposed || generation != _currentGenerationId || _turnFinished) {
+        return;
+      }
       state = state.copyWith(status: AiConversationStatus.streaming);
       _startReconciliation(sessionId, generation, baselineCount);
     } catch (e) {
@@ -259,6 +265,14 @@ class AiConversationController extends StateNotifier<AiConversationState> {
           return;
         }
 
+        // Lifecycle/indexing/sync events must never claim the assistant ID.
+        if (!event.type.startsWith('message.')) {
+          if (event.isCompleted && _currentAssistantMessageId != null) {
+            _commitAssistantMessage(targetGeneration);
+          }
+          return;
+        }
+
         final msgId = event.messageId;
 
         // Registrar persistentemente cualquier ID identificado como mensaje del usuario
@@ -272,7 +286,8 @@ class AiConversationController extends StateNotifier<AiConversationState> {
         }
 
         // 2. Descartar cualquier evento perteneciente al usuario (con o sin role en este evento de parte)
-        if (event.isUser || (msgId != null && _userMessageIds.contains(msgId))) {
+        if (event.isUser ||
+            (msgId != null && _userMessageIds.contains(msgId))) {
           return;
         }
 
@@ -292,6 +307,13 @@ class AiConversationController extends StateNotifier<AiConversationState> {
 
         // Reconstrucción estricta de partes por identificador (partId)
         final partKey = event.partId ?? 'default_part';
+        final part = event.properties['part'];
+        if (part is Map && part['type'] is String) {
+          _partTypes[partKey] = part['type'] as String;
+        }
+        if (_partTypes[partKey] != null && _partTypes[partKey] != 'text') {
+          return;
+        }
 
         final delta = event.textDelta;
         if (delta != null && delta.isNotEmpty) {
@@ -335,72 +357,80 @@ class AiConversationController extends StateNotifier<AiConversationState> {
   ) {
     _reconciliationTimer?.cancel();
     var attempts = 0;
-    _reconciliationTimer = Timer.periodic(
-      const Duration(milliseconds: 600),
-      (timer) async {
-        if (_disposed ||
-            targetGeneration != _currentGenerationId ||
-            state.sessionId != targetSessionId) {
-          timer.cancel();
-          return;
-        }
+    var reading = false;
+    _reconciliationTimer = Timer.periodic(const Duration(milliseconds: 600), (
+      timer,
+    ) async {
+      if (_disposed ||
+          _turnFinished ||
+          targetGeneration != _currentGenerationId ||
+          state.sessionId != targetSessionId) {
+        timer.cancel();
+        return;
+      }
+      if (reading) return;
 
-        attempts++;
-        if (attempts > 100) {
-          timer.cancel();
-          _stopStreaming();
-          if (state.status == AiConversationStatus.streaming) {
-            final partial = state.streamedText.trim();
-            final errorContent = partial.isNotEmpty
-                ? '$partial\n\n[Respuesta incompleta: tiempo de espera agotado]'
-                : 'El motor de IA local no completó la respuesta a tiempo.';
-            final assistantMessage = AiChatMessage(
-              id: 'assistant-${_now().microsecondsSinceEpoch}',
-              role: 'assistant',
-              content: errorContent,
-              timestamp: _now(),
-            );
-            state = state.copyWith(
-              messages: [...state.messages, assistantMessage],
-              streamedText: '',
-              status: AiConversationStatus.error,
-              errorMessage:
-                  'Tiempo de espera agotado esperando la respuesta del motor.',
-            );
-          }
-          return;
-        }
-
-        try {
-          final messages = await _activeClient.messages(targetSessionId);
-          if (targetGeneration != _currentGenerationId) {
-            timer.cancel();
-            return;
-          }
-
-          // Correlación estricta por índice posicional y rol:
-          // Solo examinamos mensajes posteriores a la línea base de este turno.
-          final assistantText = _extractAssistantTextAfter(
-            messages,
-            baselineCount,
+      attempts++;
+      if (attempts > 100) {
+        timer.cancel();
+        _stopStreaming();
+        if (state.status == AiConversationStatus.streaming) {
+          final partial = state.streamedText.trim();
+          final errorContent = partial.isNotEmpty
+              ? '$partial\n\n[Respuesta incompleta: tiempo de espera agotado]'
+              : 'El motor de IA local no completó la respuesta a tiempo.';
+          final assistantMessage = AiChatMessage(
+            id: 'assistant-${_now().microsecondsSinceEpoch}',
+            role: 'assistant',
+            content: errorContent,
+            timestamp: _now(),
           );
-          if (assistantText != null && assistantText.isNotEmpty) {
-            if (assistantText.length > state.streamedText.length) {
-              state = state.copyWith(streamedText: assistantText);
-            }
-            if (_isAssistantFinishedAfter(messages, baselineCount)) {
-              timer.cancel();
-              _commitAssistantMessage(targetGeneration);
-            }
-          }
-        } catch (_) {
-          // Ignorar fallo transitorio en polling
+          state = state.copyWith(
+            messages: [...state.messages, assistantMessage],
+            streamedText: '',
+            status: AiConversationStatus.error,
+            errorMessage:
+                'Tiempo de espera agotado esperando la respuesta del motor.',
+          );
         }
-      },
-    );
+        return;
+      }
+
+      try {
+        reading = true;
+        final messages = await _activeClient.messages(targetSessionId);
+        if (_disposed ||
+            _turnFinished ||
+            targetGeneration != _currentGenerationId) {
+          timer.cancel();
+          return;
+        }
+
+        // Correlación estricta por índice posicional y rol:
+        // Solo examinamos mensajes posteriores a la línea base de este turno.
+        final assistantText = _extractAssistantTextAfter(
+          messages,
+          baselineCount,
+        );
+        if (assistantText != null && assistantText.isNotEmpty) {
+          if (assistantText.length > state.streamedText.length) {
+            state = state.copyWith(streamedText: assistantText);
+          }
+          if (_isAssistantFinishedAfter(messages, baselineCount)) {
+            timer.cancel();
+            _commitAssistantMessage(targetGeneration);
+          }
+        }
+      } catch (_) {
+        // Ignorar fallo transitorio en polling
+      } finally {
+        reading = false;
+      }
+    });
   }
 
   void _commitAssistantMessage([int? targetGeneration]) {
+    if (_turnFinished) return;
     if (targetGeneration != null && targetGeneration != _currentGenerationId) {
       return;
     }
@@ -409,6 +439,7 @@ class AiConversationController extends StateNotifier<AiConversationState> {
       // Si aún no hay texto, no cerrar el streaming (ej. eventos iniciales de estado del servidor)
       return;
     }
+    _turnFinished = true;
     _stopStreaming();
 
     final assistantMessage = AiChatMessage(
@@ -431,6 +462,7 @@ class AiConversationController extends StateNotifier<AiConversationState> {
     _reconciliationTimer?.cancel();
     _reconciliationTimer = null;
     _parts.clear();
+    _partTypes.clear();
     _userMessageIds.clear();
     _currentAssistantMessageId = null;
   }
@@ -474,6 +506,7 @@ class AiConversationController extends StateNotifier<AiConversationState> {
   }
 
   Future<void> clearConversation() async {
+    _currentGenerationId++;
     _stopStreaming();
     final currentSession = state.sessionId;
     state = state.copyWith(

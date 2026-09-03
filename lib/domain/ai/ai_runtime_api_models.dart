@@ -108,6 +108,12 @@ class AiRuntimeEvent {
 
   /// Retorna exclusivamente fragmentos incrementales emitidos por message.part.delta
   String? get textDelta {
+    if (type != 'message.part.delta' && type != 'message.part.updated') {
+      return null;
+    }
+    if (properties['field'] != null && properties['field'] != 'text') {
+      return null;
+    }
     final delta = properties['delta'];
     if (delta is String) return delta;
     return null;
@@ -115,44 +121,66 @@ class AiRuntimeEvent {
 
   /// Retorna el texto consolidado de la parte cuando Kilo emite message.part.updated o message.updated
   String? get fullPartText {
+    if (type != 'message.part.updated') return null;
     final part = properties['part'];
-    if (part is Map && part['text'] is String) return part['text'] as String;
-    final text = properties['text'];
-    if (text is String && type != 'message.part.delta') return text;
+    if (part is Map && part['type'] == 'text' && part['text'] is String) {
+      return part['text'] as String;
+    }
     return null;
   }
 
   String? get sessionId {
-    final id = properties['sessionID'] ??
+    final id =
+        properties['sessionID'] ??
         properties['sessionId'] ??
         properties['id'] ??
-        (properties['info'] is Map ? (properties['info'] as Map)['sessionID'] : null) ??
-        (properties['part'] is Map ? (properties['part'] as Map)['sessionID'] : null) ??
+        (properties['info'] is Map
+            ? (properties['info'] as Map)['sessionID']
+            : null) ??
+        (properties['part'] is Map
+            ? (properties['part'] as Map)['sessionID']
+            : null) ??
         raw['sessionID'];
     return id?.toString();
   }
 
   String? get messageId {
-    final id = properties['messageID'] ??
+    // session.updated also has info.id, but it is a SESSION identifier.
+    if (!type.startsWith('message.')) return null;
+    final id =
+        properties['messageID'] ??
         properties['messageId'] ??
-        (properties['info'] is Map ? (properties['info'] as Map)['id'] : null) ??
-        (properties['part'] is Map ? (properties['part'] as Map)['messageID'] : null) ??
+        (properties['info'] is Map
+            ? (properties['info'] as Map)['id']
+            : null) ??
+        (properties['part'] is Map
+            ? (properties['part'] as Map)['messageID']
+            : null) ??
         raw['messageID'];
     return id?.toString();
   }
 
   String? get partId {
-    final id = properties['partID'] ??
+    if (!type.startsWith('message.part.')) return null;
+    final id =
+        properties['partID'] ??
         properties['partId'] ??
-        (properties['part'] is Map ? (properties['part'] as Map)['id'] : null) ??
+        (properties['part'] is Map
+            ? (properties['part'] as Map)['id']
+            : null) ??
         raw['partID'];
     return id?.toString();
   }
 
   String? get role {
-    final r = properties['role'] ??
-        (properties['info'] is Map ? (properties['info'] as Map)['role'] : null) ??
-        (properties['part'] is Map ? (properties['part'] as Map)['role'] : null) ??
+    final r =
+        properties['role'] ??
+        (properties['info'] is Map
+            ? (properties['info'] as Map)['role']
+            : null) ??
+        (properties['part'] is Map
+            ? (properties['part'] as Map)['role']
+            : null) ??
         raw['role'];
     return r?.toString();
   }
@@ -163,7 +191,9 @@ class AiRuntimeEvent {
 
   bool get isCompleted {
     if (type == 'message.completed' || type == 'session.idle') return true;
-    if (type == 'message.status' && properties['status'] == 'completed') return true;
+    if (type == 'message.status' && properties['status'] == 'completed') {
+      return true;
+    }
     final status = properties['status'];
     if (type == 'session.status') {
       if (status is Map && status['type'] == 'idle') return true;

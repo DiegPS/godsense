@@ -3,8 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:godsense/application/ai/ai_conversation_controller.dart';
 import 'package:godsense/application/dependencies.dart';
-import 'package:godsense/domain/ai/ai_runtime_models.dart';
 import 'package:godsense/presentation/coach/live/ai_coach_chat_card.dart';
+
+import '../../application/ai/ai_conversation_controller_test.dart'
+    show FakeSupervisor;
 
 class FakeAiConversationNotifier extends StateNotifier<AiConversationState>
     implements AiConversationController {
@@ -71,14 +73,14 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          aiRuntimeSupervisorProvider.overrideWithValue(FakeSupervisor()),
+          aiRuntimeSupervisorStateProvider.overrideWith(
+            (ref) => Stream.value(FakeSupervisor().state),
+          ),
           aiConversationProvider.overrideWith((ref) => fakeController),
         ],
         child: const MaterialApp(
-          home: Scaffold(
-            body: SingleChildScrollView(
-              child: AiCoachChatCard(),
-            ),
-          ),
+          home: Scaffold(body: SingleChildScrollView(child: AiCoachChatCard())),
         ),
       ),
     );
@@ -87,49 +89,52 @@ void main() {
     expect(find.byType(TextField), findsOneWidget);
   });
 
-  testWidgets('AiCoachChatCard shows streaming indicator and abort button when streaming', (
-    tester,
-  ) async {
-    final fakeController = FakeAiConversationNotifier(
-      AiConversationState(
-        status: AiConversationStatus.streaming,
-        streamedText: 'Para la fase de líneas, prioriza el farm.',
-        messages: [
-          AiChatMessage(
-            id: 'u1',
-            role: 'user',
-            content: '¿Cómo juego fase de líneas?',
-            timestamp: DateTime.fromMillisecondsSinceEpoch(0),
-          ),
-        ],
-      ),
-    );
+  testWidgets(
+    'AiCoachChatCard shows streaming indicator and abort button when streaming',
+    (tester) async {
+      final fakeController = FakeAiConversationNotifier(
+        AiConversationState(
+          status: AiConversationStatus.streaming,
+          streamedText: 'Para la fase de líneas, prioriza el farm.',
+          messages: [
+            AiChatMessage(
+              id: 'u1',
+              role: 'user',
+              content: '¿Cómo juego fase de líneas?',
+              timestamp: DateTime.fromMillisecondsSinceEpoch(0),
+            ),
+          ],
+        ),
+      );
 
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          aiConversationProvider.overrideWith((ref) => fakeController),
-        ],
-        child: const MaterialApp(
-          home: Scaffold(
-            body: SingleChildScrollView(
-              child: AiCoachChatCard(),
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            aiRuntimeSupervisorProvider.overrideWithValue(FakeSupervisor()),
+            aiRuntimeSupervisorStateProvider.overrideWith(
+              (ref) => Stream.value(FakeSupervisor().state),
+            ),
+            aiConversationProvider.overrideWith((ref) => fakeController),
+          ],
+          child: const MaterialApp(
+            home: Scaffold(
+              body: SingleChildScrollView(child: AiCoachChatCard()),
             ),
           ),
         ),
-      ),
-    );
+      );
 
-    expect(find.text('Cancelar generación'), findsOneWidget);
-    expect(find.textContaining('prioriza el farm'), findsOneWidget);
+      expect(find.text('Cancelar generación'), findsOneWidget);
+      expect(find.textContaining('prioriza el farm'), findsOneWidget);
 
-    // Tap Cancelar generación
-    await tester.tap(find.text('Cancelar generación'));
-    await tester.pump();
+      // Tap Cancelar generación
+      await tester.tap(find.text('Cancelar generación'));
+      await tester.pump();
 
-    expect(fakeController.abortCallCount, 1);
-    expect(find.textContaining('[Cancelado]'), findsOneWidget);
-  });
+      expect(fakeController.abortCallCount, 1);
+      expect(find.textContaining('[Cancelado]'), findsOneWidget);
+    },
+  );
 
   testWidgets('AiCoachChatCard renders error banner and allows closing it', (
     tester,
@@ -144,14 +149,14 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          aiRuntimeSupervisorProvider.overrideWithValue(FakeSupervisor()),
+          aiRuntimeSupervisorStateProvider.overrideWith(
+            (ref) => Stream.value(FakeSupervisor().state),
+          ),
           aiConversationProvider.overrideWith((ref) => fakeController),
         ],
         child: const MaterialApp(
-          home: Scaffold(
-            body: SingleChildScrollView(
-              child: AiCoachChatCard(),
-            ),
-          ),
+          home: Scaffold(body: SingleChildScrollView(child: AiCoachChatCard())),
         ),
       ),
     );

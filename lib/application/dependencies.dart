@@ -1,4 +1,5 @@
 import 'dart:io';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
 
@@ -224,19 +225,14 @@ final aiRuntimePathsProvider = Provider<AiRuntimePaths>((ref) {
 
 final aiRuntimeSupervisorProvider = Provider<AiRuntimeSupervisor>((ref) {
   final paths = ref.watch(aiRuntimePathsProvider);
-  final installer = PinnedAiRuntimeInstaller(
-    paths: paths,
-    devExecutablePaths: {
-      AiRuntimeKind.openCode: Platform.environment['GODSENSE_TEST_OPENCODE_EXE'],
-      AiRuntimeKind.kilo: Platform.environment['GODSENSE_TEST_KILO_EXE'],
-    },
-  );
+  final installer = PinnedAiRuntimeInstaller(paths: paths);
   final processService = LocalAiRuntimeProcessService(paths);
   final health = AiRuntimeHealthClient();
   final supervisor = AiRuntimeSupervisor(
     installer: installer,
     processes: processService,
     health: health,
+    allowDownloads: true,
   );
   ref.onDispose(() {
     supervisor.dispose();
@@ -268,7 +264,5 @@ final aiConversationProvider =
           );
         },
       );
-      ref.onDispose(controller.dispose);
       return controller;
     });
-

@@ -380,261 +380,300 @@ class CoachingSettingsSection extends ConsumerStatefulWidget {
 
 class _CoachingSettingsSectionState
     extends ConsumerState<CoachingSettingsSection> {
-  bool _operating = false;
-  String? _lastError;
+  late Map<AiRuntimeKind, Future<bool>> _installed;
+  AiRuntimeKind? _operating;
+  AiRuntimeKind? _noticeKind;
+  String? _notice;
+  bool _failed = false;
+  bool _cancelling = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _refreshInstalled();
+  }
+
+  void _refreshInstalled() {
+    final supervisor = ref.read(aiRuntimeSupervisorProvider);
+    _installed = {
+      for (final kind in AiRuntimeKind.values)
+        kind: supervisor.isInstalled(kind),
+    };
+  }
+
+  Future<void> _run(
+    AiRuntimeKind kind,
+    Future<void> Function() action,
+    String success,
+  ) async {
+    if (_operating != null) return;
+    setState(() {
+      _operating = kind;
+      _noticeKind = kind;
+      _notice = null;
+      _failed = false;
+      _cancelling = false;
+    });
+    try {
+      await action();
+      if (mounted) setState(() => _notice = success);
+    } on ArtifactDownloadCancelledException {
+      if (mounted) {
+        setState(
+          () => _notice = 'Instalación cancelada. Puedes volver a intentarlo.',
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _failed = true;
+          _notice = 'No se pudo completar la operación. $error';
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _operating = null;
+          _cancelling = false;
+          _refreshInstalled();
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final supervisor = ref.watch(aiRuntimeSupervisorProvider);
-    final supervisorState =
+    final state =
         ref.watch(aiRuntimeSupervisorStateProvider).value ?? supervisor.state;
-    final isKiloActive = supervisorState.kind == AiRuntimeKind.kilo;
-    final isReady = supervisorState.isReady;
+    final chatting = ref.watch(
+      aiConversationProvider.select((value) => value.isBusy),
+    );
+    final blocked = _operating != null || state.isBusy || chatting;
+    ref.listen(aiRuntimeSupervisorStateProvider, (previous, next) {
+      if (previous?.value?.lifecycle != next.value?.lifecycle && mounted) {
+        setState(_refreshInstalled);
+      }
+    });
+
+    Widget runtimeCard(AiRuntimeKind kind) {
+      final definition = supervisor.definition(kind);
+      final name = kind == AiRuntimeKind.kilo ? 'Kilo Code' : 'OpenCode';
+      final active = state.kind == kind;
+      final ready = active && state.isReady;
+      final installing =
+          active && state.lifecycle == AiRuntimeLifecycle.installing;
+      final starting = active && state.lifecycle == AiRuntimeLifecycle.starting;
+      final progress = installing ? state.installProgress : null;
+      final bytes = definition.package.payloads.fold<int>(
+        0,
+        (sum, file) => sum + file.bytes,
+      );
+      return FutureBuilder<bool>(
+        future: _installed[kind],
+        builder: (context, snapshot) {
+          final installed = snapshot.data == true;
+          final checked =
+              snapshot.connectionState == ConnectionState.done &&
+              !snapshot.hasError;
+          final status = installing
+              ? _installPhaseLabel(progress?.phase)
+              : starting
+              ? 'Iniciando…'
+              : ready
+              ? 'Listo · versión ${state.version ?? definition.version}'
+              : snapshot.hasError
+              ? 'No se pudo comprobar la instalación'
+              : !checked
+              ? 'Comprobando instalación…'
+              : installed
+              ? 'Instalado'
+              : 'Sin instalar';
+          return GsCard(
+            title: name,
+            subtitle:
+                'Versión ${definition.version} · ${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB de descarga',
+            icon: kind == AiRuntimeKind.kilo
+                ? Icons.route_outlined
+                : Icons.code_rounded,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  status,
+                  style: TextStyle(
+                    color: ready ? GsColors.cyan : GsColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                if (installing || starting) ...[
+                  LinearProgressIndicator(
+                    value: progress?.phase == ArtifactInstallPhase.downloading
+                        ? progress?.fraction
+                        : null,
+                    semanticsLabel: '$name: $status',
+                  ),
+                  const SizedBox(height: 8),
+                  if (progress?.phase == ArtifactInstallPhase.downloading &&
+                      progress!.totalBytes > 0)
+                    Text(
+                      '${(progress.receivedBytes / (1024 * 1024)).toStringAsFixed(1)} / '
+                      '${(progress.totalBytes / (1024 * 1024)).toStringAsFixed(1)} MB',
+                    ),
+                  const SizedBox(height: 8),
+                ],
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    if (installing)
+                      OutlinedButton(
+                        onPressed: _cancelling
+                            ? null
+                            : () {
+                                setState(() => _cancelling = true);
+                                supervisor.cancelInstallation();
+                              },
+                        child: Text(
+                          _cancelling ? 'Cancelando…' : 'Cancelar instalación',
+                        ),
+                      )
+                    else if (!installed)
+                      FilledButton.icon(
+                        onPressed: blocked || !checked
+                            ? null
+                            : () => _run(kind, () async {
+                                await supervisor.install(kind);
+                              }, '$name instalado. Ya puedes iniciarlo.'),
+                        icon: const Icon(Icons.download_rounded, size: 18),
+                        label: const Text('Descargar e instalar'),
+                      )
+                    else
+                      FilledButton.icon(
+                        onPressed: blocked
+                            ? null
+                            : () => _run(
+                                kind,
+                                () async {
+                                  if (ready) {
+                                    await supervisor.stop();
+                                  } else {
+                                    await supervisor.start(kind);
+                                  }
+                                },
+                                ready
+                                    ? '$name detenido.'
+                                    : '$name iniciado y disponible.',
+                              ),
+                        icon: Icon(
+                          ready ? Icons.stop_rounded : Icons.play_arrow_rounded,
+                          size: 18,
+                        ),
+                        label: Text(ready ? 'Detener $name' : 'Iniciar $name'),
+                      ),
+                    if (snapshot.hasError)
+                      TextButton(
+                        onPressed: blocked
+                            ? null
+                            : () => setState(_refreshInstalled),
+                        child: const Text('Volver a comprobar'),
+                      ),
+                  ],
+                ),
+                if (_noticeKind == kind && _notice != null) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    _notice!,
+                    style: TextStyle(
+                      color: _failed
+                          ? GsColors.crimson
+                          : GsColors.textSecondary,
+                    ),
+                  ),
+                ] else if (active && state.error != null) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    state.error!,
+                    style: const TextStyle(color: GsColors.crimson),
+                  ),
+                ],
+              ],
+            ),
+          );
+        },
+      );
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         GsCard(
-          title: 'Tu coach, a tu manera',
-          subtitle:
-              'Aquí elegirás quién genera las respuestas y cómo debe acompañarte.',
-          icon: Icons.psychology_outlined,
-          borderColor: GsColors.borderInteractive,
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Icon(Icons.info_outline_rounded,
-                  color: GsColors.cyan, size: 20),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      isReady
-                          ? 'Motor Kilo Code activo y disponible para acompañarte. '
-                              'Modelo predeterminado: Kilo Auto (gratuito).'
-                          : 'Puedes activar el runtime local de Kilo Code para '
-                              'recibir asistencia conversacional gratuita durante el desarrollo.',
-                      style: const TextStyle(
-                        color: GsColors.textSecondary,
-                        fontSize: 14,
-                        height: 1.45,
-                      ),
-                    ),
-                    if (_lastError != null) ...[
-                      const SizedBox(height: 6),
-                      Text(
-                        _lastError!,
-                        style: const TextStyle(
-                          color: GsColors.crimson,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              const SizedBox(width: 12),
-              ElevatedButton.icon(
-                onPressed: _operating
-                    ? null
-                    : () async {
-                        setState(() {
-                          _operating = true;
-                          _lastError = null;
-                        });
-                        try {
-                          if (isReady && isKiloActive) {
-                            await supervisor.stop();
-                          } else {
-                            await supervisor.start(AiRuntimeKind.kilo);
-                          }
-                        } catch (e) {
-                          setState(() => _lastError = e.toString());
-                        } finally {
-                          if (mounted) setState(() => _operating = false);
-                        }
-                      },
-                icon: Icon(
-                  isReady && isKiloActive
-                      ? Icons.stop_circle_outlined
-                      : Icons.play_circle_outline_rounded,
-                  size: 16,
-                ),
-                label: Text(
-                  _operating
-                      ? 'Procesando...'
-                      : isReady && isKiloActive
-                          ? 'Detener Kilo'
-                          : 'Iniciar Kilo',
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 16),
-        GsCard(
           title: 'Proveedor del coach',
-          subtitle: 'Podrás conectar uno y cambiarlo cuando lo necesites.',
+          subtitle: 'Descarga una copia independiente para GodSense.',
           icon: Icons.hub_outlined,
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final openCode = _ProviderPreview(
-                name: 'OpenCode',
-                description:
-                    'Usa tus modelos disponibles a través de esta conexión.',
-                icon: Icons.code_rounded,
-                badgeLabel:
-                    supervisorState.kind == AiRuntimeKind.openCode && isReady
-                        ? 'Disponible'
-                        : 'Por conectar',
-                badgeVariant:
-                    supervisorState.kind == AiRuntimeKind.openCode && isReady
-                        ? GsBadgeVariant.success
-                        : GsBadgeVariant.neutral,
-              );
-              final kiloCode = _ProviderPreview(
-                name: 'Kilo Code',
-                description:
-                    'Motor local compatible. Incluye kilo/kilo-auto/free sin costo.',
-                icon: Icons.route_outlined,
-                badgeLabel:
-                    isKiloActive && isReady ? 'Disponible' : 'Por conectar',
-                badgeVariant: isKiloActive && isReady
-                    ? GsBadgeVariant.success
-                    : GsBadgeVariant.neutral,
-              );
-              if (constraints.maxWidth < 720) {
-                return Column(
-                  children: [openCode, const SizedBox(height: 12), kiloCode],
-                );
-              }
-              return Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(child: openCode),
-                  const SizedBox(width: 12),
-                  Expanded(child: kiloCode),
-                ],
-              );
-            },
+          child: Text(
+            chatting
+                ? 'Termina o cancela la respuesta del coach antes de cambiar de motor.'
+                : 'Puedes instalar ambos. Solo uno estará encendido a la vez. '
+                      'Instalar o iniciar otro detiene el anterior. '
+                      'La instalación no descarga modelos de IA: las respuestas necesitan Internet.',
+            style: const TextStyle(color: GsColors.textSecondary, height: 1.45),
           ),
         ),
         const SizedBox(height: 16),
         LayoutBuilder(
           builder: (context, constraints) {
-            const model = _SettingsPlanCard(
-              title: 'Modelo y respuestas',
-              icon: Icons.tune_outlined,
-              items: [
-                'Modelo activo: kilo-auto/free',
-                'Rapidez, profundidad y longitud',
-                'Idioma y estilo de comunicación',
-              ],
-            );
-            const contextCard = _SettingsPlanCard(
-              title: 'Contexto y privacidad',
-              icon: Icons.shield_outlined,
-              items: [
-                'Entorno aislado sin claves de API',
-                'Herramientas y shell bloqueados',
-                'Comportamiento cuando no hay conexión',
-              ],
-            );
-            if (constraints.maxWidth < 900) {
-              return const Column(
-                children: [model, SizedBox(height: 16), contextCard],
+            if (constraints.maxWidth < 720) {
+              return Column(
+                children: [
+                  runtimeCard(AiRuntimeKind.kilo),
+                  const SizedBox(height: 16),
+                  runtimeCard(AiRuntimeKind.openCode),
+                ],
               );
             }
-            return const Row(
+            return Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(child: model),
-                SizedBox(width: 16),
-                Expanded(child: contextCard),
+                Expanded(child: runtimeCard(AiRuntimeKind.kilo)),
+                const SizedBox(width: 16),
+                Expanded(child: runtimeCard(AiRuntimeKind.openCode)),
               ],
             );
           },
+        ),
+        const SizedBox(height: 16),
+        const _SettingsPlanCard(
+          title: 'Modelo y respuestas',
+          icon: Icons.tune_outlined,
+          items: [
+            'Kilo Code: chat conectado a Kilo Auto Free.',
+            'OpenCode: instalación y arranque disponibles; selección de modelos pendiente.',
+          ],
+        ),
+        const SizedBox(height: 16),
+        const _SettingsPlanCard(
+          title: 'Contexto y privacidad',
+          icon: Icons.shield_outlined,
+          items: [
+            'Las instalaciones y la configuración de GodSense están separadas de tus otras aplicaciones.',
+            'No se importan las claves ni las cuentas de tus instalaciones personales.',
+          ],
         ),
       ],
     );
   }
 }
 
-class _ProviderPreview extends StatelessWidget {
-  const _ProviderPreview({
-    required this.name,
-    required this.description,
-    required this.icon,
-    this.badgeLabel = 'Por conectar',
-    this.badgeVariant = GsBadgeVariant.neutral,
-  });
-
-  final String name;
-  final String description;
-  final IconData icon;
-  final String badgeLabel;
-  final GsBadgeVariant badgeVariant;
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      label: '$name, $badgeLabel',
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: GsColors.surfaceElevated,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: GsColors.border),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: GsColors.cyanGlow,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Icon(icon, color: GsColors.cyan, size: 20),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    name,
-                    style: Theme.of(context).textTheme.titleMedium
-                        ?.copyWith(color: GsColors.textPrimary),
-                  ),
-                ),
-                GsBadge(
-                  label: badgeLabel,
-                  variant: badgeVariant,
-                  icon: badgeLabel == 'Disponible'
-                      ? Icons.check_circle_rounded
-                      : Icons.schedule_rounded,
-                  dot: false,
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Text(
-              description,
-              style: const TextStyle(
-                color: GsColors.textSecondary,
-                fontSize: 14,
-                height: 1.4,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
+String _installPhaseLabel(ArtifactInstallPhase? phase) => switch (phase) {
+  ArtifactInstallPhase.downloading => 'Descargando…',
+  ArtifactInstallPhase.verifying => 'Verificando descarga…',
+  ArtifactInstallPhase.extracting => 'Extrayendo archivos…',
+  ArtifactInstallPhase.validating => 'Comprobando instalación…',
+  ArtifactInstallPhase.activating => 'Finalizando instalación…',
+  ArtifactInstallPhase.installed => 'Instalado',
+  _ => 'Preparando instalación…',
+};
 
 class _SettingsPlanCard extends StatelessWidget {
   const _SettingsPlanCard({

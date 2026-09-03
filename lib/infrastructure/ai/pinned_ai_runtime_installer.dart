@@ -34,6 +34,13 @@ class PinnedAiRuntimeInstaller implements AiRuntimeInstallService {
   @override
   Future<AiRuntimeInstallation?> installed(AiRuntimeKind kind) async {
     final runtime = definition(kind);
+    final installation = await _installer.installed(runtime.package);
+    if (installation != null) {
+      return AiRuntimeInstallation(
+        definition: runtime,
+        directoryPath: installation.directoryPath,
+      );
+    }
     final devPath = _devExecutablePaths[kind];
     if (devPath != null && devPath.isNotEmpty && await File(devPath).exists()) {
       return AiRuntimeInstallation(
@@ -41,13 +48,7 @@ class PinnedAiRuntimeInstaller implements AiRuntimeInstallService {
         directoryPath: File(devPath).parent.path,
       );
     }
-    final installation = await _installer.installed(runtime.package);
-    return installation == null
-        ? null
-        : AiRuntimeInstallation(
-            definition: runtime,
-            directoryPath: installation.directoryPath,
-          );
+    return null;
   }
 
   @override
