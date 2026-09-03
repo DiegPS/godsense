@@ -1,13 +1,23 @@
+import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path/path.dart' as p;
 
 import '../domain/companion_gateway.dart';
 import '../domain/companion_models.dart';
 import '../domain/assets/game_asset_catalog.dart';
 import '../domain/identity/league_identity.dart';
 import '../domain/tactical/tactical_models.dart';
+import '../domain/ai/ai_runtime_models.dart';
 import '../infrastructure/data_dragon/data_dragon_catalog_service.dart';
 import '../infrastructure/data_dragon/data_dragon_game_asset_catalog.dart';
 import '../infrastructure/native_runtime/native_companion_gateway.dart';
+import '../infrastructure/ai/ai_runtime_health_client.dart';
+import '../infrastructure/ai/ai_runtime_paths.dart';
+import '../infrastructure/ai/local_ai_runtime_process_service.dart';
+import '../infrastructure/ai/open_code_compatible_runtime_client.dart';
+import '../infrastructure/ai/pinned_ai_runtime_installer.dart';
+import 'ai/ai_conversation_controller.dart';
+import 'ai/ai_runtime_supervisor.dart';
 import 'coach_controller.dart';
 import 'companion_controller.dart';
 import 'local_scout_controller.dart';
@@ -197,3 +207,68 @@ final companionControllerProvider =
       controller.start();
       return controller;
     });
+
+final aiRuntimePathsProvider = Provider<AiRuntimePaths>((ref) {
+  final baseDir = Directory(
+    Platform.environment['GODSENSE_AI_RUNTIME_DIR'] ??
+        p.join(
+          Platform.environment['APPDATA'] ??
+              Platform.environment['USERPROFILE'] ??
+              '.',
+          'GodSense',
+          'ai_runtimes',
+        ),
+  );
+  return AiRuntimePaths(baseDir);
+});
+
+final aiRuntimeSupervisorProvider = Provider<AiRuntimeSupervisor>((ref) {
+  final paths = ref.watch(aiRuntimePathsProvider);
+  final installer = PinnedAiRuntimeInstaller(
+    paths: paths,
+    devExecutablePaths: {
+      AiRuntimeKind.openCode: Platform.environment['GODSENSE_TEST_OPENCODE_EXE'],
+      AiRuntimeKind.kilo: Platform.environment['GODSENSE_TEST_KILO_EXE'],
+    },
+  );
+  final processService = LocalAiRuntimeProcessService(paths);
+  final health = AiRuntimeHealthClient();
+  final supervisor = AiRuntimeSupervisor(
+    installer: installer,
+    processes: processService,
+    health: health,
+  );
+  ref.onDispose(() {
+    supervisor.dispose();
+    health.dispose();
+  });
+  return supervisor;
+});
+
+final aiRuntimeSupervisorStateProvider =
+    StreamProvider<AiRuntimeSupervisorState>((ref) {
+      final supervisor = ref.watch(aiRuntimeSupervisorProvider);
+      return supervisor.states;
+    });
+
+final aiConversationProvider =
+    StateNotifierProvider<AiConversationController, AiConversationState>((ref) {
+      final supervisor = ref.watch(aiRuntimeSupervisorProvider);
+      final paths = ref.watch(aiRuntimePathsProvider);
+      final controller = AiConversationController(
+        supervisor: supervisor,
+        clientFactory: () {
+          final endpoint = supervisor.state.endpoint;
+          if (endpoint == null) {
+            throw StateError('El motor de IA local no está encendido.');
+          }
+          return OpenCodeCompatibleRuntimeClient(
+            endpoint: endpoint,
+            directory: paths.root.path,
+          );
+        },
+      );
+      ref.onDispose(controller.dispose);
+      return controller;
+    });
+

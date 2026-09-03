@@ -1,16 +1,19 @@
 # Native architecture implementation status
 
-- Updated: 2026-09-01
-- Scope: Phase 1 UI modularization and Phase 2A native data foundation
-- Runtime target: Flutter/Dart/C++ on Windows, without Python, Node.js,
-  Electron, local HTTP IPC, or local WebSocket IPC
+- Updated: 2026-09-02
+- Scope: Native product foundation plus optional local AI runtime integration
+- Core runtime target: Flutter/Dart/C++ on Windows, without Python, Node.js or
+  Electron. AI coaching may start one isolated, private OpenCode-compatible
+  sidecar selected by the user.
 
 ## Completed
 
 | Area | Implemented contract | Verification |
 | --- | --- | --- |
 | UI composition | Native Flutter navigation, modular pages, overlay, window manager; no `go_router` | Widget tests and Windows debug build |
-| Runtime | In-process companion and coach gateways expose only active projection, settings, and support contracts; no external process startup | Legacy runtime sources, unused backend placeholders, and Dio dependency removed |
+| Core runtime | League, vision, deterministic coaching, voice and persistence remain in-process and do not require a backend | Legacy runtime sources, unused backend placeholders, and Dio dependency removed |
+| Optional AI runtime | Version-pinned OpenCode/Kilo packages, isolated process lifecycle, dynamic loopback port, ephemeral Basic Auth, health gating and Windows Job Object cleanup | Real OpenCode 1.18.25 and Kilo 7.5.9 installations pass process/API integration tests |
+| AI local API | Shared typed client covers providers, auth methods, sessions, messages, async prompt, abort, delete and SSE | Same integration test passes against both runtimes without inference or billing |
 | Vision | Win32 capture plus DartCV processing | Exact parity on 120 synthetic and 866 real frames |
 | Calibration | Native detection, validation, persistence, and UI | Controller tests |
 | Account lifetime | `AccountContext` survives a game and changes only with account identity | Coordinator tests |

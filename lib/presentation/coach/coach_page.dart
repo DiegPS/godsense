@@ -7,6 +7,7 @@ import '../../domain/league/draft_models.dart';
 import 'draft/composition_breakdown_card.dart';
 import 'draft/draft_matrix_card.dart';
 import 'draft/pick_advice_card.dart';
+import 'live/ai_coach_chat_card.dart';
 import 'live/gold_timeline_card.dart';
 import 'live/live_directives_card.dart';
 import 'live/threat_and_sightings_card.dart';
@@ -71,6 +72,7 @@ class CoachPage extends ConsumerWidget {
                 ),
                 RiotJungleRouteView(bundle: state.jungle),
                 PickAdviceCard(advice: state.pickAdvice),
+                const AiCoachChatCard(),
               ],
             ),
           ] else if (state.phase == CoachPhase.inGame) ...[
@@ -86,6 +88,7 @@ class CoachPage extends ConsumerWidget {
                   processing: state.voiceProcessing,
                   history: state.voiceHistory,
                 ),
+                const AiCoachChatCard(),
               ],
             ),
           ] else if (state.phase == CoachPhase.postGame) ...[
@@ -95,6 +98,8 @@ class CoachPage extends ConsumerWidget {
               processing: state.voiceProcessing,
               history: state.voiceHistory,
             ),
+            const SizedBox(height: 16),
+            const AiCoachChatCard(),
           ] else ...[
             const CoachSurface(
               title: 'Conecta League para comenzar',
@@ -105,6 +110,8 @@ class CoachPage extends ConsumerWidget {
                     'asistencia en partida cuando detecte el cliente.',
               ),
             ),
+            const SizedBox(height: 16),
+            const AiCoachChatCard(),
             const SizedBox(height: 16),
             RuneTreeView(
               variants: state.runeRecommendations,

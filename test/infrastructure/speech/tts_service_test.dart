@@ -1,12 +1,11 @@
 import 'dart:io';
 import 'dart:async';
 
+import 'package:godsense/application/artifacts/artifact_downloader.dart';
 import 'package:godsense/infrastructure/speech/tts_service.dart';
 import 'package:godsense/infrastructure/speech/tts/sherpa_tts_engine.dart';
 import 'package:godsense/infrastructure/speech/tts_model_cache.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 
 void main() {
   test('normalizes URLs and caps speech by Unicode code points', () {
@@ -25,10 +24,7 @@ void main() {
     var requests = 0;
     final cache = TtsModelCache(
       rootDirectory: root,
-      client: MockClient((request) async {
-        requests++;
-        return http.Response('unexpected request', 500);
-      }),
+      downloader: _CountingDownloader(() => requests++),
     );
     final service = TtsService(modelCache: cache);
     try {
@@ -68,6 +64,22 @@ void main() {
       await service.dispose();
     }
   });
+}
+
+class _CountingDownloader implements ArtifactDownloader {
+  _CountingDownloader(this.onDownload);
+
+  final void Function() onDownload;
+
+  @override
+  Future<void> download(
+    ArtifactDownloadRequest request, {
+    ArtifactDownloadCancellation? cancellation,
+    void Function(ArtifactDownloadProgress progress)? onProgress,
+  }) async {
+    onDownload();
+    throw StateError('Unexpected download of ${request.id}.');
+  }
 }
 
 class _ControllableSherpaEngine extends SherpaTtsEngine {

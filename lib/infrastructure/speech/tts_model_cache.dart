@@ -1,5 +1,3 @@
-// ignore_for_file: prefer_initializing_formals
-
 import 'dart:convert';
 import 'dart:async';
 import 'dart:io';
@@ -7,10 +5,11 @@ import 'dart:isolate';
 
 import 'package:archive/archive_io.dart';
 import 'package:crypto/crypto.dart';
-import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
+import '../../application/artifacts/artifact_downloader.dart';
+import '../artifacts/background_artifact_downloader.dart';
 import 'tts/tts_model_catalog.dart';
 
 enum TtsInstallPhase {
@@ -40,11 +39,13 @@ class TtsInstallProgress {
       totalBytes > 0 ? (receivedBytes / totalBytes).clamp(0, 1) : null;
 }
 
-class TtsDownloadCancellation {
+class TtsDownloadCancellation implements ArtifactDownloadCancellation {
   bool _cancelled = false;
   final _listeners = <void Function()>{};
   final _cancelledCompleter = Completer<void>();
+  @override
   bool get isCancelled => _cancelled;
+  @override
   Future<void> get whenCancelled => _cancelledCompleter.future;
   void cancel() {
     if (_cancelled) return;
@@ -56,6 +57,7 @@ class TtsDownloadCancellation {
     _listeners.clear();
   }
 
+  @override
   void Function() addListener(void Function() listener) {
     if (_cancelled) {
       listener();
@@ -65,6 +67,7 @@ class TtsDownloadCancellation {
     return () => _listeners.remove(listener);
   }
 
+  @override
   void throwIfCancelled() {
     if (_cancelled) throw const TtsDownloadCancelledException();
   }
@@ -86,26 +89,13 @@ class TtsModelInstallation {
 
 class TtsModelCache {
   static const _integrityManifestName = '.godsense-integrity.json';
-  final http.Client? _sharedClient;
+  final ArtifactDownloader _artifactDownloader;
   final Directory? _rootOverride;
-  final int _segmentedDownloadThreshold;
-  final Duration _connectionTimeout;
-  final Duration _inactivityTimeout;
-  final int _downloadAttempts;
   final _verifiedInstallations = <String>{};
-  TtsModelCache({
-    http.Client? client,
-    Directory? rootDirectory,
-    int segmentedDownloadThreshold = 32 * 1024 * 1024,
-    Duration connectionTimeout = const Duration(seconds: 20),
-    Duration inactivityTimeout = const Duration(seconds: 30),
-    int downloadAttempts = 3,
-  }) : _sharedClient = client,
-       _rootOverride = rootDirectory,
-       _segmentedDownloadThreshold = segmentedDownloadThreshold,
-       _connectionTimeout = connectionTimeout,
-       _inactivityTimeout = inactivityTimeout,
-       _downloadAttempts = downloadAttempts.clamp(1, 5);
+
+  TtsModelCache({ArtifactDownloader? downloader, Directory? rootDirectory})
+    : _artifactDownloader = downloader ?? BackgroundArtifactDownloader(),
+      _rootOverride = rootDirectory;
 
   Future<Directory> get rootDirectory async {
     final override = _rootOverride;
@@ -189,7 +179,7 @@ class TtsModelCache {
       model.downloads.map((download) async {
         final partial = _partialFile(downloads, model, download);
         partials[download] = partial;
-        await _download(download, partial, (received) {
+        void reportProgress(int received) {
           receivedByFile[download.fileName] = received;
           final totalReceived = receivedByFile.values.fold(0, (a, b) => a + b);
           onProgress?.call(
@@ -201,7 +191,23 @@ class TtsModelCache {
               path: partial.path,
             ),
           );
-        }, activeCancellation);
+        }
+
+        try {
+          await _artifactDownloader.download(
+            ArtifactDownloadRequest(
+              id: '${model.storageKey}-${download.fileName}',
+              uri: download.uri,
+              destinationPath: partial.path,
+              expectedBytes: download.bytes,
+              group: model.id.startsWith('speech-') ? 'voice-stt' : 'voice-tts',
+            ),
+            cancellation: activeCancellation,
+            onProgress: (progress) => reportProgress(progress.receivedBytes),
+          );
+        } on ArtifactDownloadCancelledException {
+          throw const TtsDownloadCancelledException();
+        }
       }),
     );
     activeCancellation.throwIfCancelled();
@@ -406,223 +412,6 @@ class TtsModelCache {
     return File(p.join(downloads.path, '${model.storageKey}.$suffix.part'));
   }
 
-  Future<void> _download(
-    TtsModelDownload download,
-    File partial,
-    void Function(int received) onProgress,
-    TtsDownloadCancellation cancellation,
-  ) async {
-    Object? lastError;
-    for (var attempt = 1; attempt <= _downloadAttempts; attempt++) {
-      cancellation.throwIfCancelled();
-      try {
-        await _downloadOnce(download, partial, onProgress, cancellation);
-        return;
-      } on TtsDownloadCancelledException {
-        rethrow;
-      } on Object catch (error) {
-        lastError = error;
-        if (attempt == _downloadAttempts || !_isRetryableDownloadError(error)) {
-          rethrow;
-        }
-        await _cancellableDelay(
-          Duration(milliseconds: 300 * attempt),
-          cancellation,
-        );
-      }
-    }
-    throw StateError('Download failed: $lastError');
-  }
-
-  Future<void> _downloadOnce(
-    TtsModelDownload download,
-    File partial,
-    void Function(int received) onProgress,
-    TtsDownloadCancellation cancellation,
-  ) async {
-    await partial.parent.create(recursive: true);
-    if (!await partial.exists()) await partial.create();
-    var offset = await partial.exists() ? await partial.length() : 0;
-    if (offset > download.bytes) {
-      await partial.delete();
-      offset = 0;
-    }
-    onProgress(offset);
-    if (offset == download.bytes) return;
-    if (offset == 0 && download.bytes >= _segmentedDownloadThreshold) {
-      final supportsRanges = await _supportsRanges(download, cancellation);
-      if (supportsRanges) {
-        await _downloadSegmented(download, partial, onProgress, cancellation);
-        return;
-      }
-    }
-    final request = http.Request('GET', download.uri);
-    if (offset > 0) request.headers[HttpHeaders.rangeHeader] = 'bytes=$offset-';
-    final lease = await _send(request, cancellation);
-    final response = lease.response;
-    if (response.statusCode != HttpStatus.ok &&
-        response.statusCode != HttpStatus.partialContent) {
-      lease.close();
-      throw HttpException(
-        '${download.fileName} download failed (HTTP ${response.statusCode}).',
-        uri: download.uri,
-      );
-    }
-    if (offset > 0 && response.statusCode != HttpStatus.partialContent) {
-      await partial.delete();
-      offset = 0;
-    }
-    final sink = partial.openWrite(
-      mode: offset > 0 ? FileMode.append : FileMode.write,
-    );
-    var received = offset;
-    var lastReported = DateTime.now();
-    try {
-      await _consumeResponse(response, cancellation, (chunk) {
-        sink.add(chunk);
-        received += chunk.length;
-        final now = DateTime.now();
-        if (now.difference(lastReported).inMilliseconds >= 50 ||
-            received == download.bytes) {
-          lastReported = now;
-          onProgress(received);
-        }
-      });
-    } finally {
-      await sink.flush();
-      await sink.close();
-      lease.close();
-    }
-    if (received != download.bytes) {
-      throw StateError(
-        'Incomplete ${download.fileName} download: '
-        '$received of ${download.bytes} bytes.',
-      );
-    }
-  }
-
-  Future<bool> _supportsRanges(
-    TtsModelDownload download,
-    TtsDownloadCancellation cancellation,
-  ) async {
-    cancellation.throwIfCancelled();
-    final request = http.Request('GET', download.uri)
-      ..headers[HttpHeaders.rangeHeader] = 'bytes=0-0';
-    final lease = await _send(request, cancellation);
-    final response = lease.response;
-    try {
-      return response.statusCode == HttpStatus.partialContent &&
-          response.headers[HttpHeaders.contentRangeHeader]?.startsWith(
-                'bytes 0-0/',
-              ) ==
-              true;
-    } finally {
-      final subscription = response.stream.listen((_) {});
-      await subscription.cancel();
-      lease.close();
-    }
-  }
-
-  Future<void> _downloadSegmented(
-    TtsModelDownload download,
-    File partial,
-    void Function(int received) onProgress,
-    TtsDownloadCancellation cancellation,
-  ) async {
-    const segmentCount = 4;
-    final baseSize = download.bytes ~/ segmentCount;
-    final receivedBySegment = List<int>.filled(segmentCount, 0);
-    final segments = List.generate(
-      segmentCount,
-      (index) => File('${partial.path}.segment.$index'),
-    );
-
-    var lastReported = DateTime.now();
-
-    await Future.wait(
-      List.generate(segmentCount, (index) async {
-        final start = index * baseSize;
-        final end = index == segmentCount - 1
-            ? download.bytes - 1
-            : (index + 1) * baseSize - 1;
-        final expected = end - start + 1;
-        final segment = segments[index];
-        var existing = await segment.exists() ? await segment.length() : 0;
-        if (existing > expected) {
-          await segment.delete();
-          existing = 0;
-        }
-        receivedBySegment[index] = existing;
-        onProgress(receivedBySegment.fold(0, (sum, value) => sum + value));
-        if (existing == expected) return;
-
-        final request = http.Request('GET', download.uri)
-          ..headers[HttpHeaders.rangeHeader] = 'bytes=${start + existing}-$end';
-        final lease = await _send(request, cancellation);
-        final response = lease.response;
-        if (response.statusCode != HttpStatus.partialContent) {
-          lease.close();
-          throw HttpException(
-            '${download.fileName} server stopped supporting ranged downloads.',
-            uri: download.uri,
-          );
-        }
-        final sink = segment.openWrite(
-          mode: existing == 0 ? FileMode.write : FileMode.append,
-        );
-        try {
-          await _consumeResponse(response, cancellation, (chunk) {
-            sink.add(chunk);
-            existing += chunk.length;
-            receivedBySegment[index] = existing;
-            final total = receivedBySegment.fold(
-              0,
-              (sum, value) => sum + value,
-            );
-            final now = DateTime.now();
-            if (now.difference(lastReported).inMilliseconds >= 50 ||
-                total == download.bytes) {
-              lastReported = now;
-              onProgress(total);
-            }
-          });
-        } finally {
-          await sink.flush();
-          await sink.close();
-          lease.close();
-        }
-        if (existing != expected) {
-          throw StateError(
-            'Incomplete ${download.fileName} segment: '
-            '$existing of $expected bytes.',
-          );
-        }
-      }),
-    );
-
-    cancellation.throwIfCancelled();
-    final sink = partial.openWrite();
-    try {
-      for (final segment in segments) {
-        await sink.addStream(segment.openRead());
-      }
-    } finally {
-      await sink.flush();
-      await sink.close();
-    }
-    for (final segment in segments) {
-      if (await segment.exists()) await segment.delete();
-    }
-    final received = await partial.length();
-    onProgress(received);
-    if (received != download.bytes) {
-      throw StateError(
-        'Incomplete ${download.fileName} download: '
-        '$received of ${download.bytes} bytes.',
-      );
-    }
-  }
-
   Future<void> remove(TtsModelDefinition model) async {
     final root = await rootDirectory;
     final target = Directory(p.join(root.path, model.storageKey));
@@ -630,114 +419,6 @@ class TtsModelCache {
     _verifiedInstallations.removeWhere(
       (key) => key.startsWith('${target.path}|'),
     );
-  }
-
-  Future<_HttpResponseLease> _send(
-    http.BaseRequest request,
-    TtsDownloadCancellation cancellation,
-  ) async {
-    cancellation.throwIfCancelled();
-    final client = _sharedClient ?? http.Client();
-    final ownsClient = _sharedClient == null;
-    var completed = false;
-    final removeListener = cancellation.addListener(() {
-      if (!completed && ownsClient) client.close();
-    });
-    try {
-      final response =
-          await Future.any<http.StreamedResponse>([
-            client.send(request),
-            cancellation.whenCancelled.then<http.StreamedResponse>(
-              (_) => throw const TtsDownloadCancelledException(),
-            ),
-          ]).timeout(
-            _connectionTimeout,
-            onTimeout: () {
-              if (ownsClient) client.close();
-              throw TimeoutException(
-                'Connection timed out for ${request.url}.',
-                _connectionTimeout,
-              );
-            },
-          );
-      completed = true;
-      return _HttpResponseLease(response, ownsClient ? client : null);
-    } finally {
-      removeListener();
-      if (!completed && ownsClient) client.close();
-    }
-  }
-
-  Future<void> _consumeResponse(
-    http.StreamedResponse response,
-    TtsDownloadCancellation cancellation,
-    void Function(List<int> chunk) onChunk,
-  ) async {
-    cancellation.throwIfCancelled();
-    final completion = Completer<void>();
-    Timer? inactivityTimer;
-    StreamSubscription<List<int>>? subscription;
-
-    void armTimeout() {
-      inactivityTimer?.cancel();
-      inactivityTimer = Timer(_inactivityTimeout, () {
-        if (!completion.isCompleted) {
-          completion.completeError(
-            TimeoutException(
-              'Download stalled while waiting for data.',
-              _inactivityTimeout,
-            ),
-          );
-          unawaited(subscription?.cancel());
-        }
-      });
-    }
-
-    final removeCancellationListener = cancellation.addListener(() {
-      if (!completion.isCompleted) {
-        completion.completeError(const TtsDownloadCancelledException());
-        unawaited(subscription?.cancel());
-      }
-    });
-    subscription = response.stream.listen(
-      (chunk) {
-        if (completion.isCompleted) return;
-        armTimeout();
-        onChunk(chunk);
-      },
-      onError: (Object error, StackTrace stack) {
-        if (!completion.isCompleted) completion.completeError(error, stack);
-      },
-      onDone: () {
-        if (!completion.isCompleted) completion.complete();
-      },
-      cancelOnError: true,
-    );
-    armTimeout();
-    try {
-      await completion.future;
-    } finally {
-      inactivityTimer?.cancel();
-      removeCancellationListener();
-      await subscription.cancel();
-    }
-  }
-
-  static bool _isRetryableDownloadError(Object error) =>
-      error is TimeoutException ||
-      error is SocketException ||
-      error is http.ClientException;
-
-  static Future<void> _cancellableDelay(
-    Duration duration,
-    TtsDownloadCancellation cancellation,
-  ) async {
-    await Future.any<void>([
-      Future<void>.delayed(duration),
-      cancellation.whenCancelled.then<void>(
-        (_) => throw const TtsDownloadCancelledException(),
-      ),
-    ]);
   }
 
   static Future<List<Map<String, Object>>> _buildIntegrityInWorker(
@@ -886,11 +567,4 @@ class TtsModelCache {
   }
 
   void dispose() {}
-}
-
-class _HttpResponseLease {
-  const _HttpResponseLease(this.response, this._ownedClient);
-  final http.StreamedResponse response;
-  final http.Client? _ownedClient;
-  void close() => _ownedClient?.close();
 }

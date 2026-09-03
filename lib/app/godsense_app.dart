@@ -17,6 +17,7 @@ import '../application/native_vision_controller.dart';
 import '../application/local_scout_controller.dart';
 import '../application/overlay_layout_controller.dart';
 import '../application/overlay_parity_logger.dart';
+import '../domain/ai/ai_runtime_models.dart';
 import '../domain/companion_models.dart';
 import '../domain/identity/league_identity.dart';
 import '../domain/vision/vision_observation.dart';

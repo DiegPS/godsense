@@ -1,11 +1,10 @@
 import 'dart:io';
 
+import 'package:godsense/application/artifacts/artifact_downloader.dart';
 import 'package:godsense/infrastructure/speech/speech/live_captions_service.dart';
 import 'package:godsense/infrastructure/speech/speech/speech_model_catalog.dart';
 import 'package:godsense/infrastructure/speech/tts_model_cache.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 
 void main() {
   test(
@@ -16,10 +15,7 @@ void main() {
       final service = LiveCaptionsService(
         modelCache: TtsModelCache(
           rootDirectory: root,
-          client: MockClient((request) async {
-            requests++;
-            return http.Response('unexpected', 500);
-          }),
+          downloader: _CountingDownloader(() => requests++),
         ),
       );
       try {
@@ -60,4 +56,20 @@ void main() {
     expect(model.targetsFor('es').map((item) => item.code), ['es', 'en']);
     expect(model.supportsDirection('es', 'fr'), isFalse);
   });
+}
+
+class _CountingDownloader implements ArtifactDownloader {
+  _CountingDownloader(this.onDownload);
+
+  final void Function() onDownload;
+
+  @override
+  Future<void> download(
+    ArtifactDownloadRequest request, {
+    ArtifactDownloadCancellation? cancellation,
+    void Function(ArtifactDownloadProgress progress)? onProgress,
+  }) async {
+    onDownload();
+    throw StateError('Unexpected download of ${request.id}.');
+  }
 }
