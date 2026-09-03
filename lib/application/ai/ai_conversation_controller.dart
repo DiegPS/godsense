@@ -182,9 +182,13 @@ class AiConversationController extends StateNotifier<AiConversationState> {
         state = state.copyWith(sessionId: sessionId);
       }
 
-      // Obtener la cantidad de mensajes previos como línea base inmutable
+      // Obtener la cantidad de mensajes previos y sus IDs conocidos como línea base inmutable
       final initialMessages = await client.messages(sessionId);
       final baselineCount = initialMessages.length;
+      final knownPriorMessageIds = initialMessages
+          .map((m) => m['info'] is Map ? (m['info'] as Map)['id']?.toString() : null)
+          .whereType<String>()
+          .toSet();
 
       // Comprobación anti-cancelación previa a la conexión
       if (_disposed || generation != _currentGenerationId) return;
@@ -196,7 +200,7 @@ class AiConversationController extends StateNotifier<AiConversationState> {
       // Comprobación anti-cancelación: si el usuario canceló mientras connectEvents() conectaba
       if (_disposed || generation != _currentGenerationId) return;
 
-      _listenEvents(eventStream, sessionId, generation);
+      _listenEvents(eventStream, sessionId, generation, knownPriorMessageIds);
 
       final prompt = AiPrompt(
         providerId: state.selectedProviderId,
@@ -230,6 +234,7 @@ class AiConversationController extends StateNotifier<AiConversationState> {
     Stream<AiRuntimeEvent> stream,
     String targetSessionId,
     int targetGeneration,
+    Set<String> knownPriorMessageIds,
   ) {
     _eventsSubscription?.cancel();
     _parts.clear();
@@ -252,12 +257,28 @@ class AiConversationController extends StateNotifier<AiConversationState> {
           return;
         }
 
-        // Filtrar y anclar el ID de mensaje del asistente para este turno
         final msgId = event.messageId;
+
+        // 1. Descartar eventos de mensajes de turnos anteriores (nunca deben anclarse)
+        if (msgId != null && knownPriorMessageIds.contains(msgId)) {
+          return;
+        }
+
+        // 2. Descartar eventos de mensajes del usuario (ecos o actualizaciones del prompt)
+        if (event.isUser) {
+          return;
+        }
+
+        // 3. Anclar únicamente a un mensaje nuevo del asistente
         if (msgId != null) {
-          _currentAssistantMessageId ??= msgId;
-          if (_currentAssistantMessageId != msgId) {
-            // Ignorar eventos que pertenezcan a mensajes de otros turnos o usuarios
+          if (_currentAssistantMessageId == null) {
+            if (event.role == null || event.isAssistant) {
+              _currentAssistantMessageId = msgId;
+            } else {
+              return;
+            }
+          } else if (_currentAssistantMessageId != msgId) {
+            // Ignorar eventos que pertenezcan a otros mensajes
             return;
           }
         }

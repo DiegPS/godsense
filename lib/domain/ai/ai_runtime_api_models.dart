@@ -149,6 +149,18 @@ class AiRuntimeEvent {
     return id?.toString();
   }
 
+  String? get role {
+    final r = properties['role'] ??
+        (properties['info'] is Map ? (properties['info'] as Map)['role'] : null) ??
+        (properties['part'] is Map ? (properties['part'] as Map)['role'] : null) ??
+        raw['role'];
+    return r?.toString();
+  }
+
+  bool get isUser => role == 'user';
+
+  bool get isAssistant => role == 'assistant';
+
   bool get isCompleted {
     if (type == 'message.completed' || type == 'session.idle') return true;
     if (type == 'message.status' && properties['status'] == 'completed') return true;

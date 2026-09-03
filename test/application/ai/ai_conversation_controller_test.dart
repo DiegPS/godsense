@@ -468,26 +468,20 @@ void main() {
     await controller.abort();
     await pumpEventQueue();
 
+    mockClient.mockMessages = [
+      {
+        'info': {'id': 'assistant-msg-1', 'role': 'assistant'},
+        'parts': [
+          {'type': 'text', 'text': 'Respuesta vieja'},
+        ],
+      },
+    ];
+
     // Start question 2
     final send2 = controller.sendMessage('Pregunta 2');
     await pumpEventQueue();
 
-    // A delta for question 2 begins streaming
-    mockClient.emitEvent(
-      const AiRuntimeEvent(
-        type: 'message.part.delta',
-        properties: {
-          'messageId': 'assistant-msg-2',
-          'partId': 'part-1',
-          'delta': 'Inicio de respuesta 2',
-        },
-        raw: {},
-      ),
-    );
-    await pumpEventQueue();
-    expect(controller.state.streamedText, 'Inicio de respuesta 2');
-
-    // While question 2 is in-flight, a late event from question 1 arrives with old messageId
+    // 1. Invertir el orden: el evento tardío de pregunta 1 llega ANTES de la respuesta de pregunta 2
     mockClient.emitEvent(
       const AiRuntimeEvent(
         type: 'message.part.delta',
@@ -501,7 +495,22 @@ void main() {
     );
     await pumpEventQueue();
 
-    // Residue MUST NOT have been concatenated into question 2
+    // No debe haberse anclado al residuo ni haber acumulado texto
+    expect(controller.state.streamedText, isEmpty);
+
+    // 2. Ahora llega la respuesta verdadera de pregunta 2
+    mockClient.emitEvent(
+      const AiRuntimeEvent(
+        type: 'message.part.delta',
+        properties: {
+          'messageId': 'assistant-msg-2',
+          'partId': 'part-1',
+          'delta': 'Inicio de respuesta 2',
+        },
+        raw: {},
+      ),
+    );
+    await pumpEventQueue();
     expect(controller.state.streamedText, 'Inicio de respuesta 2');
 
     // Complete question 2
@@ -518,5 +527,62 @@ void main() {
 
     await send1;
     await send2;
+  });
+
+  test('user message event arriving before assistant response is ignored and does not anchor messageId', () async {
+    final controller = AiConversationController(
+      supervisor: FakeSupervisor(ready: true),
+      clientFactory: () => mockClient,
+    );
+
+    final send = controller.sendMessage('¿Qué compro?');
+    await pumpEventQueue();
+
+    // Kilo emite primero un evento del mensaje del usuario (eco o actualización de entrada)
+    mockClient.emitEvent(
+      const AiRuntimeEvent(
+        type: 'message.updated',
+        properties: {
+          'messageId': 'user-msg-echo',
+          'role': 'user',
+          'text': '¿Qué compro?',
+        },
+        raw: {},
+      ),
+    );
+    await pumpEventQueue();
+
+    // No debe haber anclado al usuario ni mostrado texto del usuario como respuesta
+    expect(controller.state.streamedText, isEmpty);
+
+    // Luego llega el delta legítimo del asistente
+    mockClient.emitEvent(
+      const AiRuntimeEvent(
+        type: 'message.part.delta',
+        properties: {
+          'messageId': 'assistant-reply-msg',
+          'role': 'assistant',
+          'delta': 'Compra Rabadon.',
+        },
+        raw: {},
+      ),
+    );
+    await pumpEventQueue();
+    expect(controller.state.streamedText, 'Compra Rabadon.');
+
+    // Completar
+    mockClient.emitEvent(
+      const AiRuntimeEvent(
+        type: 'message.completed',
+        properties: {'messageId': 'assistant-reply-msg'},
+        raw: {},
+      ),
+    );
+    await pumpEventQueue();
+
+    expect(controller.state.messages.last.role, 'assistant');
+    expect(controller.state.messages.last.content, 'Compra Rabadon.');
+
+    await send;
   });
 }
