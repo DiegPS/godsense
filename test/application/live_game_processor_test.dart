@@ -43,6 +43,12 @@ void main() {
 
       final laneStates = result.snapshot['lane_states'] as Map;
       expect(laneStates['MIDDLE'], isA<Map>());
+      expect((laneStates['MIDDLE'] as Map)['evaluator_version'], 2);
+      expect(
+        (laneStates['MIDDLE'] as Map)['power_basis'],
+        'purchased_inventory_and_level',
+      );
+      expect((result.snapshot['active_player'] as Map)['health_ratio'], .9);
       expect(result.timeline['gold_points'], hasLength(1));
       expect(result.timeline['events'], hasLength(3));
       expect(
@@ -93,6 +99,53 @@ void main() {
       expect(next.timeline['events'], isEmpty);
       expect(next.timeline['gold_points'], hasLength(1));
     });
+
+    test('does not count CS and kills twice in lane combat power', () {
+      final baseline = processor.process(
+        _snapshot(gameTime: 400),
+        itemCatalog: _items,
+        gameId: 'game-1',
+      );
+      final changed = _snapshot(gameTime: 401);
+      final enemy = (changed['allPlayers'] as List).last as Map;
+      enemy['scores'] = {
+        'kills': 20,
+        'deaths': 0,
+        'assists': 15,
+        'creepScore': 300,
+      };
+      final afterStats = processor.process(
+        changed,
+        itemCatalog: _items,
+        gameId: 'game-1',
+      );
+
+      final beforeLane =
+          (baseline.snapshot['lane_states'] as Map)['MIDDLE'] as Map;
+      final afterLane =
+          (afterStats.snapshot['lane_states'] as Map)['MIDDLE'] as Map;
+      expect(afterLane['advantage_score'], beforeLane['advantage_score']);
+      expect(afterLane['relative_advantage'], beforeLane['relative_advantage']);
+    });
+
+    test('marks critical local health as vulnerable instead of ahead', () {
+      final raw = _snapshot(gameTime: 400);
+      (raw['activePlayer'] as Map)['championStats'] = {
+        'currentHealth': 100,
+        'maxHealth': 1000,
+        'resourceValue': 50,
+        'resourceMax': 500,
+      };
+      final result = processor.process(
+        raw,
+        itemCatalog: _items,
+        gameId: 'game-1',
+      );
+
+      final lane = (result.snapshot['lane_states'] as Map)['MIDDLE'] as Map;
+      expect(lane['state'], 'VULNERABLE');
+      expect(lane['health_applied'], isTrue);
+    });
   });
 }
 
@@ -131,7 +184,13 @@ Map<String, dynamic> _snapshot({
       'abilities': {
         'Q': {'displayName': 'Spell'},
       },
-      'championStats': {'abilityPower': 100},
+      'championStats': {
+        'abilityPower': 100,
+        'currentHealth': 900,
+        'maxHealth': 1000,
+        'resourceValue': 400,
+        'resourceMax': 500,
+      },
     },
     'allPlayers': [
       {

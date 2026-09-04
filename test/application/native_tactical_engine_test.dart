@@ -389,6 +389,28 @@ void main() {
     expect(answer.evidence.last.confidence, 0.75);
   });
 
+  test(
+    'does not recommend trading when local combat readiness is critical',
+    () {
+      final answer = engine.answer(
+        question: '¿Cómo está mi línea?',
+        game: _game(
+          laneStates: {
+            'MIDDLE': {
+              'state': 'VULNERABLE',
+              'enemy': 'Vex',
+              'relative_advantage': .15,
+            },
+          },
+        ),
+      );
+
+      expect(answer.id, 'voice_lane_state');
+      expect(answer.ttsText, contains('vulnerable'));
+      expect(answer.ttsText, contains('evita el intercambio'));
+    },
+  );
+
   test('answers build questions only from the loaded Riot artifact', () {
     final answer = engine.answer(
       question: '¿Qué objetos compro?',

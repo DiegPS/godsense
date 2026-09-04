@@ -108,6 +108,19 @@ class LiveGameProcessor {
       );
       final observableGold = inventoryGold + currentGold;
       final goldTotal = math.max(observableGold, statisticalGold);
+      final combatStats = _samePlayer(value, local)
+          ? _stringMap(active['championStats'])
+          : _stringMap(value['championStats']);
+      final healthRatio = _statRatio(
+        combatStats,
+        currentKeys: const ['currentHealth', 'health'],
+        maximumKeys: const ['maxHealth'],
+      );
+      final resourceRatio = _statRatio(
+        combatStats,
+        currentKeys: const ['resourceValue', 'currentMana', 'mana'],
+        maximumKeys: const ['resourceMax', 'maxMana'],
+      );
       final championName = value['championName']?.toString() ?? '';
       final championKey = _championKey(championName);
       final championProfile = championProfiles[championKey];
@@ -140,9 +153,14 @@ class LiveGameProcessor {
         'cs': cs,
         'items': items,
         'gold_total': goldTotal,
+        'inventory_gold': inventoryGold,
         'gold_observable': observableGold,
         'gold_estimated': statisticalGold,
         'gold_current': currentGold,
+        'gold_current_known': _samePlayer(value, local),
+        'estimated_unspent_gold': math.max(0, statisticalGold - inventoryGold),
+        'health_ratio': ?healthRatio,
+        'resource_ratio': ?resourceRatio,
         'summoner_spells': _stringMap(value['summonerSpells']).values
             .whereType<Map>()
             .map((spell) => spell['displayName']?.toString() ?? '')
@@ -434,14 +452,29 @@ class LiveGameProcessor {
       final opponents = enemies.where((enemy) => enemy['role'] == role);
       if (opponents.isEmpty) continue;
       final enemy = opponents.first;
-      final advantage = _lanePower(ally) - _lanePower(enemy);
+      final allyPower = _lanePower(ally);
+      final enemyPower = _lanePower(enemy);
+      final advantage = allyPower - enemyPower;
+      final averagePower = math.max(1.0, (allyPower + enemyPower) / 2);
+      final relativeAdvantage = advantage / averagePower;
+      final localHealth = (ally['health_ratio'] as num?)?.toDouble();
+      final state = localHealth != null && localHealth <= .2
+          ? 'VULNERABLE'
+          : relativeAdvantage > .08
+          ? 'AHEAD'
+          : relativeAdvantage < -.08
+          ? 'BEHIND'
+          : 'EVEN';
       result[role] = {
-        'state': advantage > 600
-            ? 'AHEAD'
-            : advantage < -600
-            ? 'BEHIND'
-            : 'EVEN',
-        'advantage_score': advantage,
+        'state': state,
+        'advantage_score': advantage.round(),
+        'relative_advantage': relativeAdvantage,
+        'threshold_ratio': .08,
+        'ally_combat_power': allyPower.round(),
+        'enemy_combat_power': enemyPower.round(),
+        'power_basis': 'purchased_inventory_and_level',
+        'evaluator_version': 2,
+        'health_applied': localHealth != null,
         'ally': ally['champion_name'],
         'enemy': enemy['champion_name'],
       };
@@ -449,18 +482,9 @@ class LiveGameProcessor {
     return result;
   }
 
-  int _lanePower(Map<String, dynamic> player) {
-    final kda = player['kda'] is List ? player['kda'] as List : const [];
-    final kills = kda.isNotEmpty ? (kda[0] as num?)?.toInt() ?? 0 : 0;
-    final deaths = kda.length > 1 ? (kda[1] as num?)?.toInt() ?? 0 : 0;
-    final assists = kda.length > 2 ? (kda[2] as num?)?.toInt() ?? 0 : 0;
-    return ((player['gold_total'] as num?)?.toInt() ?? 0) +
-        ((player['level'] as num?)?.toInt() ?? 0) * 350 +
-        ((player['cs'] as num?)?.toInt() ?? 0) * 12 +
-        kills * 250 +
-        assists * 90 -
-        deaths * 180;
-  }
+  double _lanePower(Map<String, dynamic> player) =>
+      ((player['inventory_gold'] as num?)?.toDouble() ?? 0) +
+      ((player['level'] as num?)?.toDouble() ?? 0) * 500;
 
   void _appendGoldPoint(double gameTime, int value) {
     if (_goldPoints.isNotEmpty) {
@@ -573,6 +597,25 @@ class LiveGameProcessor {
     final text = value?.toString().trim().toLowerCase() ?? '';
     final tagSeparator = text.indexOf('#');
     return tagSeparator < 0 ? text : text.substring(0, tagSeparator).trim();
+  }
+
+  double? _statRatio(
+    Map<String, dynamic> stats, {
+    required List<String> currentKeys,
+    required List<String> maximumKeys,
+  }) {
+    num? find(List<String> keys) {
+      for (final key in keys) {
+        final value = stats[key];
+        if (value is num) return value;
+      }
+      return null;
+    }
+
+    final current = find(currentKeys);
+    final maximum = find(maximumKeys);
+    if (current == null || maximum == null || maximum <= 0) return null;
+    return (current / maximum).clamp(0, 1).toDouble();
   }
 
   String _firstNonEmpty(List<Object?> values) {

@@ -622,6 +622,10 @@ class NativeTacticalEngine {
     final state = lane['state']?.toString() ?? 'EVEN';
     final enemy = lane['enemy']?.toString().trim() ?? '';
     final (summary, action) = switch (state) {
+      'VULNERABLE' => (
+        'Tu estado actual es vulnerable${enemy.isEmpty ? '' : ' frente a $enemy'}.',
+        'Conserva vida, evita el intercambio y busca una ventana segura para reiniciar.',
+      ),
       'AHEAD' => (
         'Tu línea está por delante${enemy.isEmpty ? '' : ' frente a $enemy'}.',
         'Presiona sólo después de localizar amenazas y convierte la ventaja.',
