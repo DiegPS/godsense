@@ -86,6 +86,37 @@ void main() {
     );
   });
 
+  test('adjusts an even late game using only confirmed team power curves', () {
+    Map<String, dynamic> player(String curve) => {
+      'is_dead': false,
+      'champion_profile': {'power_curve': curve},
+    };
+    final advice = engine
+        .directives(
+          _game(
+            gameTime: 1500,
+            allies: [
+              player('early'),
+              player('early'),
+              player('early'),
+              player('mid'),
+              player('mid'),
+            ],
+            enemies: [
+              player('late'),
+              player('late'),
+              player('late'),
+              player('mid'),
+              player('mid'),
+            ],
+          ),
+        )
+        .single;
+
+    expect(advice.id, 'force_before_falloff');
+    expect(advice.evidence.single.factType, 'confirmed_team_power_curves');
+  });
+
   test('converts a safe numerical advantage into an available objective', () {
     final advice = engine
         .directives(

@@ -335,6 +335,8 @@ class NativeTacticalEngine {
         ),
       ];
     }
+    final scalingAdvice = _compositionScalingDirective(game, now, gameTime);
+    if (scalingAdvice != null) return [scalingAdvice];
     return [
       TacticalAdvice(
         id: 'neutral_setup',
@@ -896,6 +898,48 @@ class NativeTacticalEngine {
     );
   }
 
+  TacticalAdvice? _compositionScalingDirective(
+    Map<String, dynamic> game,
+    DateTime now,
+    double? gameTime,
+  ) {
+    if ((gameTime ?? 0) < 1200) return null;
+    final allyCurve = _teamPowerCurve(_mapList(game['allies']));
+    final enemyCurve = _teamPowerCurve(_mapList(game['enemies']));
+    if (allyCurve == null || enemyCurve == null) return null;
+    final difference = allyCurve - enemyCurve;
+    if (difference.abs() < 0.45) return null;
+    final alliesScaleLater = difference > 0;
+    return TacticalAdvice(
+      id: alliesScaleLater ? 'protect_scaling_window' : 'force_before_falloff',
+      title: alliesScaleLater
+          ? 'Tu composición escala mejor'
+          : 'Tu ventana de composición se reduce',
+      hints: alliesScaleLater
+          ? const [
+              'Evita una pelea pareja sin objetivo que la justifique.',
+              'Conserva recursos y obliga al rival a entrar en tu preparación.',
+            ]
+          : const [
+              'Crea prioridad y fuerza una jugada con información antes del siguiente escalado rival.',
+              'No intercambies tiempo sin obtener estructura, visión u objetivo.',
+            ],
+      rationale: 'La partida está igualada después del minuto 20 y al menos tres perfiles confirmados por equipo muestran curvas diferentes.',
+      ttsText: alliesScaleLater
+          ? 'Tu composición escala mejor. Evita regalar una pelea pareja y conserva recursos.'
+          : 'La composición rival escala mejor. Convierte prioridad pronto sin forzar a ciegas.',
+      priority: 65,
+      evidence: [
+        _evidence(
+          'confirmed_team_power_curves',
+          FactSource.derived,
+          now,
+          gameTime,
+        ),
+      ],
+    );
+  }
+
   TacticalAdvice? _objectiveDirective(
     Map<String, dynamic> objectives,
     DateTime now,
@@ -937,6 +981,22 @@ double _relativeGoldDifference(Map<String, dynamic> game, int difference) {
     (total, player) => total + ((player['gold_total'] as num?)?.toInt() ?? 0),
   );
   return enemyGold <= 0 ? 0 : difference / enemyGold * 100;
+}
+
+double? _teamPowerCurve(List<Map<String, dynamic>> players) {
+  final values = players
+      .map((player) => _knownPowerCurve(_map(player['champion_profile'])))
+      .whereType<String>()
+      .map(
+        (curve) => switch (curve) {
+          'early' => -1.0,
+          'late' => 1.0,
+          _ => 0.0,
+        },
+      )
+      .toList(growable: false);
+  if (values.length < 3) return null;
+  return values.fold<double>(0, (sum, value) => sum + value) / values.length;
 }
 
 int? _shortestRespawn(Iterable<Map<String, dynamic>> players) {
