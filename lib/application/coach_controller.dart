@@ -1,6 +1,7 @@
 // ignore_for_file: prefer_initializing_formals
 
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -103,9 +104,13 @@ class PostGameReport {
     required this.enemyTurretsDestroyed,
     required this.keyEvents,
     required this.review,
+    this.sessionId,
+    this.matchLabel,
   });
 
   final String champion;
+  final String? sessionId;
+  final String? matchLabel;
   final int kills;
   final int deaths;
   final int assists;
@@ -220,6 +225,7 @@ class CoachInputs {
     required this.voiceAdvice,
     required this.voiceAnsweredAt,
     this.assets,
+    this.accountKey,
   });
 
   final String gameflowPhase;
@@ -236,6 +242,12 @@ class CoachInputs {
   final TacticalAdvice? voiceAdvice;
   final DateTime? voiceAnsweredAt;
   final GameAssetCatalogSnapshot? assets;
+  final String? accountKey;
+}
+
+abstract interface class PostGameReportStore {
+  Future<Map<String, dynamic>?> load(String accountKey);
+  Future<void> save(String accountKey, Map<String, dynamic> snapshot);
 }
 
 class CoachState {
@@ -305,6 +317,7 @@ class CoachState {
     CoachImportFeedback? importFeedback,
     GameSession? lastCompletedSession,
     PostGameReport? postGameReport,
+    bool clearReport = false,
   }) => CoachState(
     phase: phase ?? this.phase,
     automaticPhase: automaticPhase ?? this.automaticPhase,
@@ -327,8 +340,10 @@ class CoachState {
     voiceProcessing: voiceProcessing ?? this.voiceProcessing,
     voiceHistory: voiceHistory ?? this.voiceHistory,
     importFeedback: importFeedback ?? this.importFeedback,
-    lastCompletedSession: lastCompletedSession ?? this.lastCompletedSession,
-    postGameReport: postGameReport ?? this.postGameReport,
+    lastCompletedSession: clearReport
+        ? null
+        : lastCompletedSession ?? this.lastCompletedSession,
+    postGameReport: clearReport ? null : postGameReport ?? this.postGameReport,
   );
 }
 
@@ -340,16 +355,23 @@ class CoachController extends StateNotifier<CoachState> {
   CoachController({
     required ImportRuneRecommendation importRunes,
     required Future<void> Function() importItems,
+    PostGameReportStore? reportStore,
     CoachPhaseResolver phaseResolver = const CoachPhaseResolver(),
     ChampionCompositionAnalyzer compositionAnalyzer =
         const ChampionCompositionAnalyzer(),
   }) : _importRunes = importRunes,
+       _reportStore = reportStore,
        _importItems = importItems,
        _phaseResolver = phaseResolver,
        _compositionAnalyzer = compositionAnalyzer,
        super(const CoachState());
 
   final ImportRuneRecommendation _importRunes;
+  final PostGameReportStore? _reportStore;
+  String? _accountKey;
+  String? _lastSavedReport;
+  int _reportRevision = 0;
+  Future<void> _reportWrites = Future<void>.value();
   final Future<void> Function() _importItems;
   final CoachPhaseResolver _phaseResolver;
   final ChampionCompositionAnalyzer _compositionAnalyzer;
@@ -357,6 +379,58 @@ class CoachController extends StateNotifier<CoachState> {
   DateTime? _lastVoiceAnswer;
 
   void synchronize(CoachInputs inputs) {
+    if (inputs.accountKey != _accountKey) {
+      _accountKey = inputs.accountKey;
+      _lastSavedReport = null;
+      final revision = ++_reportRevision;
+      state = state.copyWith(clearReport: true, voiceHistory: const []);
+      final key = _accountKey;
+      if (key != null) unawaited(_restoreReport(key, revision));
+    }
+    final endedGame = inputs.liveGame;
+    final session = inputs.session.current ?? inputs.session.lastCompleted;
+    final matchesAccount =
+        inputs.accountKey == null ||
+        session?.accountPuuid?.value == inputs.accountKey;
+    Map<String, dynamic>? completedSnapshot;
+    if (endedGame?['_game_ended'] == true && matchesAccount) {
+      final active = endedGame!['active_player'] as Map? ?? const {};
+      final derived = endedGame['derived'] as Map? ?? const {};
+      completedSnapshot = {
+        '_game_ended': true,
+        'session_id': session?.sessionId ?? endedGame['session_id'],
+        'match_label': session?.match?.toString(),
+        'game_time': endedGame['game_time'],
+        'team_gold_diff': endedGame['team_gold_diff'],
+        'team_state': endedGame['team_state'],
+        'active_player': {
+          for (final key in ['champion_name', 'kda', 'cs']) key: active[key],
+        },
+        'derived': {'objectives': derived['objectives']},
+        'events': _mapList(endedGame['events'])
+            .map(
+              (event) => {
+                for (final key in ['EventName', 'game_time', 'label'])
+                  key: event[key],
+              },
+            )
+            .toList(),
+      };
+      final key = _accountKey;
+      final encoded = jsonEncode(completedSnapshot);
+      if (key != null && encoded != _lastSavedReport) {
+        _reportRevision++;
+        _lastSavedReport = encoded;
+        final snapshot = completedSnapshot;
+        _reportWrites = _reportWrites
+            .then((_) async {
+              await _reportStore?.save(key, snapshot);
+            })
+            .catchError((Object _) {
+              if (mounted && _accountKey == key) _lastSavedReport = null;
+            });
+      }
+    }
     final automatic = _phaseResolver.resolve(
       session: inputs.session,
       liveGameActive:
@@ -426,8 +500,20 @@ class CoachController extends StateNotifier<CoachState> {
       voiceProcessing: inputs.voiceProcessing,
       voiceHistory: List.unmodifiable(voiceHistory),
       lastCompletedSession: inputs.session.lastCompleted,
-      postGameReport: _postGameReport(inputs.liveGame) ?? state.postGameReport,
+      postGameReport:
+          _postGameReport(completedSnapshot) ?? state.postGameReport,
     );
+  }
+
+  Future<void> _restoreReport(String key, int revision) async {
+    try {
+      await _reportWrites;
+      final snapshot = await _reportStore?.load(key);
+      if (!mounted || revision != _reportRevision || _accountKey != key) return;
+      state = state.copyWith(postGameReport: _postGameReport(snapshot));
+    } catch (_) {
+      // An unreadable saved report must not prevent live coaching.
+    }
   }
 
   void selectEnemy(String enemy) =>
@@ -664,6 +750,8 @@ PostGameReport? _postGameReport(Map<String, dynamic>? game) {
     );
   }
   return PostGameReport(
+    sessionId: game['session_id']?.toString(),
+    matchLabel: game['match_label']?.toString(),
     champion: active['champion_name']?.toString() ?? 'Campeón',
     kills: kills,
     deaths: deaths,

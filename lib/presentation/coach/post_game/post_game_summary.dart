@@ -22,7 +22,7 @@ class PostGameSummary extends StatelessWidget {
           ? 'Esperando el cierre completo de la partida'
           : 'Rendimiento, objetivos y momentos observados durante la partida',
       icon: Icons.fact_check_outlined,
-      child: session == null
+      child: session == null && report == null
           ? const CoachEmptyState(
               message: 'No hay una sesión terminada disponible.',
             )
@@ -33,10 +33,19 @@ class PostGameSummary extends StatelessWidget {
                   spacing: 24,
                   runSpacing: 16,
                   children: [
-                    _Fact(label: 'Sesión', value: session!.sessionId),
+                    _Fact(
+                      label: 'Sesión',
+                      value:
+                          report?.sessionId ??
+                          session?.sessionId ??
+                          'Sesión guardada',
+                    ),
                     _Fact(
                       label: 'Partida',
-                      value: session!.match?.toString() ?? 'Sin Game ID',
+                      value:
+                          report?.matchLabel ??
+                          session?.match?.toString() ??
+                          'Sin Game ID',
                     ),
                     _Fact(
                       label: 'Campeón',

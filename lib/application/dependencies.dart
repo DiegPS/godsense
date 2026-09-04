@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:io';
 
+import '../infrastructure/persistence/shared_preferences_post_game_report_store.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
 
@@ -65,6 +67,7 @@ final coachControllerProvider =
       final controller = CoachController(
         importRunes: leagueController.importRuneRecommendation,
         importItems: leagueController.importItemRecommendations,
+        reportStore: const SharedPreferencesPostGameReportStore(),
       );
 
       void synchronize() {
@@ -89,6 +92,7 @@ final coachControllerProvider =
             .toList(growable: false);
         controller.synchronize(
           CoachInputs(
+            accountKey: league.accountContext?.context?.account.puuid.value,
             gameflowPhase: league.gameflowPhase,
             session: league.gameSession,
             liveGame: league.liveGame,

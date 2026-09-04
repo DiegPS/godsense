@@ -109,6 +109,13 @@ class CoachPage extends ConsumerWidget {
             const SizedBox(height: 16),
             const AiCoachChatCard(),
           ] else ...[
+            if (state.postGameReport != null) ...[
+              PostGameSummary(
+                session: state.lastCompletedSession,
+                report: state.postGameReport,
+              ),
+              const SizedBox(height: 16),
+            ],
             const CoachSurface(
               title: 'Conecta League para comenzar',
               icon: Icons.link_outlined,
