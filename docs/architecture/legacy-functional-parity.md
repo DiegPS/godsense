@@ -1,6 +1,6 @@
 # Scoutr to GodSense functional parity
 
-- Audited: 2026-09-01
+- Updated: 2026-09-04
 - Sources inspected:
   - installed Electron renderer in `@frontendshell`;
   - extracted `scoutr-backend.exe` Python modules;
@@ -44,7 +44,7 @@ requirement for League, vision, Scout or voice.
 | Matchup-specific knowledge | **Implemented without statistical claims** | Riot champion semantics and abilities drive deterministic advice; historical pair win rates remain intentionally absent without a licensed source |
 | Team-composition champion semantics | **Matched locally** | Uses actual LCU champion playstyle axes, classes and damage type; derived guidance is not represented as matchup win-rate evidence |
 | First-run guide/help | **Matched** | One-time guide with native navigation to Vision/voice settings; can be reopened from Help |
-| Application update delivery | **Missing distribution contract** | Build works, but no GodSense release feed/installer contract exists yet |
+| Application updates | **Microsoft Store by product decision** | Store-managed delivery; no custom update feed or in-app updater. Store packaging/submission is not claimed as completed here. |
 | Player settings | **Matched** | Voice, PTT, overlay, language/cadence, AI runtime, provider and model configuration; internal support/export surfaces are intentionally absent |
 | Highlights | **Excluded by product decision** | Intentionally absent, with no feature flag or dormant contract |
 | Discord Rich Presence | **Excluded by product decision** | Intentionally absent, with no feature flag or dormant contract |

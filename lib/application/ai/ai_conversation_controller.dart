@@ -291,7 +291,7 @@ class AiConversationController extends StateNotifier<AiConversationState> {
     if (promptText.trim().isEmpty) {
       throw ArgumentError('La pregunta no puede estar vacía.');
     }
-    if (state.isBusy) {
+    if (state.isBusy || _pendingResponse != null) {
       throw StateError('El coach ya está preparando una respuesta.');
     }
     final completer = Completer<String>();

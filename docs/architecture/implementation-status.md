@@ -1,6 +1,6 @@
 # Native architecture implementation status
 
-- Updated: 2026-09-03
+- Updated: 2026-09-04
 - Scope: Native product foundation plus optional local AI runtime integration
 - Core runtime target: Flutter/Dart/C++ on Windows, without Python, Node.js or
   Electron. AI coaching may start one isolated, private OpenCode-compatible
@@ -38,6 +38,15 @@
 | Product scope | Coaching, vision, voice, LCU, and Scout are first-class; Highlights and Discord Rich Presence are intentionally excluded | No dormant settings, gateway contracts, or UI placeholders |
 
 ## Current measured baseline
+
+### September 4 closure
+
+- Scout requests 30 recent matches and fetches missing timelines even when scoreboards are cached. Failed timeline requests do not discard cached details.
+- New AI sessions receive a bounded recent conversation context, labelled as historical data rather than current game facts or system instructions.
+- Post-game reports persist per account with session/match identity and restore after restart. Switching accounts clears the prior account's report.
+- Provider OAuth supports conditional text/select prompts, code/auto callback completion, explicit browser opening/copying, and connection confirmation from the runtime provider catalog. API credentials remain owned by the runtime.
+- Application updates are delegated to Microsoft Store by product decision. No custom updater is required; Store submission is a separate release action.
+- OAuth contract reference: [OpenCode server API](https://opencode.ai/docs/server/). Mock transport/controller tests verify our request/response handling, not live authentication with every provider.
 
 Static analysis is kept at zero issues. Native smoke tests that require a live
 League session or explicit model-path environment variables remain environment

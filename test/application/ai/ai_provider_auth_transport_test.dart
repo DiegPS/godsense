@@ -12,7 +12,7 @@ void main() {
       final requests = <http.Request>[];
       final httpClient = MockClient((request) async {
         requests.add(request);
-        if (request.url.path.endsWith('/authorize'))
+        if (request.url.path.endsWith('/authorize')) {
           return http.Response(
             jsonEncode({
               'url': 'https://example.com',
@@ -21,6 +21,7 @@ void main() {
             }),
             200,
           );
+        }
         return http.Response('true', 200);
       });
       addTearDown(httpClient.close);
