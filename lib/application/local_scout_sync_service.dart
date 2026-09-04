@@ -23,11 +23,22 @@ class LocalScoutSyncService {
   final int historyLimit;
   final int detailLimit;
   final int detailConcurrency;
+  LcuCapabilities? _lastCapabilities;
 
   Future<LocalMatchRecord> loadMatchDetails(LocalMatchRecord cached) async {
-    final response = await transport.getDetailed(
-      '/lol-match-history/v1/games/${cached.match.gameId}',
-    );
+    final loadTimeline =
+        _lastCapabilities?[LcuCapabilityId.matchTimeline].status !=
+        LcuCapabilityStatus.unavailable;
+    final responses = await Future.wait([
+      transport.getDetailed(
+        '/lol-match-history/v1/games/${cached.match.gameId}',
+      ),
+      if (loadTimeline)
+        transport.getDetailed(
+          '/lol-match-history/v1/game-timelines/${cached.match.gameId}',
+        ),
+    ]);
+    final response = responses.first;
     if (!response.isSuccess) {
       throw StateError(
         response.statusCode == 404
@@ -45,6 +56,7 @@ class LocalScoutSyncService {
         'League devolvió detalles incompletos para esta partida.',
       );
     }
+    final timelineResponse = loadTimeline ? responses[1] : null;
     final record = LocalMatchRecord(
       match: cached.match,
       puuid: cached.puuid,
@@ -54,7 +66,9 @@ class LocalScoutSyncService {
       endedAt: cached.endedAt,
       summaryJson: cached.summaryJson,
       detailsJson: _canonicalJson(body),
-      timelineJson: cached.timelineJson,
+      timelineJson: timelineResponse?.isSuccess == true
+          ? _canonicalJson(timelineResponse!.body)
+          : cached.timelineJson,
       syncedAt: _now().toUtc(),
     );
     await repository.upsertMatch(record);
@@ -69,6 +83,7 @@ class LocalScoutSyncService {
     bool includeHistory = true,
     Future<void> Function(LocalScoutSyncProgress progress)? onProgress,
   }) async {
+    _lastCapabilities = capabilities;
     var rankedStored = false;
     var matchesStored = 0;
     var detailsStored = 0;

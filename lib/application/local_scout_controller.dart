@@ -383,6 +383,7 @@ class LocalScoutController extends StateNotifier<LocalScoutState> {
 
       final syncService = _synchronizeAccount;
       if (synchronizeIfAvailable && syncService != null) {
+        var lastRenderedDocuments = 0;
         final syncResult = await syncService(
           account,
           onProgress: (progress) async {
@@ -390,6 +391,33 @@ class LocalScoutController extends StateNotifier<LocalScoutState> {
             state = state.copyWith(
               loading: true,
               loadingLabel: _progressLabel(progress),
+            );
+            final shouldRefresh =
+                progress.stage == LocalScoutSyncStage.matches ||
+                (progress.stage == LocalScoutSyncStage.documents &&
+                    progress.completed > lastRenderedDocuments);
+            if (!shouldRefresh) return;
+            if (progress.stage == LocalScoutSyncStage.documents) {
+              lastRenderedDocuments = progress.completed;
+            }
+            final progressiveRecords = await _loadMatches(
+              account.puuid,
+              limit: 30,
+            );
+            if (revision != _revision) return;
+            final progressiveMatches = progressiveRecords
+                .map(
+                  (record) =>
+                      _buildMatchSummary(record, account.puuid, _championNames),
+                )
+                .toList(growable: false);
+            state = state.copyWith(
+              analytics: _analyzer.analyze(
+                progressiveRecords,
+                puuid: account.puuid,
+                championNames: _championNames,
+              ),
+              typedMatches: _preserveLoadedDetails(progressiveMatches, account),
             );
           },
         );
