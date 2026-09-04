@@ -263,8 +263,7 @@ class AiConversationController extends StateNotifier<AiConversationState> {
         status: AiConversationStatus.error,
         errorMessage: 'Error al comunicarse con el motor local: $e',
       );
-      _pendingResponse?.completeError(e);
-      _pendingResponse = null;
+      _completePendingError(e);
     }
   }
 
@@ -280,7 +279,15 @@ class AiConversationController extends StateNotifier<AiConversationState> {
         StateError(state.errorMessage ?? 'No se pudo generar la respuesta.'),
       );
     }
-    return completer.future.timeout(const Duration(seconds: 75));
+    return completer.future.timeout(
+      const Duration(seconds: 45),
+      onTimeout: () {
+        if (identical(_pendingResponse, completer)) {
+          _pendingResponse = null;
+        }
+        throw TimeoutException('El coach tardó demasiado en responder.');
+      },
+    );
   }
 
   void _listenEvents(
@@ -303,11 +310,13 @@ class AiConversationController extends StateNotifier<AiConversationState> {
 
         if (event.isError) {
           final err = event.properties['error'] ?? event.raw['error'];
+          final message = err?.toString() ?? 'Error en la generación.';
           state = state.copyWith(
             status: AiConversationStatus.error,
-            errorMessage: err?.toString() ?? 'Error en la generación.',
+            errorMessage: message,
           );
           _stopStreaming();
+          _completePendingError(StateError(message));
           return;
         }
 
@@ -438,6 +447,10 @@ class AiConversationController extends StateNotifier<AiConversationState> {
             errorMessage:
                 'Tiempo de espera agotado esperando la respuesta del motor.',
           );
+          unawaited(_persistHistory());
+          _completePendingError(
+            TimeoutException('El motor no completó la respuesta.'),
+          );
         }
         return;
       }
@@ -534,6 +547,7 @@ class AiConversationController extends StateNotifier<AiConversationState> {
         status: AiConversationStatus.error,
         errorMessage: 'Fallo al confirmar la cancelación en el motor local: $e',
       );
+      _completePendingError(e);
       return;
     }
 
@@ -555,10 +569,7 @@ class AiConversationController extends StateNotifier<AiConversationState> {
     } else {
       state = state.copyWith(status: AiConversationStatus.idle);
     }
-    if (_pendingResponse case final pending? when !pending.isCompleted) {
-      pending.completeError(StateError('Generación cancelada.'));
-    }
-    _pendingResponse = null;
+    _completePendingError(StateError('Generación cancelada.'));
   }
 
   Future<void> clearConversation() async {
@@ -572,6 +583,7 @@ class AiConversationController extends StateNotifier<AiConversationState> {
       clearError: true,
       status: AiConversationStatus.idle,
     );
+    _completePendingError(StateError('Conversación borrada.'));
     await _historyStore?.clear();
 
     if (currentSession != null) {
@@ -589,7 +601,7 @@ class AiConversationController extends StateNotifier<AiConversationState> {
     try {
       final messages = await _historyStore!.load();
       if (_disposed || state.messages.isNotEmpty || messages.isEmpty) return;
-      state = state.copyWith(messages: messages.take(100).toList());
+      state = state.copyWith(messages: _latestMessages(messages));
     } catch (_) {
       // A damaged local history must never prevent coaching.
     }
@@ -597,7 +609,7 @@ class AiConversationController extends StateNotifier<AiConversationState> {
 
   Future<void> _persistHistory() async {
     try {
-      await _historyStore?.save(state.messages.take(100).toList());
+      await _historyStore?.save(_latestMessages(state.messages));
     } catch (_) {
       // Conversation remains usable when local persistence is unavailable.
     }
@@ -639,14 +651,24 @@ class AiConversationController extends StateNotifier<AiConversationState> {
     return false;
   }
 
+  static List<AiChatMessage> _latestMessages(List<AiChatMessage> messages) {
+    final start = messages.length > 100 ? messages.length - 100 : 0;
+    return messages.sublist(start);
+  }
+
+  void _completePendingError(Object error) {
+    if (_pendingResponse case final pending? when !pending.isCompleted) {
+      pending.completeError(error);
+    }
+    _pendingResponse = null;
+  }
+
   @override
   void dispose() {
     _disposed = true;
     _stopStreaming();
     _client?.dispose();
-    if (_pendingResponse case final pending? when !pending.isCompleted) {
-      pending.completeError(StateError('El coach se cerró.'));
-    }
+    _completePendingError(StateError('El coach se cerró.'));
     super.dispose();
   }
 }
