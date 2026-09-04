@@ -19,7 +19,10 @@ import '../infrastructure/ai/local_ai_runtime_process_service.dart';
 import '../infrastructure/ai/open_code_compatible_runtime_client.dart';
 import '../infrastructure/ai/pinned_ai_runtime_installer.dart';
 import '../infrastructure/ai/shared_preferences_ai_models.dart';
+import '../infrastructure/ai/shared_preferences_ai_conversation_history.dart';
+import '../infrastructure/ai/shared_preferences_ai_runtime_settings.dart';
 import 'ai/ai_model_selection_controller.dart';
+import 'ai/ai_provider_connection_controller.dart';
 import 'ai/ai_conversation_controller.dart';
 import 'ai/ai_runtime_supervisor.dart';
 import 'ai/game_context_prompt_builder.dart';
@@ -122,7 +125,7 @@ final nativeVoiceCoachProvider =
       final engine = ref.watch(nativeTacticalEngineProvider);
       return NativeVoiceCoachController(
         questions: speech.transcripts,
-        answer: (question) {
+        answer: (question) async {
           final league = ref.read(nativeLeagueProvider);
           final vision = ref.read(nativeVisionProvider);
           final sightings = vision.events
@@ -139,12 +142,57 @@ final nativeVoiceCoachProvider =
                 ),
               )
               .toList(growable: false);
-          return engine.answer(
+          final deterministic = engine.answer(
             question: question,
             game: league.liveGame,
             lobby: league.lobby,
             sightings: sightings,
           );
+          final supervisor = ref.read(aiRuntimeSupervisorProvider);
+          final selection = ref.read(aiModelSelectionProvider).selected;
+          final conversation = ref.read(aiConversationProvider);
+          if (!supervisor.state.isReady ||
+              selection == null ||
+              conversation.isBusy) {
+            return deterministic;
+          }
+          try {
+            final response = await ref
+                .read(aiConversationProvider.notifier)
+                .sendAndWait(
+                  question,
+                  systemPrompt: _voiceGameContextPrompt(
+                    league.liveGame,
+                    league.lobby,
+                    sightings,
+                  ),
+                );
+            return TacticalAdvice(
+              id: 'voice_ai_${DateTime.now().microsecondsSinceEpoch}',
+              title: 'Coach con IA',
+              hints: [response],
+              rationale:
+                  'Respuesta del modelo ${selection.name} con telemetría actual de GodSense.',
+              ttsText: _plainTextForSpeech(response),
+              priority: 70,
+              evidence: [
+                TacticalEvidence(
+                  factType: 'voice_question',
+                  source: FactSource.user,
+                  observedAt: DateTime.now().toUtc(),
+                  confidence: 1,
+                ),
+                TacticalEvidence(
+                  factType: 'model_assisted_tactical_answer',
+                  source: FactSource.derived,
+                  observedAt: DateTime.now().toUtc(),
+                  confidence: 0.8,
+                ),
+              ],
+            );
+          } catch (_) {
+            return deterministic;
+          }
         },
         speak: speech.speak,
         record: (question, advice) async {
@@ -251,6 +299,23 @@ final aiRuntimeSupervisorStateProvider =
       return supervisor.states;
     });
 
+final aiRuntimeSettingsProvider = Provider(
+  (_) => const SharedPreferencesAiRuntimeSettings(),
+);
+
+final aiRuntimeBootstrapProvider = FutureProvider<void>((ref) async {
+  final settings = await ref.watch(aiRuntimeSettingsProvider).load();
+  final kind = settings.preferredKind;
+  if (!settings.autoStart || kind == null) return;
+  final supervisor = ref.watch(aiRuntimeSupervisorProvider);
+  if (!await supervisor.isInstalled(kind)) return;
+  try {
+    await supervisor.start(kind);
+  } catch (_) {
+    // The settings page exposes the actionable runtime error.
+  }
+});
+
 final aiConversationProvider =
     StateNotifierProvider<AiConversationController, AiConversationState>((ref) {
       final supervisor = ref.watch(aiRuntimeSupervisorProvider);
@@ -283,6 +348,7 @@ final aiConversationProvider =
             directory: paths.root.path,
           );
         },
+        historyStore: const SharedPreferencesAiConversationHistory(),
       );
       return controller;
     });
@@ -320,6 +386,27 @@ final aiModelSelectionProvider =
       return controller;
     });
 
+final aiProviderConnectionProvider =
+    StateNotifierProvider.autoDispose<
+      AiProviderConnectionController,
+      AiProviderConnectionState
+    >((ref) {
+      final supervisor = ref.watch(aiRuntimeSupervisorProvider);
+      final snapshot =
+          ref.watch(aiRuntimeSupervisorStateProvider).value ?? supervisor.state;
+      final endpoint = snapshot.isReady ? snapshot.endpoint : null;
+      final controller = AiProviderConnectionController(
+        client: endpoint == null
+            ? null
+            : OpenCodeCompatibleRuntimeClient(
+                endpoint: endpoint,
+                directory: ref.watch(aiRuntimePathsProvider).root.path,
+              ),
+      );
+      if (endpoint != null) scheduleMicrotask(controller.refresh);
+      return controller;
+    });
+
 final gameContextPromptProvider = Provider<String>((ref) {
   final coachState = ref.watch(coachControllerProvider);
   final liveGame = ref.watch(nativeLeagueProvider.select((s) => s.liveGame));
@@ -328,3 +415,40 @@ final gameContextPromptProvider = Provider<String>((ref) {
     liveGame: liveGame,
   );
 });
+
+String _plainTextForSpeech(String markdown) => markdown
+    .replaceAll(RegExp(r'```[\s\S]*?```'), ' ')
+    .replaceAll(RegExp(r'[`*_>#-]'), ' ')
+    .replaceAll(RegExp(r'\[(.*?)\]\(.*?\)'), r'$1')
+    .replaceAll(RegExp(r'\s+'), ' ')
+    .trim();
+
+String _voiceGameContextPrompt(
+  Map<String, dynamic>? game,
+  Map<String, dynamic> lobby,
+  List<TacticalSighting> sightings,
+) {
+  final active = game?['active_player'] is Map
+      ? Map<String, dynamic>.from(game!['active_player'] as Map)
+      : const <String, dynamic>{};
+  final enemies = game?['enemies'] is List
+      ? (game!['enemies'] as List)
+            .whereType<Map>()
+            .map((item) => item['champion_name']?.toString() ?? '')
+            .where((name) => name.isNotEmpty)
+            .join(', ')
+      : '';
+  return [
+    'Eres el coach táctico de League of Legends de GodSense.',
+    'Responde en español, de forma breve, accionable y sin usar herramientas.',
+    if (game != null) 'Minuto: ${game['game_time'] ?? 0}.',
+    if (active.isNotEmpty)
+      'Jugador: ${active['champion_name'] ?? 'desconocido'}, KDA ${active['kda'] ?? const []}, CS ${active['cs'] ?? 0}.',
+    if (game != null) 'Diferencia de oro: ${game['team_gold_diff'] ?? 0}.',
+    if (enemies.isNotEmpty) 'Enemigos: $enemies.',
+    if (sightings.isNotEmpty)
+      'Último avistamiento: ${sightings.first.champion} en ${sightings.first.location}.',
+    if (game == null && lobby.isNotEmpty)
+      'Contexto de selección de campeón disponible: ${lobby['phase'] ?? 'ChampSelect'}.',
+  ].join('\n');
+}

@@ -36,6 +36,12 @@ class FakeAiConversationNotifier extends StateNotifier<AiConversationState>
   }
 
   @override
+  Future<String> sendAndWait(String text, {String? systemPrompt}) async {
+    await sendMessage(text, systemPrompt: systemPrompt);
+    return 'Generando respuesta...';
+  }
+
+  @override
   Future<void> abort() async {
     abortCallCount++;
     state = state.copyWith(

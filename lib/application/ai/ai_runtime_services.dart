@@ -49,3 +49,15 @@ abstract interface class AiRuntimeClient {
   Future<Stream<AiRuntimeEvent>> connectEvents();
   void dispose();
 }
+
+abstract interface class AiProviderAuthClient {
+  Future<List<AiAuthMethod>> authMethods();
+  Future<void> setApiKey(String providerId, String apiKey);
+  Future<AiOAuthAuthorization> beginOAuth(
+    String providerId, {
+    required int methodIndex,
+    Map<String, String> inputs,
+  });
+  Future<void> disconnectProvider(String providerId);
+  void dispose();
+}

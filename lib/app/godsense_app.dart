@@ -28,6 +28,7 @@ import '../domain/vision/vision_observation.dart';
 import '../presentation/native_speech_settings_card.dart';
 import '../presentation/coach/coach_page.dart';
 import '../presentation/coach/shared/ai_model_selector.dart';
+import '../presentation/coach/shared/ai_provider_connections.dart';
 import '../presentation/shared/live_rank_badge.dart';
 import '../presentation/shared/getting_started_guide.dart';
 import '../presentation/shared/resilient_network_image.dart';

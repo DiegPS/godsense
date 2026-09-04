@@ -1,6 +1,7 @@
 // ignore_for_file: prefer_initializing_formals
 
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -16,6 +17,12 @@ enum AiConversationStatus {
   streaming,
   canceling,
   error,
+}
+
+abstract interface class AiConversationHistoryStore {
+  Future<List<AiChatMessage>> load();
+  Future<void> save(List<AiChatMessage> messages);
+  Future<void> clear();
 }
 
 class AiChatMessage {
@@ -100,16 +107,22 @@ class AiConversationController extends StateNotifier<AiConversationState> {
     required AiRuntimeClient Function() clientFactory,
     DateTime Function()? now,
     AiModelInfo? Function()? modelSelection,
+    AiConversationHistoryStore? historyStore,
   }) : _supervisor = supervisor,
        _clientFactory = clientFactory,
        _now = now ?? DateTime.now,
        _modelSelection = modelSelection,
-       super(const AiConversationState());
+       _historyStore = historyStore,
+       super(const AiConversationState()) {
+    if (historyStore != null) unawaited(_restoreHistory());
+  }
 
   final AiRuntimeSupervisor _supervisor;
   final AiRuntimeClient Function() _clientFactory;
   final DateTime Function() _now;
   final AiModelInfo? Function()? _modelSelection;
+  final AiConversationHistoryStore? _historyStore;
+  Completer<String>? _pendingResponse;
 
   int _currentGenerationId = 0;
   StreamSubscription<AiRuntimeEvent>? _eventsSubscription;
@@ -186,6 +199,7 @@ class AiConversationController extends StateNotifier<AiConversationState> {
       streamedText: '',
       clearError: true,
     );
+    unawaited(_persistHistory());
 
     try {
       final client = _activeClient;
@@ -249,7 +263,24 @@ class AiConversationController extends StateNotifier<AiConversationState> {
         status: AiConversationStatus.error,
         errorMessage: 'Error al comunicarse con el motor local: $e',
       );
+      _pendingResponse?.completeError(e);
+      _pendingResponse = null;
     }
+  }
+
+  Future<String> sendAndWait(String promptText, {String? systemPrompt}) async {
+    if (state.isBusy) {
+      throw StateError('El coach ya está preparando una respuesta.');
+    }
+    final completer = Completer<String>();
+    _pendingResponse = completer;
+    await sendMessage(promptText, systemPrompt: systemPrompt);
+    if (state.status == AiConversationStatus.error && !completer.isCompleted) {
+      completer.completeError(
+        StateError(state.errorMessage ?? 'No se pudo generar la respuesta.'),
+      );
+    }
+    return completer.future.timeout(const Duration(seconds: 75));
   }
 
   void _listenEvents(
@@ -469,6 +500,11 @@ class AiConversationController extends StateNotifier<AiConversationState> {
       streamedText: '',
       status: AiConversationStatus.idle,
     );
+    unawaited(_persistHistory());
+    if (_pendingResponse case final pending? when !pending.isCompleted) {
+      pending.complete(text);
+    }
+    _pendingResponse = null;
   }
 
   void _stopStreaming() {
@@ -515,9 +551,14 @@ class AiConversationController extends StateNotifier<AiConversationState> {
         streamedText: '',
         status: AiConversationStatus.idle,
       );
+      unawaited(_persistHistory());
     } else {
       state = state.copyWith(status: AiConversationStatus.idle);
     }
+    if (_pendingResponse case final pending? when !pending.isCompleted) {
+      pending.completeError(StateError('Generación cancelada.'));
+    }
+    _pendingResponse = null;
   }
 
   Future<void> clearConversation() async {
@@ -531,6 +572,7 @@ class AiConversationController extends StateNotifier<AiConversationState> {
       clearError: true,
       status: AiConversationStatus.idle,
     );
+    await _historyStore?.clear();
 
     if (currentSession != null) {
       try {
@@ -541,6 +583,24 @@ class AiConversationController extends StateNotifier<AiConversationState> {
 
   void clearError() {
     state = state.copyWith(clearError: true, status: AiConversationStatus.idle);
+  }
+
+  Future<void> _restoreHistory() async {
+    try {
+      final messages = await _historyStore!.load();
+      if (_disposed || state.messages.isNotEmpty || messages.isEmpty) return;
+      state = state.copyWith(messages: messages.take(100).toList());
+    } catch (_) {
+      // A damaged local history must never prevent coaching.
+    }
+  }
+
+  Future<void> _persistHistory() async {
+    try {
+      await _historyStore?.save(state.messages.take(100).toList());
+    } catch (_) {
+      // Conversation remains usable when local persistence is unavailable.
+    }
   }
 
   static String? _extractAssistantTextAfter(
@@ -584,6 +644,42 @@ class AiConversationController extends StateNotifier<AiConversationState> {
     _disposed = true;
     _stopStreaming();
     _client?.dispose();
+    if (_pendingResponse case final pending? when !pending.isCompleted) {
+      pending.completeError(StateError('El coach se cerró.'));
+    }
     super.dispose();
   }
 }
+
+List<AiChatMessage> decodeAiConversationHistory(String encoded) {
+  final value = jsonDecode(encoded);
+  if (value is! List) return const [];
+  return value
+      .whereType<Map>()
+      .map((raw) {
+        final map = raw.map((key, value) => MapEntry(key.toString(), value));
+        return AiChatMessage(
+          id: map['id']?.toString() ?? '',
+          role: map['role']?.toString() == 'assistant' ? 'assistant' : 'user',
+          content: map['content']?.toString() ?? '',
+          timestamp:
+              DateTime.tryParse(map['timestamp']?.toString() ?? '') ??
+              DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
+        );
+      })
+      .where((message) => message.id.isNotEmpty && message.content.isNotEmpty)
+      .toList();
+}
+
+String encodeAiConversationHistory(List<AiChatMessage> messages) => jsonEncode(
+  messages
+      .map(
+        (message) => {
+          'id': message.id,
+          'role': message.role,
+          'content': message.content,
+          'timestamp': message.timestamp.toUtc().toIso8601String(),
+        },
+      )
+      .toList(growable: false),
+);

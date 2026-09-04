@@ -104,20 +104,20 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                       'en': 'Inglés',
                       'es': 'Español',
                     },
-                    onChanged: locks.containsKey('language') ||
+                    onChanged:
+                        locks.containsKey('language') ||
                             backend.operationInProgress
                         ? null
                         : (value) => ref
-                            .read(companionControllerProvider.notifier)
-                            .updateSettings({'language': value}),
+                              .read(companionControllerProvider.notifier)
+                              .updateSettings({'language': value}),
                   ),
                 ),
                 const Divider(height: 1, color: Color(0x14FFFFFF)),
                 _SettingsSelectRow(
                   icon: Icons.speed_rounded,
                   title: 'Frecuencia de consejos',
-                  subtitle:
-                      'Intervalo con el que el coach emite directivas tácticas.',
+                  subtitle: 'Intervalo con el que el coach emite directivas tácticas.',
                   control: GsSelect<String>(
                     compact: true,
                     width: 150,
@@ -127,12 +127,13 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                       'normal': 'Normal',
                       'chatty': 'Frecuente',
                     },
-                    onChanged: meta['cadence_editable'] != true ||
+                    onChanged:
+                        meta['cadence_editable'] != true ||
                             backend.operationInProgress
                         ? null
                         : (value) => ref
-                            .read(companionControllerProvider.notifier)
-                            .updateSettings({'cadence': value}),
+                              .read(companionControllerProvider.notifier)
+                              .updateSettings({'cadence': value}),
                   ),
                 ),
                 const Divider(height: 1, color: Color(0x14FFFFFF)),
@@ -181,8 +182,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                           onPressed: nativeCalibration.saving
                               ? null
                               : () => ref
-                                  .read(nativeCalibrationProvider.notifier)
-                                  .clear(),
+                                    .read(nativeCalibrationProvider.notifier)
+                                    .clear(),
                         ),
                         const SizedBox(width: 6),
                       ],
@@ -193,10 +194,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                         onPressed: nativeCalibration.saving
                             ? null
                             : () => _showManualCalibrationDialog(
-                                  context,
-                                  ref,
-                                  calibration,
-                                ),
+                                context,
+                                ref,
+                                calibration,
+                              ),
                       ),
                       const SizedBox(width: 6),
                       GsButton(
@@ -543,8 +544,14 @@ class _CoachingSettingsSectionState
                                 () async {
                                   if (ready) {
                                     await supervisor.stop();
+                                    await ref
+                                        .read(aiRuntimeSettingsProvider)
+                                        .setAutoStart(false);
                                   } else {
                                     await supervisor.start(kind);
+                                    await ref
+                                        .read(aiRuntimeSettingsProvider)
+                                        .rememberStarted(kind);
                                   }
                                 },
                                 ready
@@ -635,12 +642,20 @@ class _CoachingSettingsSectionState
           child: AiModelSelector(),
         ),
         const SizedBox(height: 16),
+        const GsCard(
+          title: 'Cuentas de modelos',
+          subtitle: 'Conecta únicamente los proveedores que quieras utilizar.',
+          icon: Icons.account_circle_outlined,
+          child: AiProviderConnections(),
+        ),
+        const SizedBox(height: 16),
         const _SettingsPlanCard(
           title: 'Contexto y privacidad',
           icon: Icons.shield_outlined,
           items: [
             'Las instalaciones y la configuración de GodSense están separadas de tus otras aplicaciones.',
             'No se importan las claves ni las cuentas de tus instalaciones personales.',
+            'Cuando preguntas al coach con IA, tu pregunta y el contexto necesario de la partida se envían al proveedor del modelo elegido.',
           ],
         ),
       ],

@@ -43,10 +43,9 @@ class _AiCoachChatCardState extends ConsumerState<AiCoachChatCard> {
       systemPrompt = ref.read(gameContextPromptProvider);
     } catch (_) {}
 
-    ref.read(aiConversationProvider.notifier).sendMessage(
-      text,
-      systemPrompt: systemPrompt,
-    );
+    ref
+        .read(aiConversationProvider.notifier)
+        .sendMessage(text, systemPrompt: systemPrompt);
     _scrollToBottom();
   }
 
@@ -141,6 +140,9 @@ class _AiCoachChatCardState extends ConsumerState<AiCoachChatCard> {
                     return;
                   }
                   await supervisor.start(kind);
+                  await ref
+                      .read(aiRuntimeSettingsProvider)
+                      .rememberStarted(kind);
                 } catch (error) {
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(

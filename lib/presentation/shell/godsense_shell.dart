@@ -95,6 +95,7 @@ class _GodSenseHomeState extends ConsumerState<GodSenseHome> {
     ref.watch(nativeCalibrationProvider);
     ref.watch(nativeSpeechProvider);
     ref.watch(nativeVoiceCoachProvider);
+    ref.watch(aiRuntimeBootstrapProvider);
 
     ref.listen<bool>(overlayWindowVisibleProvider, (previous, visible) {
       if (previous == visible) return;

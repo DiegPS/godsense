@@ -47,6 +47,18 @@ class AiAuthMethod {
   final int index;
 }
 
+class AiOAuthAuthorization {
+  const AiOAuthAuthorization({
+    required this.method,
+    this.url,
+    this.instructions,
+  });
+
+  final String method;
+  final Uri? url;
+  final String? instructions;
+}
+
 class AiSession {
   const AiSession({required this.id, this.title});
 

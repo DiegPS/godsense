@@ -8,7 +8,8 @@ import '../../application/ai/ai_runtime_services.dart';
 import '../../domain/ai/ai_runtime_api_models.dart';
 import '../../domain/ai/ai_runtime_models.dart';
 
-class OpenCodeCompatibleRuntimeClient implements AiRuntimeClient {
+class OpenCodeCompatibleRuntimeClient
+    implements AiRuntimeClient, AiProviderAuthClient {
   OpenCodeCompatibleRuntimeClient({
     required this.endpoint,
     required this.directory,
@@ -118,6 +119,41 @@ class OpenCodeCompatibleRuntimeClient implements AiRuntimeClient {
     }
     return methods;
   }
+
+  @override
+  Future<void> setApiKey(String providerId, String apiKey) async {
+    final normalized = apiKey.trim();
+    if (normalized.isEmpty) throw const FormatException('API key vacía.');
+    await _empty(
+      'PUT',
+      '/auth/${_segment(providerId)}',
+      body: {'type': 'api', 'key': normalized},
+    );
+  }
+
+  @override
+  Future<AiOAuthAuthorization> beginOAuth(
+    String providerId, {
+    required int methodIndex,
+    Map<String, String> inputs = const {},
+  }) async {
+    final body = _object(
+      await _json(
+        'POST',
+        '/provider/${_segment(providerId)}/oauth/authorize',
+        body: {'method': methodIndex, if (inputs.isNotEmpty) 'inputs': inputs},
+      ),
+    );
+    return AiOAuthAuthorization(
+      method: body['method']?.toString() ?? 'auto',
+      url: Uri.tryParse(body['url']?.toString() ?? ''),
+      instructions: body['instructions']?.toString(),
+    );
+  }
+
+  @override
+  Future<void> disconnectProvider(String providerId) =>
+      _empty('DELETE', '/auth/${_segment(providerId)}');
 
   @override
   Future<AiSession> createSession({String? title}) async => AiSession.fromJson(
