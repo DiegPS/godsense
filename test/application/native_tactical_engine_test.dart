@@ -527,6 +527,41 @@ void main() {
     expect(matchup['rationale'], contains('no afirma estadísticas históricas'));
     expect(matchup['rationale'], contains('ni detecta lanzamientos'));
   });
+
+  test('uses champion profile abilities during champion select', () {
+    final result = engine.analyze(
+      lobby: {
+        'snapshot': {
+          'my_team': [
+            {
+              'champion_name': 'Ahri',
+              'position': 'MIDDLE',
+              'is_local': true,
+              'champion_profile': {'attack_range': 550},
+            },
+          ],
+          'their_team': [
+            {
+              'champion_name': 'Vex',
+              'position': 'MIDDLE',
+              'champion_profile': {
+                'attack_range': 550,
+                'abilities': [
+                  {'slot': 'Q', 'name': 'Mistral Misil', 'cooldown': '8'},
+                  {'slot': 'W', 'name': 'Espacio Personal', 'cooldown': '16'},
+                  {'slot': 'R', 'name': 'Estallido Sombrío', 'cooldown': '140'},
+                ],
+              },
+            },
+          ],
+        },
+      },
+    );
+
+    final matchup = result['matchup'] as Map;
+    expect(matchup['trading_patterns'], contains(contains('Espacio Personal')));
+    expect(matchup['matchup_intel_n'], greaterThan(0));
+  });
 }
 
 Map<String, dynamic> _game({

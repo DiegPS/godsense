@@ -383,6 +383,7 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
       'classes': data['roles'] ?? const [],
       'playstyle': data['playstyleInfo'] ?? const {},
       'tactical': data['tacticalInfo'] ?? const {},
+      'abilities': _normalizeLcuChampionAbilities(data['spells']),
       'attack_range':
           data['attackRange'] ?? _stringMap(data['stats'])['attackRange'],
       'power_curve':
@@ -1421,3 +1422,42 @@ List<Map<String, dynamic>> _mapList(Object? value) {
 
 String _championKey(String value) =>
     value.toLowerCase().replaceAll(RegExp(r"[^a-z0-9]"), '');
+
+List<Map<String, dynamic>> _normalizeLcuChampionAbilities(Object? value) {
+  if (value is! List) return const [];
+  const inferredSlots = ['Q', 'W', 'E', 'R'];
+  final result = <Map<String, dynamic>>[];
+  for (var index = 0; index < value.length; index++) {
+    final raw = value[index];
+    if (raw is! Map) continue;
+    final ability = _stringMap(raw);
+    final explicitSlot =
+        [ability['spellKey'], ability['slot'], ability['abilitySlot']]
+            .map((item) => item?.toString().trim().toUpperCase() ?? '')
+            .firstWhere(
+              (item) => const {'P', 'Q', 'W', 'E', 'R'}.contains(item),
+              orElse: () => '',
+            );
+    final slot = explicitSlot.isNotEmpty
+        ? explicitSlot
+        : index < inferredSlots.length
+        ? inferredSlots[index]
+        : '';
+    if (!const {'P', 'Q', 'W', 'E', 'R'}.contains(slot)) continue;
+    final cooldown =
+        ability['cooldownBurn'] ??
+        ability['cooldown'] ??
+        ability['cooldownCoefficients'];
+    result.add({
+      'slot': slot,
+      'name': ability['name']?.toString() ?? '',
+      'description':
+          ability['description']?.toString() ??
+          ability['dynamicTooltip']?.toString() ??
+          '',
+      'cooldown': cooldown is List ? cooldown.join(' / ') : '$cooldown',
+      'source': 'lcu_champion_data',
+    });
+  }
+  return List.unmodifiable(result);
+}

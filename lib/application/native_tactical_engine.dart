@@ -1079,9 +1079,13 @@ Map<String, dynamic> _matchup(
   final enemyRange = _attackRange(enemyProfile);
   final localRangeClass = _rangeClass(localRange);
   final enemyRangeClass = _rangeClass(enemyRange);
-  final enemyAbilities = _mapList(opponent['abilities'])
-      .where((ability) => ability['slot'] != 'P')
-      .toList(growable: false);
+  final directEnemyAbilities = _mapList(opponent['abilities']);
+  final enemyAbilities =
+      (directEnemyAbilities.isNotEmpty
+              ? directEnemyAbilities
+              : _mapList(enemyProfile['abilities']))
+          .where((ability) => ability['slot'] != 'P')
+          .toList(growable: false);
   final enemyBasicAbilities = enemyAbilities
       .where((ability) => ability['slot'] != 'R')
       .toList(growable: false);
