@@ -11,7 +11,7 @@ class LocalScoutSyncService {
     required this.transport,
     required this.repository,
     DateTime Function()? now,
-    this.historyLimit = 20,
+    this.historyLimit = 30,
     this.detailLimit = 10,
     this.detailConcurrency = 4,
   }) : assert(detailConcurrency > 0),
@@ -30,23 +30,26 @@ class LocalScoutSyncService {
         _lastCapabilities?[LcuCapabilityId.matchTimeline].status !=
         LcuCapabilityStatus.unavailable;
     final responses = await Future.wait([
-      transport.getDetailed(
-        '/lol-match-history/v1/games/${cached.match.gameId}',
-      ),
+      if (cached.detailsJson == null)
+        transport.getDetailed(
+          '/lol-match-history/v1/games/${cached.match.gameId}',
+        ),
       if (loadTimeline)
         transport.getDetailed(
           '/lol-match-history/v1/game-timelines/${cached.match.gameId}',
         ),
     ]);
-    final response = responses.first;
-    if (!response.isSuccess) {
+    final response = cached.detailsJson == null ? responses.first : null;
+    if (response != null && !response.isSuccess) {
       throw StateError(
         response.statusCode == 404
             ? 'League no tiene disponibles los detalles de esta partida.'
             : 'No se pudieron cargar los detalles. Comprueba que League esté abierto y vuelve a intentarlo.',
       );
     }
-    final body = response.body;
+    final body = cached.detailsJson == null
+        ? response?.body
+        : jsonDecode(cached.detailsJson!);
     if (body is! Map ||
         body['participants'] is! List ||
         (body['participants'] as List).isEmpty ||
@@ -56,7 +59,7 @@ class LocalScoutSyncService {
         'League devolvió detalles incompletos para esta partida.',
       );
     }
-    final timelineResponse = loadTimeline ? responses[1] : null;
+    final timelineResponse = loadTimeline ? responses.last : null;
     final record = LocalMatchRecord(
       match: cached.match,
       puuid: cached.puuid,

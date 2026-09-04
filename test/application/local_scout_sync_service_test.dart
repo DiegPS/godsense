@@ -42,7 +42,7 @@ void main() {
           'RANKED_SOLO_5x5': {'tier': 'GOLD', 'leaguePoints': 20},
         },
       }),
-      '/lol-match-history/v1/products/lol/player/matches?begIndex=0&endIndex=20':
+      '/lol-match-history/v1/products/lol/player/matches?begIndex=0&endIndex=30':
           _ok({
             'games': {
               'games': [
@@ -102,7 +102,7 @@ void main() {
 
   test('repeated synchronization updates rather than duplicates matches', () async {
     transport
-            .responses['/lol-match-history/v1/products/lol/player/matches?begIndex=0&endIndex=20'] =
+            .responses['/lol-match-history/v1/products/lol/player/matches?begIndex=0&endIndex=30'] =
         _ok({
           'games': [
             {'gameId': 100, 'gameVersion': '16.17.1'},
@@ -149,7 +149,7 @@ void main() {
   test('loads match documents concurrently to keep Scout responsive', () async {
     transport.delay = const Duration(milliseconds: 15);
     transport.responses.addAll({
-      '/lol-match-history/v1/products/lol/player/matches?begIndex=0&endIndex=20':
+      '/lol-match-history/v1/products/lol/player/matches?begIndex=0&endIndex=30':
           _ok({
             'games': [
               {'gameId': 100, 'gameVersion': '16.17.1'},

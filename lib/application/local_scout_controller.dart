@@ -516,6 +516,21 @@ class LocalScoutController extends StateNotifier<LocalScoutState> {
         account.puuid,
         _championNames,
       );
+      if (typedSummary.hasFullDetails &&
+          match.timelineJson == null &&
+          _loadMatchDetails != null) {
+        try {
+          match = await _loadMatchDetails(match);
+          if (revision != _detailRevision) return;
+          typedSummary = _buildMatchSummary(
+            match,
+            account.puuid,
+            _championNames,
+          );
+        } catch (_) {
+          // Cached scoreboards remain usable when League cannot supply a timeline.
+        }
+      }
       if (!typedSummary.hasFullDetails) {
         final loader = _loadMatchDetails;
         if (loader == null) {
@@ -523,7 +538,7 @@ class LocalScoutController extends StateNotifier<LocalScoutState> {
             'Conecta League para cargar los detalles de esta partida.',
           );
         }
-        match = await loader(match);
+        match = await loader(match!);
         if (revision != _detailRevision) return;
         typedSummary = _buildMatchSummary(match, account.puuid, _championNames);
         if (!typedSummary.hasFullDetails) {
