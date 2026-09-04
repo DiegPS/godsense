@@ -556,6 +556,7 @@ ScoutMatchSummary _buildMatchSummary(
   final summary = _map(_decode(record.summaryJson));
   final detailsJson = record.detailsJson;
   final details = detailsJson != null ? _map(_decode(detailsJson)) : summary;
+  final persistedTimeline = _map(_decode(record.timelineJson));
 
   final summaryParticipant = _subjectParticipant(summary, puuid);
   final detailParticipant = _subjectParticipant(details, puuid);
@@ -741,6 +742,13 @@ ScoutMatchSummary _buildMatchSummary(
     }
   }
 
+  final subjectParticipantId =
+      (participant['participantId'] as num?)?.toInt() ?? 0;
+  final timelineProjection = _projectTimeline(
+    persistedTimeline,
+    subjectParticipantId: subjectParticipantId,
+  );
+
   final queueId = record.queueId;
   final queueLabel = queueId == 420
       ? 'Clasificatoria Solo/Dúo'
@@ -782,8 +790,96 @@ ScoutMatchSummary _buildMatchSummary(
     hasFullDetails: detailsJson != null && participantsList.isNotEmpty,
     teams: teams,
     participants: participantsList,
+    timelineEvents: timelineProjection.events,
+    goldTimeline: timelineProjection.gold,
   );
 }
+
+({List<ScoutTimelineEvent> events, List<ScoutGoldTimelinePoint> gold})
+_projectTimeline(
+  Map<String, dynamic> timeline, {
+  required int subjectParticipantId,
+}) {
+  final frames = _mapList(timeline['frames']);
+  if (frames.isEmpty) return (events: const [], gold: const []);
+  final subjectIsBlue = subjectParticipantId > 0 && subjectParticipantId <= 5;
+  final events = <ScoutTimelineEvent>[];
+  final gold = <ScoutGoldTimelinePoint>[];
+
+  for (final frame in frames) {
+    final timestamp = (frame['timestamp'] as num?)?.toInt() ?? 0;
+    final participantFrames = _map(frame['participantFrames']);
+    if (participantFrames.isNotEmpty && subjectParticipantId > 0) {
+      var blueGold = 0;
+      var redGold = 0;
+      for (final entry in participantFrames.entries) {
+        final participantId = int.tryParse(entry.key.toString()) ?? 0;
+        final totalGold =
+            (_map(entry.value)['totalGold'] as num?)?.toInt() ?? 0;
+        if (participantId <= 5) {
+          blueGold += totalGold;
+        } else {
+          redGold += totalGold;
+        }
+      }
+      gold.add(
+        ScoutGoldTimelinePoint(
+          timestampMilliseconds: timestamp,
+          difference: subjectIsBlue ? blueGold - redGold : redGold - blueGold,
+        ),
+      );
+    }
+
+    for (final event in _mapList(frame['events'])) {
+      final type = event['type']?.toString() ?? '';
+      final eventTimestamp = (event['timestamp'] as num?)?.toInt() ?? timestamp;
+      final teamId = (event['teamId'] as num?)?.toInt();
+      final killerId = (event['killerId'] as num?)?.toInt();
+      final actorId = killerId != null && killerId > 0
+          ? killerId
+          : (event['creatorId'] as num?)?.toInt();
+      final isAlly = teamId != null
+          ? (subjectIsBlue ? teamId == 100 : teamId == 200)
+          : actorId != null && actorId > 0
+          ? (subjectIsBlue ? actorId <= 5 : actorId > 5)
+          : null;
+      final label = _timelineEventLabel(type, event);
+      if (label == null) continue;
+      events.add(
+        ScoutTimelineEvent(
+          timestampMilliseconds: eventTimestamp,
+          type: type,
+          label: label,
+          isAlly: isAlly,
+        ),
+      );
+    }
+  }
+  events.sort(
+    (left, right) =>
+        left.timestampMilliseconds.compareTo(right.timestampMilliseconds),
+  );
+  return (events: List.unmodifiable(events), gold: List.unmodifiable(gold));
+}
+
+String? _timelineEventLabel(String type, Map<String, dynamic> event) =>
+    switch (type) {
+      'CHAMPION_KILL' => 'Eliminación de campeón',
+      'ELITE_MONSTER_KILL' => switch (event['monsterType']?.toString()) {
+        'DRAGON' => 'Dragón',
+        'BARON_NASHOR' => 'Barón Nashor',
+        'RIFTHERALD' => 'Heraldo de la Grieta',
+        final value when value != null && value.isNotEmpty => value,
+        _ => 'Objetivo épico',
+      },
+      'BUILDING_KILL' =>
+        event['buildingType'] == 'INHIBITOR_BUILDING'
+            ? 'Inhibidor destruido'
+            : 'Torre destruida',
+      'TURRET_PLATE_DESTROYED' => 'Placa de torre',
+      'WARD_PLACED' => 'Visión colocada',
+      _ => null,
+    };
 
 String _championIcon(int championId) =>
     'https://raw.communitydragon.org/latest/plugins/'

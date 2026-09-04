@@ -155,6 +155,32 @@ class ScoutPerformanceScore {
   String get heuristicLabel => 'GodSense Rating (Heurístico v$version)';
 }
 
+/// A meaningful event recovered from the persisted LCU match timeline.
+class ScoutTimelineEvent {
+  const ScoutTimelineEvent({
+    required this.timestampMilliseconds,
+    required this.type,
+    required this.label,
+    this.isAlly,
+  });
+
+  final int timestampMilliseconds;
+  final String type;
+  final String label;
+  final bool? isAlly;
+}
+
+/// Team gold difference at one point of the persisted match timeline.
+class ScoutGoldTimelinePoint {
+  const ScoutGoldTimelinePoint({
+    required this.timestampMilliseconds,
+    required this.difference,
+  });
+
+  final int timestampMilliseconds;
+  final int difference;
+}
+
 /// A participant within a 5v5 match.
 class ScoutMatchParticipant {
   const ScoutMatchParticipant({
@@ -242,6 +268,8 @@ class ScoutMatchSummary {
     required this.hasFullDetails,
     this.teams = const [],
     this.participants = const [],
+    this.timelineEvents = const [],
+    this.goldTimeline = const [],
   });
 
   final int matchId;
@@ -275,6 +303,8 @@ class ScoutMatchSummary {
   final bool hasFullDetails;
   final List<Map<String, dynamic>> teams;
   final List<ScoutMatchParticipant> participants;
+  final List<ScoutTimelineEvent> timelineEvents;
+  final List<ScoutGoldTimelinePoint> goldTimeline;
 }
 
 /// The complete analytics payload computed for a scouted summoner.

@@ -87,6 +87,49 @@ class VoiceCoachEntry {
   final DateTime answeredAt;
 }
 
+class PostGameReport {
+  const PostGameReport({
+    required this.champion,
+    required this.kills,
+    required this.deaths,
+    required this.assists,
+    required this.cs,
+    required this.durationSeconds,
+    required this.finalGoldDifference,
+    required this.teamState,
+    required this.allyDragons,
+    required this.enemyDragons,
+    required this.allyTurretsLost,
+    required this.enemyTurretsDestroyed,
+    required this.keyEvents,
+    required this.review,
+  });
+
+  final String champion;
+  final int kills;
+  final int deaths;
+  final int assists;
+  final int cs;
+  final double durationSeconds;
+  final int finalGoldDifference;
+  final String teamState;
+  final int allyDragons;
+  final int enemyDragons;
+  final int allyTurretsLost;
+  final int enemyTurretsDestroyed;
+  final List<PostGameEvent> keyEvents;
+  final List<String> review;
+
+  double get kda => (kills + assists) / (deaths == 0 ? 1 : deaths);
+}
+
+class PostGameEvent {
+  const PostGameEvent({required this.timeSeconds, required this.label});
+
+  final double timeSeconds;
+  final String label;
+}
+
 class RuneRecommendationViewData {
   const RuneRecommendationViewData({
     required this.variant,
@@ -216,6 +259,7 @@ class CoachState {
     this.voiceHistory = const [],
     this.importFeedback = const CoachImportFeedback(),
     this.lastCompletedSession,
+    this.postGameReport,
   });
 
   final CoachPhase phase;
@@ -237,6 +281,7 @@ class CoachState {
   final List<VoiceCoachEntry> voiceHistory;
   final CoachImportFeedback importFeedback;
   final GameSession? lastCompletedSession;
+  final PostGameReport? postGameReport;
 
   CoachState copyWith({
     CoachPhase? phase,
@@ -259,6 +304,7 @@ class CoachState {
     List<VoiceCoachEntry>? voiceHistory,
     CoachImportFeedback? importFeedback,
     GameSession? lastCompletedSession,
+    PostGameReport? postGameReport,
   }) => CoachState(
     phase: phase ?? this.phase,
     automaticPhase: automaticPhase ?? this.automaticPhase,
@@ -282,6 +328,7 @@ class CoachState {
     voiceHistory: voiceHistory ?? this.voiceHistory,
     importFeedback: importFeedback ?? this.importFeedback,
     lastCompletedSession: lastCompletedSession ?? this.lastCompletedSession,
+    postGameReport: postGameReport ?? this.postGameReport,
   );
 }
 
@@ -379,6 +426,7 @@ class CoachController extends StateNotifier<CoachState> {
       voiceProcessing: inputs.voiceProcessing,
       voiceHistory: List.unmodifiable(voiceHistory),
       lastCompletedSession: inputs.session.lastCompleted,
+      postGameReport: _postGameReport(inputs.liveGame) ?? state.postGameReport,
     );
   }
 
@@ -484,8 +532,8 @@ List<RecommendedItemGroupViewData> _items(
     final version = metadata?.provenance.sourceVersion ?? bundle.patch.value;
     final iconFile = metadata != null && metadata.iconPath.isNotEmpty
         ? (metadata.iconPath.endsWith('.png')
-            ? metadata.iconPath
-            : '${metadata.iconPath}.png')
+              ? metadata.iconPath
+              : '${metadata.iconPath}.png')
         : '${item.id}.png';
     final imageUrl = item.id > 0
         ? 'https://ddragon.leagueoflegends.com/cdn/$version/img/item/$iconFile'
@@ -549,3 +597,88 @@ List<Map<String, dynamic>> _mapList(Object? value) => value is List
           )
           .toList(growable: false)
     : const [];
+
+PostGameReport? _postGameReport(Map<String, dynamic>? game) {
+  if (game == null || game['_game_ended'] != true) return null;
+  final active = game['active_player'] is Map
+      ? Map<String, dynamic>.from(game['active_player'] as Map)
+      : const <String, dynamic>{};
+  final kda = active['kda'] is List ? active['kda'] as List : const [];
+  int stat(int index) =>
+      index < kda.length && kda[index] is num ? (kda[index] as num).toInt() : 0;
+  final derived = game['derived'] is Map
+      ? Map<String, dynamic>.from(game['derived'] as Map)
+      : const <String, dynamic>{};
+  final objectives = derived['objectives'] is Map
+      ? Map<String, dynamic>.from(derived['objectives'] as Map)
+      : const <String, dynamic>{};
+  final dragons = objectives['dragons'] is Map
+      ? Map<String, dynamic>.from(objectives['dragons'] as Map)
+      : const <String, dynamic>{};
+  final structures = objectives['structures'] is Map
+      ? Map<String, dynamic>.from(objectives['structures'] as Map)
+      : const <String, dynamic>{};
+  final events = _mapList(game['events'])
+      .where(
+        (event) => const {
+          'DragonKill',
+          'BaronKill',
+          'HeraldKill',
+          'TurretKilled',
+          'InhibKilled',
+          'GameEnd',
+        }.contains(event['EventName']),
+      )
+      .map(
+        (event) => PostGameEvent(
+          timeSeconds: (event['game_time'] as num?)?.toDouble() ?? 0,
+          label:
+              event['label']?.toString() ??
+              event['EventName']?.toString() ??
+              'Evento',
+        ),
+      )
+      .take(12)
+      .toList(growable: false);
+  final kills = stat(0);
+  final deaths = stat(1);
+  final assists = stat(2);
+  final cs = (active['cs'] as num?)?.toInt() ?? 0;
+  final duration = (game['game_time'] as num?)?.toDouble() ?? 0;
+  final goldDifference = (game['team_gold_diff'] as num?)?.toInt() ?? 0;
+  final review = <String>[
+    if (duration > 0 && cs / (duration / 60) < 5) 'La generación de recursos quedó por debajo de 5 CS/min; prioriza oleadas seguras antes de rotar.',
+    if (deaths >= 7)
+      'Hubo $deaths muertes: revisa las entradas sin visión y conserva una ruta de salida.',
+    if (kills + assists >= deaths * 3) 'La participación individual fue sólida; busca convertir esas ventajas en objetivos.',
+    if ((dragons['enemy'] as num?)?.toInt() case final enemy? when enemy >= 3)
+      'El rival acumuló $enemy dragones; prepara visión y prioridad con más antelación.',
+    if (goldDifference.abs() >= 2000)
+      goldDifference > 0
+          ? 'La partida terminó con ventaja económica: revisa si podía cerrarse antes.'
+          : 'La partida terminó con desventaja económica: identifica el primer punto de ruptura.',
+  ];
+  if (review.isEmpty) {
+    review.add(
+      'Revisa los eventos clave y compáralos con la prioridad de objetivos de cada minuto.',
+    );
+  }
+  return PostGameReport(
+    champion: active['champion_name']?.toString() ?? 'Campeón',
+    kills: kills,
+    deaths: deaths,
+    assists: assists,
+    cs: cs,
+    durationSeconds: duration,
+    finalGoldDifference: goldDifference,
+    teamState: game['team_state']?.toString() ?? 'UNKNOWN',
+    allyDragons: (dragons['ally'] as num?)?.toInt() ?? 0,
+    enemyDragons: (dragons['enemy'] as num?)?.toInt() ?? 0,
+    allyTurretsLost:
+        (structures['ally_turrets_destroyed'] as num?)?.toInt() ?? 0,
+    enemyTurretsDestroyed:
+        (structures['enemy_turrets_destroyed'] as num?)?.toInt() ?? 0,
+    keyEvents: events,
+    review: List.unmodifiable(review),
+  );
+}

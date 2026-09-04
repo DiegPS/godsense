@@ -97,7 +97,10 @@ class CoachPage extends ConsumerWidget {
               ],
             ),
           ] else if (state.phase == CoachPhase.postGame) ...[
-            PostGameSummary(session: state.lastCompletedSession),
+            PostGameSummary(
+              session: state.lastCompletedSession,
+              report: state.postGameReport,
+            ),
             const SizedBox(height: 16),
             VoiceCoachCard(
               processing: state.voiceProcessing,

@@ -364,7 +364,10 @@ class _ScoutPageState extends ConsumerState<ScoutPage> {
                         analytics.roleDistribution.isNotEmpty) ...[
                       const Text(
                         '·',
-                        style: TextStyle(color: GsColors.textMuted, fontSize: 11),
+                        style: TextStyle(
+                          color: GsColors.textMuted,
+                          fontSize: 11,
+                        ),
                       ),
                       Text(
                         '${analytics.roleDistribution.first.role.label} Main (${analytics.roleDistribution.first.percentage.toStringAsFixed(0)}%)',
@@ -981,9 +984,13 @@ class _ModernMatchCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final isWin = match.isWin;
     final score = match.performanceScore?.value ?? 50;
-    final accentColor = isWin ? const Color(0xFF10B981) : const Color(0xFFEF4444);
+    final accentColor = isWin
+        ? const Color(0xFF10B981)
+        : const Color(0xFFEF4444);
     final cardBg = isWin ? const Color(0xFF071B14) : const Color(0xFF1C0A0E);
-    final cardBorder = isWin ? const Color(0x3310B981) : const Color(0x33EF4444);
+    final cardBorder = isWin
+        ? const Color(0x3310B981)
+        : const Color(0x33EF4444);
 
     return Container(
       decoration: BoxDecoration(
@@ -1002,10 +1009,7 @@ class _ModernMatchCard extends StatelessWidget {
                 child: Row(
                   children: [
                     // Solid Left Accent Stripe
-                    Container(
-                      width: 4,
-                      color: accentColor,
-                    ),
+                    Container(width: 4, color: accentColor),
                     const SizedBox(width: 12),
 
                     // Result & Queue Info
@@ -1344,7 +1348,7 @@ class _ModernMatchCard extends StatelessWidget {
                   ),
                 ),
               if (match.participants.isNotEmpty)
-                _buildExpandedScoreboard(match),
+                _buildExpandedScoreboard(context, match),
             ],
           ],
         ),
@@ -1352,7 +1356,10 @@ class _ModernMatchCard extends StatelessWidget {
     );
   }
 
-  Widget _buildExpandedScoreboard(ScoutMatchSummary match) {
+  Widget _buildExpandedScoreboard(
+    BuildContext context,
+    ScoutMatchSummary match,
+  ) {
     final allies = match.participants.where((p) => p.isAlly).toList();
     final enemies = match.participants.where((p) => !p.isAlly).toList();
 
@@ -1450,14 +1457,133 @@ class _ModernMatchCard extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.all(12),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Expanded(child: teamColumn('Tu Equipo', allies, match.isWin)),
-          const SizedBox(width: 12),
-          Expanded(child: teamColumn('Equipo Rival', enemies, !match.isWin)),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: teamColumn('Tu Equipo', allies, match.isWin)),
+              const SizedBox(width: 12),
+              Expanded(
+                child: teamColumn('Equipo Rival', enemies, !match.isWin),
+              ),
+            ],
+          ),
+          if (match.goldTimeline.isNotEmpty ||
+              match.timelineEvents.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            const Divider(height: 1, color: Color(0x14FFFFFF)),
+            const SizedBox(height: 12),
+            Text(
+              'DESARROLLO DE LA PARTIDA',
+              style: Theme.of(context).textTheme.labelMedium
+                  ?.copyWith(color: GsColors.textMuted, letterSpacing: 0.5),
+            ),
+            if (match.goldTimeline.length > 1) ...[
+              const SizedBox(height: 10),
+              SizedBox(
+                height: 90,
+                child: CustomPaint(
+                  painter: _ScoutGoldTimelinePainter(match.goldTimeline),
+                ),
+              ),
+            ],
+            if (match.timelineEvents.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: match.timelineEvents
+                    .where((event) => event.type != 'WARD_PLACED')
+                    .take(12)
+                    .map(
+                      (event) => GsBadge(
+                        label:
+                            '${_timelineClock(event.timestampMilliseconds)} · ${event.label}',
+                        variant: event.isAlly == true
+                            ? GsBadgeVariant.success
+                            : event.isAlly == false
+                            ? GsBadgeVariant.danger
+                            : GsBadgeVariant.neutral,
+                      ),
+                    )
+                    .toList(growable: false),
+              ),
+            ],
+          ],
         ],
       ),
     );
   }
+}
+
+String _timelineClock(int milliseconds) {
+  final seconds = milliseconds ~/ 1000;
+  return '${seconds ~/ 60}:${(seconds % 60).toString().padLeft(2, '0')}';
+}
+
+class _ScoutGoldTimelinePainter extends CustomPainter {
+  const _ScoutGoldTimelinePainter(this.points);
+
+  final List<ScoutGoldTimelinePoint> points;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (points.length < 2) return;
+    final maxTime = points.last.timestampMilliseconds.toDouble().clamp(
+      1,
+      double.infinity,
+    );
+    final maxDifference = points
+        .map((point) => point.difference.abs())
+        .fold<int>(500, (maximum, value) => value > maximum ? value : maximum)
+        .toDouble();
+    final center = size.height / 2;
+    canvas.drawLine(
+      Offset(0, center),
+      Offset(size.width, center),
+      Paint()..color = const Color(0x28FFFFFF),
+    );
+    final positive = Path();
+    final negative = Path();
+    var positiveStarted = false;
+    var negativeStarted = false;
+    for (final point in points) {
+      final offset = Offset(
+        point.timestampMilliseconds / maxTime * size.width,
+        center - point.difference / maxDifference * (center - 6),
+      );
+      final path = point.difference >= 0 ? positive : negative;
+      final started = point.difference >= 0 ? positiveStarted : negativeStarted;
+      if (!started) {
+        path.moveTo(offset.dx, offset.dy);
+        if (point.difference >= 0) {
+          positiveStarted = true;
+        } else {
+          negativeStarted = true;
+        }
+      } else {
+        path.lineTo(offset.dx, offset.dy);
+      }
+    }
+    canvas.drawPath(
+      positive,
+      Paint()
+        ..color = GsColors.emerald
+        ..strokeWidth = 2
+        ..style = PaintingStyle.stroke,
+    );
+    canvas.drawPath(
+      negative,
+      Paint()
+        ..color = GsColors.crimson
+        ..strokeWidth = 2
+        ..style = PaintingStyle.stroke,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_ScoutGoldTimelinePainter oldDelegate) =>
+      oldDelegate.points != points;
 }
