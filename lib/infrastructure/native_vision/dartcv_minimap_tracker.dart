@@ -6,7 +6,7 @@ import 'package:ffi/ffi.dart' as memory;
 import 'package:opencv_dart/opencv.dart' as cv;
 
 import '../../domain/summoners_rift_map.dart';
-import 'win32_screen_capture.dart';
+import 'desktop_screen_capture.dart';
 
 class NativeDetection {
   const NativeDetection({

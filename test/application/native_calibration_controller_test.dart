@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:godsense/application/native_calibration_controller.dart';
 import 'package:godsense/domain/calibration_repository.dart';
 import 'package:godsense/domain/companion_models.dart';
+import 'package:godsense/infrastructure/native_vision/desktop_screen_capture.dart';
 import 'package:godsense/infrastructure/native_vision/native_minimap_calibrator.dart';
 
 void main() {
@@ -13,7 +14,10 @@ void main() {
 
     setUp(() {
       repository = _MemoryCalibrationRepository();
-      controller = NativeCalibrationController(repository);
+      controller = NativeCalibrationController(
+        repository,
+        screenCapture: _MetadataCapture(),
+      );
     });
 
     tearDown(() => controller.dispose());
@@ -23,7 +27,11 @@ void main() {
       await controller.load();
 
       expect(controller.state.loading, isFalse);
-      expect(controller.state.calibration?.bounds, _calibration.bounds);
+      expect(controller.state.calibration?.bounds, containsPair('left', 1600));
+      expect(
+        controller.state.calibration?.bounds,
+        containsPair('display_id', 'secondary'),
+      );
       expect(controller.state.error, isNull);
     });
 
@@ -54,6 +62,19 @@ void main() {
         throwsArgumentError,
       );
       expect(repository.value, isNull);
+    });
+
+    test('accepts negative coordinates and binds them to a display', () async {
+      await controller.save(const {
+        'left': -420,
+        'top': 700,
+        'width': 300,
+        'height': 300,
+      });
+
+      expect(repository.value?.bounds?['left'], -420);
+      expect(repository.value?.bounds?['display_id'], 'secondary');
+      expect(repository.value?.bounds?['local_left'], 1500);
     });
 
     test('clears persisted calibration', () async {
@@ -88,4 +109,28 @@ class _MemoryCalibrationRepository implements CalibrationRepository {
 
   @override
   Future<void> save(CalibrationState calibration) async => value = calibration;
+}
+
+class _MetadataCapture implements ScreenCaptureSource {
+  @override
+  Future<Map<String, dynamic>> describeBounds(
+    Map<String, dynamic> bounds,
+  ) async => {...bounds, 'display_id': 'secondary', 'local_left': 1500};
+
+  @override
+  Future<List<CaptureDisplay>> getDisplays() async => const [];
+
+  @override
+  Future<CapturedRegion> capture({
+    required int left,
+    required int top,
+    required int width,
+    required int height,
+    String? displayId,
+    int? localLeft,
+    int? localTop,
+  }) => throw UnimplementedError();
+
+  @override
+  void dispose() {}
 }

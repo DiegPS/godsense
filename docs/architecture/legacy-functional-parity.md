@@ -19,8 +19,8 @@ Sherpa STT/TTS, without an LLM dependency or model download.
 | --- | --- | --- |
 | Windows desktop shell | **Exceeded** | Native Flutter shell, no Electron or local HTTP bridge |
 | In-game multi-panel overlay | **Matched** | Shared Riverpod state, editable/collapsible panels, native window manager |
-| Minimap capture and champion detection | **Exceeded** | Win32/DartCV; exact identity and boxes on 866 real frames |
-| Automatic and manual minimap calibration | **Matched** | Native detection, validation, persistence, reset and UI |
+| Minimap capture and champion detection | **Exceeded** | Continuous DXGI Desktop Duplication/DartCV, independent of focus or game phase; exact identity and boxes on 866 real frames |
+| Automatic and manual minimap calibration | **Exceeded** | Searches every active monitor and all four corners; persists stable display identity, local/virtual coordinates, DPI and rotation |
 | Gank and jungler sightings | **Matched** | Native event state and Python parity corpus |
 | Live Client projection | **Matched** | Players, KDA, CS, items, gold estimate, objectives and event timeline |
 | LCU account and gameflow | **Matched** | Lockfile discovery, granular capabilities, event stream plus polling fallback |

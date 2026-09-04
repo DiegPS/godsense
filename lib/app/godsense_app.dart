@@ -16,6 +16,7 @@ import '../application/native_calibration_controller.dart';
 import '../application/native_league_controller.dart';
 import '../application/native_speech_controller.dart';
 import '../application/native_vision_controller.dart';
+import '../application/vision_session_coordinator.dart';
 import '../application/local_scout_controller.dart';
 import '../application/overlay_layout_controller.dart';
 import '../application/overlay_parity_logger.dart';
@@ -51,9 +52,6 @@ final overlayOpenProvider = StateProvider<bool>((ref) => false);
 final appProviderContainer = ProviderContainer();
 final overlayWindowManager = OverlayWindowManager(appProviderContainer);
 final overlayParityLogger = OverlayParityLogger();
-final forceNativeVision =
-    Platform.environment['GODSENSE_NATIVE_VISION_ALWAYS'] == '1';
-
 final effectiveGameProvider = Provider<GameSnapshot?>((ref) {
   final native = ref.watch(nativeLeagueProvider);
   return native.liveGame == null

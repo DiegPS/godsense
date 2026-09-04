@@ -75,6 +75,30 @@ void main() {
       await Future<void>.delayed(Duration.zero);
     },
   );
+  test(
+    'capture failure clears current frame without erasing history',
+    () async {
+      final runtime = _DelayedRuntime();
+      final controller = NativeVisionController(runtime: runtime);
+      addTearDown(controller.dispose);
+
+      final firstCapture = controller.captureOnce(bounds);
+      runtime.next.complete(_result());
+      await firstCapture;
+      expect(controller.state.frame, isNotNull);
+      expect(controller.state.identified, contains('Vex'));
+
+      runtime.next = Completer<VisionCaptureResult>();
+      final failedCapture = controller.captureOnce(bounds);
+      runtime.next.completeError(StateError('display changed'));
+      await failedCapture;
+
+      expect(controller.state.frame, isNull);
+      expect(controller.state.identified, isEmpty);
+      expect(controller.state.lastKnown, contains('Vex'));
+      expect(controller.state.error, contains('reintentando'));
+    },
+  );
 }
 
 VisionCaptureResult _result() => VisionCaptureResult(

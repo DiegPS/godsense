@@ -1,10 +1,11 @@
 import 'dart:async';
 import 'dart:isolate';
-import 'dart:typed_data';
 
+import 'package:flutter/services.dart';
+
+import 'desktop_screen_capture.dart';
 import 'dartcv_minimap_tracker.dart';
 import 'native_minimap_calibrator.dart';
-import 'win32_screen_capture.dart';
 
 class VisionCaptureResult {
   const VisionCaptureResult(
@@ -34,11 +35,11 @@ abstract class VisionRuntime {
 // Used inside the worker, or with explicitly injected test doubles.
 class LocalVisionRuntime implements VisionRuntime {
   LocalVisionRuntime({
-    Win32ScreenCapture? capture,
+    ScreenCaptureSource? capture,
     DartCvMinimapTracker? tracker,
-  }) : screen = capture ?? Win32ScreenCapture(),
+  }) : screen = capture ?? DesktopScreenCapture(),
        tracker = tracker ?? DartCvMinimapTracker();
-  final Win32ScreenCapture screen;
+  final ScreenCaptureSource screen;
   final DartCvMinimapTracker tracker;
   NativeVisionFrame? _previous;
   @override
@@ -57,11 +58,14 @@ class LocalVisionRuntime implements VisionRuntime {
     int size,
     bool preview,
   ) async {
-    final image = screen.capture(
+    final image = await screen.capture(
       left: (bounds['left'] as num).round(),
       top: (bounds['top'] as num).round(),
       width: (bounds['width'] as num).round(),
       height: (bounds['height'] as num).round(),
+      displayId: bounds['display_id']?.toString(),
+      localLeft: (bounds['local_left'] as num?)?.round(),
+      localTop: (bounds['local_top'] as num?)?.round(),
     );
     final frame = tracker.process(
       image,
@@ -94,6 +98,10 @@ class LocalVisionRuntime implements VisionRuntime {
 }
 
 class IsolateVisionRuntime implements VisionRuntime {
+  IsolateVisionRuntime({RootIsolateToken? rootIsolateToken})
+    : _rootIsolateToken = rootIsolateToken ?? RootIsolateToken.instance;
+
+  final RootIsolateToken? _rootIsolateToken;
   final _responses = ReceivePort();
   final _exits = ReceivePort();
   final _errors = ReceivePort();
@@ -128,7 +136,7 @@ class IsolateVisionRuntime implements VisionRuntime {
     unawaited(
       Isolate.spawn(
         _visionWorker,
-        _responses.sendPort,
+        (_responses.sendPort, _rootIsolateToken),
         onExit: _exits.sendPort,
         onError: _errors.sendPort,
         debugName: 'GodSense vision',
@@ -218,7 +226,7 @@ class IsolateVisionRuntime implements VisionRuntime {
       _closed.complete();
       return;
     }
-    // Let in-flight GDI/OpenCV finish and release their resources before exit.
+    // Let in-flight DXGI/OpenCV work finish and release resources before exit.
     _closing = true;
     unawaited(
       _request('close', null).then(
@@ -233,7 +241,11 @@ class IsolateVisionRuntime implements VisionRuntime {
   }
 }
 
-Future<void> _visionWorker(SendPort responses) async {
+Future<void> _visionWorker((SendPort, RootIsolateToken?) bootstrap) async {
+  final (responses, rootIsolateToken) = bootstrap;
+  if (rootIsolateToken != null) {
+    BackgroundIsolateBinaryMessenger.ensureInitialized(rootIsolateToken);
+  }
   final commands = ReceivePort();
   final runtime = LocalVisionRuntime();
   var released = false;

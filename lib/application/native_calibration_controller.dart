@@ -1,10 +1,12 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../domain/calibration_repository.dart';
 import '../domain/companion_models.dart';
 import '../infrastructure/native_vision/native_minimap_calibrator.dart';
+import '../infrastructure/native_vision/desktop_screen_capture.dart';
 import '../infrastructure/native_vision/shared_preferences_calibration_repository.dart';
 
 class NativeCalibrationState {
@@ -54,8 +56,11 @@ final nativeCalibrationProvider =
 
 class NativeCalibrationController
     extends StateNotifier<NativeCalibrationState> {
-  NativeCalibrationController(this._repository)
-    : super(const NativeCalibrationState()) {
+  NativeCalibrationController(
+    this._repository, {
+    ScreenCaptureSource? screenCapture,
+  }) : _screenCapture = screenCapture ?? DesktopScreenCapture(),
+       super(const NativeCalibrationState()) {
     _contextTimer = Timer.periodic(
       const Duration(seconds: 10),
       (_) => unawaited(refreshContext()),
@@ -63,6 +68,7 @@ class NativeCalibrationController
   }
 
   final CalibrationRepository _repository;
+  final ScreenCaptureSource _screenCapture;
   Timer? _contextTimer;
   bool _refreshing = false;
   bool _disposed = false;
@@ -102,13 +108,38 @@ class NativeCalibrationController
   void dispose() {
     _disposed = true;
     _contextTimer?.cancel();
+    _screenCapture.dispose();
     super.dispose();
   }
 
   Future<void> load() async {
     state = state.copyWith(loading: true, clearError: true);
     try {
-      final calibration = await _repository.load();
+      var calibration = await _repository.load();
+      if (calibration?.bounds != null) {
+        try {
+          final described = await _screenCapture.describeBounds(
+            calibration!.bounds!,
+          );
+          if (!mapEquals(described, calibration.bounds)) {
+            calibration = CalibrationState(
+              calibrated: calibration.calibrated,
+              recalibrationSuggested: calibration.recalibrationSuggested,
+              bounds: described,
+              iconSize: calibration.iconSize,
+              confidence: calibration.confidence,
+              defaultBounds: calibration.defaultBounds,
+              defaultIconSize: calibration.defaultIconSize,
+              defaultTrustworthy: calibration.defaultTrustworthy,
+              provenance: calibration.provenance,
+            );
+            await _repository.save(calibration);
+          }
+        } catch (_) {
+          // A disconnected monitor may return later. Keep the stable saved
+          // identity and let the continuous capture retry without data loss.
+        }
+      }
       if (_disposed) return;
       state = state.copyWith(
         loading: false,
@@ -134,7 +165,16 @@ class NativeCalibrationController
     double confidence = 1,
   }) async {
     _revision++;
-    final normalized = _validateBounds(bounds);
+    final validated = _validateBounds(bounds);
+    Map<String, dynamic> normalized = validated;
+    if ((validated['display_id']?.toString() ?? '').isEmpty) {
+      try {
+        normalized = await _screenCapture.describeBounds(validated);
+      } catch (_) {
+        // The calibration remains usable by absolute desktop coordinates. The
+        // next native capture resolves its display and can enrich a later save.
+      }
+    }
     final resolvedIconSize =
         iconSize ??
         ((normalized['width'] as int) * 0.088).round().clamp(16, 64);
@@ -196,7 +236,7 @@ class NativeCalibrationController
     final top = read('top');
     final width = read('width');
     final height = read('height');
-    if (left < 0 || top < 0 || width < 16 || height < 16) {
+    if (width < 16 || height < 16) {
       throw ArgumentError.value(bounds, 'bounds', 'Out-of-range bounds.');
     }
     final ratio = width / height;
@@ -207,6 +247,24 @@ class NativeCalibrationController
         'The minimap must be approximately square.',
       );
     }
-    return {'left': left, 'top': top, 'width': width, 'height': height};
+    return {
+      'left': left,
+      'top': top,
+      'width': width,
+      'height': height,
+      for (final key in const [
+        'display_id',
+        'display_name',
+        'display_left',
+        'display_top',
+        'display_width',
+        'display_height',
+        'display_dpi_scale',
+        'display_rotation',
+        'local_left',
+        'local_top',
+      ])
+        if (bounds[key] != null) key: bounds[key],
+    };
   }
 }

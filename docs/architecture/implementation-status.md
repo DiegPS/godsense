@@ -1,6 +1,6 @@
 # Native architecture implementation status
 
-- Updated: 2026-09-02
+- Updated: 2026-09-03
 - Scope: Native product foundation plus optional local AI runtime integration
 - Core runtime target: Flutter/Dart/C++ on Windows, without Python, Node.js or
   Electron. AI coaching may start one isolated, private OpenCode-compatible
@@ -14,8 +14,8 @@
 | Core runtime | League, vision, deterministic coaching, voice and persistence remain in-process and do not require a backend | Legacy runtime sources, unused backend placeholders, and Dio dependency removed |
 | Optional AI runtime | Version-pinned OpenCode/Kilo packages, isolated process lifecycle, dynamic loopback port, ephemeral Basic Auth, health gating and Windows Job Object cleanup | Real OpenCode 1.18.25 and Kilo 7.5.9 installations pass process/API integration tests |
 | AI local API | Shared typed client covers providers, auth methods, sessions, messages, async prompt, abort, delete and SSE | Same integration test passes against both runtimes without inference or billing |
-| Vision | Win32 capture plus DartCV processing | Exact parity on 120 synthetic and 866 real frames |
-| Calibration | Native detection, validation, persistence, and UI | Controller tests |
+| Vision | Continuous DXGI Desktop Duplication capture plus isolated DartCV processing; independent from League focus and game phase | Exact parity on 120 synthetic and 866 real frames; real Windows DXGI smoke run |
+| Calibration | Automatic search across every corner of every active monitor, manual adjustment, stable display identity, mixed-DPI/negative-coordinate persistence and migration | Controller, topology, and multi-display tests |
 | Account lifetime | `AccountContext` survives a game and changes only with account identity | Coordinator tests |
 | Game lifetime | Champ Select through Post Game shares one logical generation | Coordinator and foundation tests |
 | LCU compatibility | Granular capability results; known endpoint probing only | Probe tests |
@@ -52,6 +52,13 @@ The latest complete real-corpus run processed 866 frames with:
 
 The 19.98 ms result is the honest end-to-end comparator measurement for that
 run. It is not reported as less than 10 ms.
+
+The 2026-09-03 native desktop smoke run captured the persisted 527x532 minimap
+region continuously without League running. Stable samples measured DXGI at
+1.48-2.62 ms/frame and DartCV at 23.53-31.60 ms/frame. Desktop Duplication
+keeps its last valid desktop texture when Windows reports no visual change and
+recreates its session after display/mode loss; the UI clears current detections
+instead of retaining a frozen frame on capture errors.
 
 ## Deliberately not copied from the old coach
 

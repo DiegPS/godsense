@@ -9,7 +9,7 @@ import '../domain/companion_models.dart';
 import '../domain/summoners_rift_map.dart';
 import '../infrastructure/native_vision/dartcv_minimap_tracker.dart';
 import '../infrastructure/native_vision/native_minimap_calibrator.dart';
-import '../infrastructure/native_vision/win32_screen_capture.dart';
+import '../infrastructure/native_vision/desktop_screen_capture.dart';
 import '../infrastructure/native_vision/vision_icon_cache.dart';
 import '../infrastructure/native_vision/vision_runtime.dart';
 
@@ -209,7 +209,7 @@ final nativeVisionProvider =
 
 class NativeVisionController extends StateNotifier<NativeVisionState> {
   NativeVisionController({
-    Win32ScreenCapture? capture,
+    ScreenCaptureSource? capture,
     DartCvMinimapTracker? tracker,
     VisionIconCache? iconCache,
     VisionRuntime? runtime,
@@ -277,8 +277,6 @@ class NativeVisionController extends StateNotifier<NativeVisionState> {
   final List<int> _cvSamples = [];
   final List<int> _captureSamples = [];
   int _performanceLogFrame = 0;
-  bool _calibrating = false;
-  DateTime? _lastCalibrationAttempt;
   String _localRole = '';
   Map<String, String> _enemyRoles = const {};
   final Set<String> _activeGanks = {};
@@ -305,15 +303,10 @@ class NativeVisionController extends StateNotifier<NativeVisionState> {
       return;
     }
     if (bounds == null) {
-      if (!_calibrating) stop();
-      state = state.copyWith(error: 'Calibrando minimapa automáticamente…');
-      final now = DateTime.now();
-      if (!_calibrating &&
-          (_lastCalibrationAttempt == null ||
-              now.difference(_lastCalibrationAttempt!).inSeconds >= 10)) {
-        _lastCalibrationAttempt = now;
-        unawaited(_autoDetectAndStart());
-      }
+      stop();
+      state = state.copyWith(
+        error: 'Calibra el minimapa una vez para comenzar a vigilarlo.',
+      );
       return;
     }
     final width = (bounds['width'] as num?)?.round() ?? 0;
@@ -549,54 +542,6 @@ class NativeVisionController extends StateNotifier<NativeVisionState> {
     }
   }
 
-  Future<void> _autoDetectAndStart() async {
-    _calibrating = true;
-    try {
-      final epoch = _frameEpoch;
-      final proposal = await _runtime.detectCalibration();
-      if (_disposed || epoch != _frameEpoch) return;
-      final width = (proposal.bounds['width'] as num).toDouble();
-      final height = (proposal.bounds['height'] as num).toDouble();
-      final ratio = width / height;
-      if (ratio < 0.75 || ratio > 1.33 || proposal.confidence < 0.25) {
-        throw StateError(
-          'Calibración nativa no confiable: '
-          '${width.round()}x${height.round()}, '
-          '${(proposal.confidence * 100).toStringAsFixed(1)}%.',
-        );
-      }
-      _resetTracking();
-      state = state.copyWith(
-        calibrationProposal: proposal,
-        bounds: proposal.bounds,
-        clearError: true,
-      );
-      _iconSize = proposal.iconSize;
-      if (!state.running) {
-        state = state.copyWith(running: true);
-        _timer = Timer.periodic(
-          const Duration(milliseconds: 167),
-          (_) => unawaited(_captureAndProcess()),
-        );
-        await _captureAndProcess();
-      }
-      _appendLog(
-        TrackerLogEntry(
-          timestamp: proposal.detectedAt,
-          source: TrackerLogSource.native,
-          event: 'native_calibration_applied',
-          message:
-              '${proposal.bounds} · icon ${proposal.iconSize}px · '
-              'confidence=${proposal.confidence.toStringAsFixed(3)}',
-        ),
-      );
-    } catch (error) {
-      if (!_disposed) state = state.copyWith(error: error.toString());
-    } finally {
-      _calibrating = false;
-    }
-  }
-
   void stop() {
     _frameEpoch++;
     _timer?.cancel();
@@ -649,7 +594,7 @@ class NativeVisionController extends StateNotifier<NativeVisionState> {
             source: TrackerLogSource.native,
             event: 'performance',
             message:
-                'GDI avg=${averageCapture.toStringAsFixed(2)} ms · CV avg=${averageCv.toStringAsFixed(2)} ms · '
+                'DXGI avg=${averageCapture.toStringAsFixed(2)} ms · CV avg=${averageCv.toStringAsFixed(2)} ms · '
                 'CV p95=${p95Cv.toStringAsFixed(2)} ms · '
                 'identified=${frame.detections.where((d) => d.championName != null).length}/${frame.detections.length} · '
                 'templates=${_loadedNames.length} at ${_targetIconSize ?? 0}px · captureIcon=${_iconSize}px · '
@@ -667,7 +612,7 @@ class NativeVisionController extends StateNotifier<NativeVisionState> {
             source: TrackerLogSource.native,
             event: 'capture_started',
             message:
-                '${capture.width}x${capture.height} BGRA via GDI · processing ${frame.processingTime.inMilliseconds} ms',
+                '${capture.width}x${capture.height} BGRA via DXGI · processing ${frame.processingTime.inMilliseconds} ms',
             detectionCount: frame.detections.length,
           ),
         );
@@ -733,7 +678,13 @@ class NativeVisionController extends StateNotifier<NativeVisionState> {
         _lastErrorMessage = message;
         _lastErrorLoggedAt = now;
       }
-      state = state.copyWith(processing: false, error: error.toString());
+      _activeGanks.clear();
+      state = state.copyWith(
+        processing: false,
+        identified: const {},
+        clearFrame: true,
+        error: 'Captura temporalmente no disponible; reintentando… $error',
+      );
     } finally {
       _captureInProgress = false;
     }

@@ -2,8 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:godsense/infrastructure/native_vision/desktop_screen_capture.dart';
 import 'package:godsense/infrastructure/native_vision/native_minimap_calibrator.dart';
-import 'package:godsense/infrastructure/native_vision/win32_screen_capture.dart';
 
 void main() {
   final appData = Platform.environment['APPDATA'];
@@ -17,7 +17,7 @@ void main() {
       final metadata = jsonDecode(
         await File('${directory!.path}\\corpus.json').readAsString(),
       ) as List;
-      final capture = Win32ScreenCapture();
+      final capture = DesktopScreenCapture();
       final calibrator = NativeMinimapCalibrator(capture);
       addTearDown(capture.dispose);
       for (final rawCase in metadata) {

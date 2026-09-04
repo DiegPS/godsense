@@ -41,8 +41,16 @@ String _calibrationDescription(CalibrationState? calibration) {
   }
   final bounds = calibration.effectiveBounds;
   if (bounds == null) return 'El área del minimapa está configurada.';
+  final displayName = bounds['display_name']?.toString() ?? '';
+  final displayMatch = RegExp(
+    r'DISPLAY(\d+)',
+    caseSensitive: false,
+  ).firstMatch(displayName);
+  final displayLabel = displayMatch == null
+      ? ''
+      : ' en la pantalla ${displayMatch.group(1)}';
   return calibration.calibrated
-      ? 'Área del minimapa guardada y lista para detectar alertas.'
+      ? 'Área del minimapa guardada$displayLabel y lista para detectar alertas.'
       : 'Área estimada automáticamente; puedes ajustarla si no coincide.';
 }
 

@@ -6,21 +6,15 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:godsense/application/native_vision_controller.dart';
 import 'package:godsense/infrastructure/native_vision/dartcv_minimap_tracker.dart';
 import 'package:godsense/infrastructure/native_vision/vision_icon_cache.dart';
-import 'package:godsense/infrastructure/native_vision/win32_screen_capture.dart';
+import 'package:godsense/infrastructure/native_vision/desktop_screen_capture.dart';
 import 'package:godsense/infrastructure/native_vision/vision_runtime.dart';
 import 'package:opencv_dart/opencv.dart' as cv;
 
 void main() {
-  test('worker captures GDI and shuts down cleanly', () async {
+  test('vision worker starts and shuts down cleanly', () async {
     final worker = IsolateVisionRuntime();
     try {
-      final capture = await worker.capture(
-        {'left': 0, 'top': 0, 'width': 64, 'height': 64},
-        28,
-        true,
-      );
-      expect(capture.width, 64);
-      expect(capture.frame.capturePng, isNotEmpty);
+      expect(await worker.setTargets({}, 28), isEmpty);
     } finally {
       worker.dispose();
       await worker.closed;

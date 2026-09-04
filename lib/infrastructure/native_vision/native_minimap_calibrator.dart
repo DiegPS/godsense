@@ -2,10 +2,9 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:opencv_dart/opencv.dart' as cv;
-import 'package:win32/win32.dart';
 
-import 'win32_screen_capture.dart';
 import '../league/league_installation.dart';
+import 'desktop_screen_capture.dart';
 
 class NativeCalibrationResult {
   const NativeCalibrationResult({
@@ -24,34 +23,77 @@ class NativeCalibrationResult {
 }
 
 class NativeMinimapCalibrator {
-  NativeMinimapCalibrator(this.capture);
+  NativeMinimapCalibrator(
+    this.capture, {
+    Map<String, num> Function()? configReader,
+  }) : _configReader = configReader ?? LeagueConfigSource().read;
 
-  final Win32ScreenCapture capture;
+  final ScreenCaptureSource capture;
+  final Map<String, num> Function() _configReader;
 
-  NativeCalibrationResult detect() {
-    final config = LeagueConfigSource().read();
-    final displayWidth =
-        config['width']?.toInt() ?? GetSystemMetrics(SM_CXSCREEN);
-    final displayHeight =
-        config['height']?.toInt() ?? GetSystemMetrics(SM_CYSCREEN);
-    final scale = config['minimapscale']?.toDouble() ?? 1.3;
-    final priorSize = (displayHeight * scale * 0.119).round().clamp(120, 900);
-    final roiSide = math.min(
-      math.min(displayWidth, displayHeight),
-      math.max(
-        (2.2 * priorSize).round(),
-        (0.5 * math.min(displayWidth, displayHeight)).round(),
-      ),
-    );
-    final roiLeft = displayWidth - roiSide;
-    final roiTop = displayHeight - roiSide;
-    final captured = capture.capture(
-      left: roiLeft,
-      top: roiTop,
-      width: roiSide,
-      height: roiSide,
-    );
-    return _detectCaptured(captured, roiLeft, roiTop, priorSize);
+  Future<NativeCalibrationResult> detect() async {
+    final config = _configReader();
+    final displays = await capture.getDisplays();
+    NativeCalibrationResult? best;
+    Object? lastError;
+    for (final display in displays) {
+      final configuredHeight = config['height']?.toInt();
+      final referenceHeight = configuredHeight != null && configuredHeight > 0
+          ? configuredHeight
+          : display.height;
+      final scale = config['minimapscale']?.toDouble() ?? 1.3;
+      final priorSize = (referenceHeight * scale * 0.119)
+          .round()
+          .clamp(120, math.min(900, math.min(display.width, display.height)))
+          .toInt();
+      final roiSide = math
+          .min(
+            math.min(display.width, display.height),
+            math.max(
+              (2.2 * priorSize).round(),
+              (0.5 * math.min(display.width, display.height)).round(),
+            ),
+          )
+          .toInt();
+      final positions = <(int, int)>{
+        (display.left, display.top),
+        (display.left + display.width - roiSide, display.top),
+        (display.left, display.top + display.height - roiSide),
+        (
+          display.left + display.width - roiSide,
+          display.top + display.height - roiSide,
+        ),
+      };
+      for (final (roiLeft, roiTop) in positions) {
+        try {
+          final captured = await capture.capture(
+            left: roiLeft,
+            top: roiTop,
+            width: roiSide,
+            height: roiSide,
+            displayId: display.id,
+            localLeft: roiLeft - display.left,
+            localTop: roiTop - display.top,
+          );
+          final detected = _detectCaptured(
+            captured,
+            roiLeft,
+            roiTop,
+            priorSize,
+            display: display,
+          );
+          if (best == null || detected.confidence > best.confidence) {
+            best = detected;
+          }
+        } catch (error) {
+          lastError = error;
+        }
+      }
+    }
+    if (best == null) {
+      throw StateError('No se pudo leer ninguna pantalla: $lastError');
+    }
+    return best;
   }
 
   NativeCalibrationResult detectBgr(
@@ -90,8 +132,9 @@ class NativeMinimapCalibrator {
     CapturedRegion captured,
     int roiLeft,
     int roiTop,
-    int priorSize,
-  ) {
+    int priorSize, {
+    CaptureDisplay? display,
+  }) {
     final bgra = cv.Mat.fromList(
       captured.height,
       captured.width,
@@ -126,12 +169,13 @@ class NativeMinimapCalibrator {
             .clamp(1, math.min(captured.width, captured.height))
             .toInt();
         return NativeCalibrationResult(
-          bounds: {
-            'left': roiLeft + captured.width - size,
-            'top': roiTop + captured.height - size,
-            'width': size,
-            'height': size,
-          },
+          bounds: _bounds(
+            display,
+            left: roiLeft + captured.width - size,
+            top: roiTop + captured.height - size,
+            width: size,
+            height: size,
+          ),
           iconSize: _deriveIconSize(size),
           confidence: 0,
           edgesPng: cv.imencode('.png', edges).$2,
@@ -165,12 +209,13 @@ class NativeMinimapCalibrator {
       final confidence =
           0.5 * lineConfidence + 0.25 * squareness + 0.25 * sizeMatch;
       return NativeCalibrationResult(
-        bounds: {
-          'left': roiLeft + left,
-          'top': roiTop + top,
-          'width': width,
-          'height': height,
-        },
+        bounds: _bounds(
+          display,
+          left: roiLeft + left,
+          top: roiTop + top,
+          width: width,
+          height: height,
+        ),
         iconSize: _deriveIconSize(width),
         confidence: confidence,
         edgesPng: cv.imencode('.png', edges).$2,
@@ -182,6 +227,21 @@ class NativeMinimapCalibrator {
       bgra.dispose();
     }
   }
+
+  Map<String, dynamic> _bounds(
+    CaptureDisplay? display, {
+    required int left,
+    required int top,
+    required int width,
+    required int height,
+  }) =>
+      display?.enrichBounds(
+        regionLeft: left,
+        regionTop: top,
+        regionWidth: width,
+        regionHeight: height,
+      ) ??
+      {'left': left, 'top': top, 'width': width, 'height': height};
 
   int _nearestStrongBelow(List<int> strong, int limit, double target) {
     final candidates = strong.where((value) => value < limit);

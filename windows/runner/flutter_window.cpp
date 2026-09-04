@@ -1,11 +1,15 @@
 #include "flutter_window.h"
 
+#include "desktop_capture_plugin.h"
+
 #include <flutter_secure_storage_windows/flutter_secure_storage_windows_plugin.h>
 #include <multiview_desktop/multi_view_desktop_plugin.h>
 
 namespace {
 
 void RegisterApplicationPlugins(FlutterDesktopEngineRef engine) {
+  DesktopCapturePluginRegisterWithRegistrar(
+      FlutterDesktopEngineGetPluginRegistrar(engine, "DesktopCapturePlugin"));
   FlutterSecureStorageWindowsPluginRegisterWithRegistrar(
       FlutterDesktopEngineGetPluginRegistrar(
           engine, "FlutterSecureStorageWindowsPlugin"));

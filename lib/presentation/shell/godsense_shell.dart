@@ -88,6 +88,7 @@ class _GodSenseHomeState extends ConsumerState<GodSenseHome> {
   @override
   Widget build(BuildContext context) {
     final selectedPage = ref.watch(selectedPageProvider);
+    ref.watch(visionSessionCoordinatorProvider);
     final backend = ref.watch(companionControllerProvider);
     final nativeLeague = ref.watch(nativeLeagueProvider);
     final overlayLayout = ref.watch(overlayLayoutProvider);
@@ -161,57 +162,6 @@ class _GodSenseHomeState extends ConsumerState<GodSenseHome> {
         ref.read(effectiveGameProvider),
       );
     });
-    ref.listen(nativeLeagueProvider, (previous, next) {
-      final game = next.liveGame == null
-          ? null
-          : GameSnapshot.fromJson(next.liveGame!);
-      final calibration = ref.read(nativeCalibrationProvider).calibration;
-      final activePlayer = game?.raw['active_player'];
-      unawaited(
-        ref
-            .read(nativeVisionProvider.notifier)
-            .configureTargets(
-              game?.enemies ?? const [],
-              localRole: activePlayer is Map
-                  ? activePlayer['role']?.toString()
-                  : null,
-              iconSize: calibration?.trackingIconSize ?? 28,
-            ),
-      );
-      ref
-          .read(nativeVisionProvider.notifier)
-          .configure(
-            enabled: forceNativeVision || (game != null && !game.gameEnded),
-            calibrationStale: calibration?.recalibrationSuggested ?? false,
-            bounds: calibration?.trackingBounds,
-            iconSize: calibration?.trackingIconSize ?? 28,
-          );
-    });
-    ref.listen(nativeCalibrationProvider, (previous, next) {
-      final calibration = next.calibration;
-      final game = ref.read(effectiveGameProvider);
-      final activePlayer = game?.raw['active_player'];
-      unawaited(
-        ref
-            .read(nativeVisionProvider.notifier)
-            .configureTargets(
-              game?.enemies ?? const [],
-              localRole: activePlayer is Map
-                  ? activePlayer['role']?.toString()
-                  : null,
-              iconSize: calibration?.trackingIconSize ?? 28,
-            ),
-      );
-      ref
-          .read(nativeVisionProvider.notifier)
-          .configure(
-            enabled: forceNativeVision || (game != null && !game.gameEnded),
-            calibrationStale: calibration?.recalibrationSuggested ?? false,
-            bounds: calibration?.trackingBounds,
-            iconSize: calibration?.trackingIconSize ?? 28,
-          );
-    });
-
     final content = switch (selectedPage) {
       0 => const OverviewPage(),
       1 => const LivePage(),
