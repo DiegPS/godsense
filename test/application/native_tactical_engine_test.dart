@@ -75,6 +75,69 @@ void main() {
     expect(engine.directives(_game(gold: 0)).single.id, 'neutral_setup');
   });
 
+  test('uses the dynamic gold threshold produced by live processing', () {
+    expect(
+      engine.directives(_game(gold: 900, goldThreshold: 800)).single.id,
+      'convert_lead',
+    );
+    expect(
+      engine.directives(_game(gold: 900, goldThreshold: 1200)).single.id,
+      'neutral_setup',
+    );
+  });
+
+  test('converts a safe numerical advantage into an available objective', () {
+    final advice = engine
+        .directives(
+          _game(
+            gameTime: 1300,
+            allies: [
+              {'role': 'TOP', 'is_dead': false},
+              {'role': 'JUNGLE', 'is_dead': false},
+              {'role': 'MIDDLE', 'is_dead': false},
+              {'role': 'BOTTOM', 'is_dead': false},
+              {'role': 'UTILITY', 'is_dead': false},
+            ],
+            enemies: [
+              {'is_dead': false},
+              {'is_dead': false},
+              {'is_dead': false},
+              {'is_dead': true, 'respawn_timer': 28},
+              {'is_dead': true, 'respawn_timer': 35},
+            ],
+            objectives: {
+              'baron': {'status': 'alive', 'respawn_in': 0},
+            },
+          ),
+        )
+        .single;
+
+    expect(advice.id, 'convert_number_advantage');
+    expect(advice.title, contains('5 vs 3'));
+    expect(advice.hints.first, contains('Barón'));
+    expect(advice.evidence.single.source, FactSource.liveClient);
+  });
+
+  test('refuses fights while the team is observably outnumbered', () {
+    final advice = engine
+        .directives(
+          _game(
+            allies: [
+              {'is_dead': false},
+              {'is_dead': false},
+              {'is_dead': false},
+              {'is_dead': true, 'respawn_timer': 12},
+              {'is_dead': true, 'respawn_timer': 20},
+            ],
+            enemies: List.generate(5, (_) => {'is_dead': false}),
+          ),
+        )
+        .single;
+
+    expect(advice.id, 'avoid_outnumbered_fight');
+    expect(advice.title, contains('3 vs 5'));
+  });
+
   test('withholds fabricated builds while producing transparent analysis', () {
     final result = engine.analyze(
       lobby: {
@@ -393,13 +456,20 @@ void main() {
 
 Map<String, dynamic> _game({
   int gold = 0,
+  int? goldThreshold,
+  double gameTime = 600,
   bool dead = false,
   Map<String, dynamic> objectives = const {},
   Map<String, dynamic> laneStates = const {},
+  List<Map<String, dynamic>> allies = const [],
+  List<Map<String, dynamic>> enemies = const [],
 }) => {
-  'game_time': 600.0,
+  'game_time': gameTime,
   'phase': 'MID',
   'team_gold_diff': gold,
+  'team_state_threshold': ?goldThreshold,
+  'allies': allies,
+  'enemies': enemies,
   'active_player': {
     'champion_name': 'Ahri',
     'is_dead': dead,

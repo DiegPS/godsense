@@ -221,8 +221,14 @@ class NativeTacticalEngine {
     }
     if (objectiveAdvice != null) return [objectiveAdvice];
 
+    final numericalAdvice = _numericalAdvantageDirective(game, now, gameTime);
+    if (numericalAdvice != null) return [numericalAdvice];
+
     final gold = (game['team_gold_diff'] as num?)?.toInt() ?? 0;
-    if (gold <= -1000) {
+    final threshold =
+        (game['team_state_threshold'] as num?)?.toInt().abs() ?? 1000;
+    final relativeGold = _relativeGoldDifference(game, gold);
+    if (gold <= -threshold) {
       return [
         TacticalAdvice(
           id: 'recover_resources',
@@ -231,7 +237,8 @@ class NativeTacticalEngine {
             'Recoge la oleada segura más cercana.',
             'Cede visión profunda si no tienes prioridad.',
           ],
-          rationale: 'El equipo está por detrás en oro ($gold).',
+          rationale:
+              'El equipo está por detrás en oro ($gold; ${relativeGold.abs().toStringAsFixed(1)}% respecto al oro rival). El umbral dinámico actual es $threshold.',
           ttsText: 'Están por detrás. Recoge recursos seguros y evita pelear sin ventaja.',
           priority: 70,
           evidence: [
@@ -240,7 +247,7 @@ class NativeTacticalEngine {
         ),
       ];
     }
-    if (gold >= 1000) {
+    if (gold >= threshold) {
       return [
         TacticalAdvice(
           id: 'convert_lead',
@@ -249,7 +256,8 @@ class NativeTacticalEngine {
             'Empuja antes de entrar al río.',
             'Invade sólo con líneas con prioridad.',
           ],
-          rationale: 'El equipo tiene una ventaja de oro de $gold.',
+          rationale:
+              'El equipo tiene una ventaja de oro de $gold (${relativeGold.toStringAsFixed(1)}% respecto al oro rival). El umbral dinámico actual es $threshold.',
           ttsText: 'Tienen ventaja. Empuja y conviértela en visión u objetivo.',
           priority: 60,
           evidence: [
@@ -266,7 +274,8 @@ class NativeTacticalEngine {
           'Empuja tu oleada antes de moverte.',
           'Comprueba posiciones enemigas en el minimapa.',
         ],
-        rationale: 'La diferencia de oro está equilibrada ($gold).',
+        rationale:
+            'La diferencia de oro está dentro del umbral dinámico ±$threshold ($gold).',
         ttsText:
             'La partida está pareja. Empuja primero y juega con información.',
         priority: 40,
@@ -684,6 +693,80 @@ class NativeTacticalEngine {
     );
   }
 
+  TacticalAdvice? _numericalAdvantageDirective(
+    Map<String, dynamic> game,
+    DateTime now,
+    double? gameTime,
+  ) {
+    final allies = _mapList(game['allies']);
+    final enemies = _mapList(game['enemies']);
+    if (allies.length < 3 || enemies.length < 3) return null;
+    final alliesAlive = allies.where((player) => player['is_dead'] != true);
+    final enemiesAlive = enemies.where((player) => player['is_dead'] != true);
+    final difference = alliesAlive.length - enemiesAlive.length;
+    if (difference.abs() < 2) return null;
+
+    final deadEnemies = enemies.where((player) => player['is_dead'] == true);
+    final deadAllies = allies.where((player) => player['is_dead'] == true);
+    final window = difference > 0
+        ? _shortestRespawn(deadEnemies)
+        : _shortestRespawn(deadAllies);
+    final windowLabel = window == null ? '' : ' durante unos $window segundos';
+    if (difference < 0) {
+      return TacticalAdvice(
+        id: 'avoid_outnumbered_fight',
+        title: '${alliesAlive.length} vs ${enemiesAlive.length}: no fuerces',
+        hints: const [
+          'Limpia la oleada desde una posición segura.',
+          'Espera reapariciones antes de disputar río o estructuras.',
+        ],
+        rationale:
+            'El equipo está en desventaja numérica observable$windowLabel.',
+        ttsText:
+            'Están ${alliesAlive.length} contra ${enemiesAlive.length}. No pelees hasta recuperar jugadores.',
+        priority: 92,
+        evidence: [
+          _evidence(
+            'live_number_disadvantage',
+            FactSource.liveClient,
+            now,
+            gameTime,
+          ),
+        ],
+      );
+    }
+
+    final objectives = _map(_map(game['derived'])['objectives']);
+    final alliedJunglerAlive = alliesAlive.any(
+      (player) => player['role']?.toString().toUpperCase() == 'JUNGLE',
+    );
+    final target = alliedJunglerAlive
+        ? _availablePowerPlayObjective(objectives, gameTime ?? 0)
+        : null;
+    final action = target == null
+        ? 'Empuja una línea y convierte la ventaja en estructura o visión profunda.'
+        : 'Asegura ${_objectiveLabel(target)} con prioridad y control de accesos.';
+    return TacticalAdvice(
+      id: 'convert_number_advantage',
+      title:
+          '${alliesAlive.length} vs ${enemiesAlive.length}: ventana de poder',
+      hints: [action, 'No persigas bajas fuera del tiempo de reaparición.'],
+      rationale:
+          'El equipo tiene superioridad numérica observable$windowLabel${alliedJunglerAlive ? '' : '; el jungla aliado no está disponible para asegurar un objetivo neutral'}.',
+      ttsText:
+          'Están ${alliesAlive.length} contra ${enemiesAlive.length}$windowLabel. $action',
+      priority: 94,
+      evidence: [
+        _evidence(
+          'live_number_advantage',
+          FactSource.liveClient,
+          now,
+          gameTime,
+        ),
+      ],
+    );
+  }
+
   TacticalAdvice? _objectiveDirective(
     Map<String, dynamic> objectives,
     DateTime now,
@@ -717,6 +800,37 @@ class NativeTacticalEngine {
       ],
     );
   }
+}
+
+double _relativeGoldDifference(Map<String, dynamic> game, int difference) {
+  final enemyGold = _mapList(game['enemies']).fold<int>(
+    0,
+    (total, player) => total + ((player['gold_total'] as num?)?.toInt() ?? 0),
+  );
+  return enemyGold <= 0 ? 0 : difference / enemyGold * 100;
+}
+
+int? _shortestRespawn(Iterable<Map<String, dynamic>> players) {
+  final timers =
+      players
+          .map((player) => (player['respawn_timer'] as num?)?.round())
+          .whereType<int>()
+          .where((seconds) => seconds > 0)
+          .toList()
+        ..sort();
+  return timers.firstOrNull;
+}
+
+String? _availablePowerPlayObjective(
+  Map<String, dynamic> objectives,
+  double gameTime,
+) {
+  bool alive(String key) => _map(objectives[key])['status'] == 'alive';
+  if (gameTime >= 1200 && alive('baron')) return 'baron';
+  if (alive('dragon')) return 'dragon';
+  if (alive('herald')) return 'herald';
+  if (alive('void_grubs')) return 'void_grubs';
+  return null;
 }
 
 List<String> _itemNames(Map<String, dynamic>? group) =>
