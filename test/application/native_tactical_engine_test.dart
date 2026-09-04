@@ -234,6 +234,38 @@ void main() {
     expect(answer.evidence.last.confidence, 0.93);
   });
 
+  test('recognizes broader offline tactical intents', () {
+    expect(engine.supportsQuestion('¿Le gano en all-in?'), isTrue);
+    expect(engine.supportsQuestion('¿Me armo penetración mágica?'), isTrue);
+    expect(engine.supportsQuestion('¿Cuánto falta para dragón?'), isTrue);
+    expect(engine.supportsQuestion('¿Tienen Flash?'), isTrue);
+    expect(engine.supportsQuestion('Cuéntame un chiste'), isFalse);
+  });
+
+  test('reports enemy summoner spells without inventing cooldown state', () {
+    final answer = engine.answer(
+      question: '¿Tienen Flash?',
+      game: {
+        ..._game(),
+        'enemies': [
+          {
+            'champion_name': 'Vex',
+            'summoner_spells': ['Flash', 'Ignite'],
+          },
+          {
+            'champion_name': 'Vi',
+            'summoner_spells': ['Smite', 'Flash'],
+          },
+        ],
+      },
+    );
+
+    expect(answer.id, 'voice_summoner_spells');
+    expect(answer.ttsText, contains('Vex y Vi'));
+    expect(answer.ttsText, contains('No puedo confirmar'));
+    expect(answer.evidence.last.source, FactSource.liveClient);
+  });
+
   test('does not invent a jungler position without vision evidence', () {
     final answer = engine.answer(
       question: '¿Dónde está el jungla?',

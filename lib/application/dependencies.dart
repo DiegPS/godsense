@@ -152,6 +152,9 @@ final nativeVoiceCoachProvider =
             lobby: league.lobby,
             sightings: sightings,
           );
+          if (engine.supportsQuestion(question)) {
+            return deterministic;
+          }
           final supervisor = ref.read(aiRuntimeSupervisorProvider);
           final selection = ref.read(aiModelSelectionProvider).selected;
           final conversation = ref.read(aiConversationProvider);

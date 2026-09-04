@@ -6,6 +6,56 @@ class NativeTacticalEngine {
 
   final DateTime Function() _now;
 
+  /// Whether this engine can answer the question from verified local data.
+  /// Unknown intents can be delegated to the configured AI coach, while known
+  /// intents stay fast, deterministic and available offline.
+  bool supportsQuestion(String question) {
+    final normalized = _normalize(question);
+    return _containsAny(normalized, const [
+      'compro',
+      'comprar',
+      'compra',
+      'build',
+      'objeto',
+      'item',
+      'penetracion',
+      'como voy',
+      'estado',
+      'marcador',
+      'oro',
+      'ventaja',
+      'desventaja',
+      'kda',
+      'mi linea',
+      'la linea',
+      'estado de linea',
+      'estado del carril',
+      'mi carril',
+      'fase de lineas',
+      'matchup',
+      'enfrentamiento',
+      'contra quien',
+      'mi rival',
+      'rival de linea',
+      'all in',
+      'intercambio',
+      'trade',
+      'jungla',
+      'jungler',
+      'invade',
+      'invadir',
+      'invasion',
+      'dragon',
+      'baron',
+      'heraldo',
+      'objetivo',
+      'flash',
+      'destello',
+      'hechizo de invocador',
+      'hechizos de invocador',
+    ]);
+  }
+
   TacticalAdvice answer({
     required String question,
     Map<String, dynamic>? game,
@@ -30,6 +80,7 @@ class NativeTacticalEngine {
       'build',
       'objeto',
       'item',
+      'penetracion',
     ])) {
       return _buildAnswer(_map(context['builds']), userEvidence, now, gameTime);
     }
@@ -63,11 +114,20 @@ class NativeTacticalEngine {
       'contra quien',
       'mi rival',
       'rival de linea',
+      'all in',
+      'intercambio',
+      'trade',
     ])) {
       return _matchupAnswer(context, userEvidence, now, gameTime);
     }
 
-    if (_containsAny(normalized, const ['jungla', 'jungler'])) {
+    if (_containsAny(normalized, const [
+      'jungla',
+      'jungler',
+      'invade',
+      'invadir',
+      'invasion',
+    ])) {
       final recent = [...sightings]
         ..sort((left, right) => right.observedAt.compareTo(left.observedAt));
       final sighting = recent.firstOrNull;
@@ -122,6 +182,15 @@ class NativeTacticalEngine {
       'objetivo',
     ])) {
       return _objectiveAnswer(normalized, game, userEvidence, now, gameTime);
+    }
+
+    if (_containsAny(normalized, const [
+      'flash',
+      'destello',
+      'hechizo de invocador',
+      'hechizos de invocador',
+    ])) {
+      return _summonerSpellAnswer(game, userEvidence, now, gameTime);
     }
 
     final current = directives(game);
@@ -693,6 +762,66 @@ class NativeTacticalEngine {
     );
   }
 
+  TacticalAdvice _summonerSpellAnswer(
+    Map<String, dynamic>? game,
+    TacticalEvidence question,
+    DateTime now,
+    double? gameTime,
+  ) {
+    if (game == null || game['_game_ended'] == true) {
+      return TacticalAdvice(
+        id: 'voice_summoner_spells_unavailable',
+        title: 'Hechizos no disponibles',
+        hints: const ['Inicia una partida para leer los hechizos equipados.'],
+        rationale: 'Live Client no aporta una partida activa.',
+        ttsText: 'No tengo una partida activa para consultar los hechizos.',
+        priority: 20,
+        evidence: [question],
+      );
+    }
+    final enemies = _mapList(game['enemies']);
+    final withFlash = enemies
+        .where((player) {
+          final spells =
+              (player['summoner_spells'] as List?)?.map(
+                (spell) => _normalize(spell.toString()),
+              ) ??
+              const Iterable<String>.empty();
+          return spells.any(
+            (spell) => spell.contains('flash') || spell.contains('destello'),
+          );
+        })
+        .toList(growable: false);
+    final champions = withFlash
+        .map(_champion)
+        .where((name) => name.isNotEmpty)
+        .toList(growable: false);
+    final summary = champions.isEmpty
+        ? 'No veo Destello entre los hechizos enemigos cargados.'
+        : 'Llevan Destello: ${_joinNames(champions)}.';
+    return TacticalAdvice(
+      id: 'voice_summoner_spells',
+      title: 'Hechizos enemigos observados',
+      hints: [
+        summary,
+        'GodSense conoce la selección, pero no confirma todavía si el hechizo está disponible o en enfriamiento.',
+      ],
+      rationale: 'Los nombres proceden del snapshot de Live Client; esa fuente no expone el cooldown actual del hechizo enemigo.',
+      ttsText:
+          '$summary No puedo confirmar todavía si está disponible o en enfriamiento.',
+      priority: 65,
+      evidence: [
+        question,
+        _evidence(
+          'enemy_summoner_spell_selection',
+          FactSource.liveClient,
+          now,
+          gameTime,
+        ),
+      ],
+    );
+  }
+
   TacticalAdvice? _numericalAdvantageDirective(
     Map<String, dynamic> game,
     DateTime now,
@@ -856,7 +985,10 @@ String _normalize(String value) => value
     .replaceAll(RegExp('[éèëê]'), 'e')
     .replaceAll(RegExp('[íìïî]'), 'i')
     .replaceAll(RegExp('[óòöô]'), 'o')
-    .replaceAll(RegExp('[úùüû]'), 'u');
+    .replaceAll(RegExp('[úùüû]'), 'u')
+    .replaceAll(RegExp(r'[^a-z0-9ñ]+'), ' ')
+    .trim()
+    .replaceAll(RegExp(r'\s+'), ' ');
 
 TacticalEvidence _evidence(
   String fact,
