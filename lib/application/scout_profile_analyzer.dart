@@ -170,6 +170,35 @@ class ScoutProfileAnalyzer {
         losses: rSamples.length - rWins,
       );
     }).toList()..sort((a, b) => b.games.compareTo(a.games));
+    final primaryRole = roleDistribution.firstOrNull?.role ?? ScoutRole.unknown;
+    final primaryRoleSamples =
+        roleGroups[primaryRole] ?? const <_ScoutSample>[];
+    final primaryRoleMinutes = primaryRoleSamples
+        .where((sample) => sample.minutes > 0)
+        .fold<double>(0, (total, sample) => total + sample.minutes);
+    final primaryCsPerMinute = primaryRoleMinutes <= 0
+        ? null
+        : _sum(primaryRoleSamples, (sample) => sample.cs) / primaryRoleMinutes;
+    final primaryVisionPerMinute = primaryRoleMinutes <= 0
+        ? null
+        : _sum(primaryRoleSamples, (sample) => sample.visionScore) /
+              primaryRoleMinutes;
+    final primaryObjectiveDamagePerMinute = primaryRoleMinutes <= 0
+        ? null
+        : _sum(primaryRoleSamples, (sample) => sample.objectiveDamage) /
+              primaryRoleMinutes;
+    final primaryKpSamples = primaryRoleSamples
+        .where((sample) => sample.teamKills > 0)
+        .toList(growable: false);
+    final primaryKillParticipation = primaryKpSamples.isEmpty
+        ? null
+        : primaryKpSamples.fold<double>(
+                0,
+                (total, sample) =>
+                    total +
+                    (sample.kills + sample.assists) / sample.teamKills * 100,
+              ) /
+              primaryKpSamples.length;
 
     // 5. Frequently Encountered Teammates and Opponents from Match Details
     final teammatesMap = <String, _RelationshipAccumulator>{};
@@ -292,10 +321,52 @@ class ScoutProfileAnalyzer {
         'description': '$winrate% de victorias en $games partidas.',
       });
     }
-    if (avgCsPerMin != null && avgCsPerMin >= 7) {
+    final farmingThreshold = switch (primaryRole) {
+      ScoutRole.top => 6.5,
+      ScoutRole.mid => 7.0,
+      ScoutRole.bottom => 7.5,
+      _ => null,
+    };
+    if (farmingThreshold != null &&
+        primaryCsPerMinute != null &&
+        primaryCsPerMinute >= farmingThreshold) {
       badges.add({
         'name': 'Farmeador constante',
-        'description': '$avgCsPerMin CS por minuto.',
+        'description':
+            '${_oneDecimal(primaryCsPerMinute)} CS por minuto como ${primaryRole.label}.',
+      });
+    }
+    if (primaryRole == ScoutRole.support &&
+        primaryVisionPerMinute != null &&
+        primaryVisionPerMinute >= 1.2) {
+      badges.add({
+        'name': 'Control de visión',
+        'description':
+            '${_oneDecimal(primaryVisionPerMinute)} de visión por minuto como Support.',
+      });
+    }
+    if (primaryRole == ScoutRole.jungle &&
+        primaryObjectiveDamagePerMinute != null &&
+        primaryObjectiveDamagePerMinute >= 200) {
+      badges.add({
+        'name': 'Presión de objetivos',
+        'description':
+            '${_oneDecimal(primaryObjectiveDamagePerMinute)} de daño a objetivos por minuto como Jungle.',
+      });
+    }
+    final participationThreshold = switch (primaryRole) {
+      ScoutRole.top => 50.0,
+      ScoutRole.mid || ScoutRole.bottom => 55.0,
+      ScoutRole.jungle || ScoutRole.support => 65.0,
+      ScoutRole.unknown => null,
+    };
+    if (participationThreshold != null &&
+        primaryKillParticipation != null &&
+        primaryKillParticipation >= participationThreshold) {
+      badges.add({
+        'name': 'Impacto en peleas',
+        'description':
+            '${_oneDecimal(primaryKillParticipation)}% de participación como ${primaryRole.label}.',
       });
     }
     if (games >= 5 && championGroups.length >= 4) {
@@ -351,18 +422,38 @@ class ScoutProfileAnalyzer {
     final vpm = durationMinutes <= 0 ? 0.0 : visionScore / durationMinutes;
     final kp = teamKills <= 0 ? 50.0 : ((kills + assists) / teamKills * 100);
 
-    // Component ratings normalized to 0-100 based on role benchmarks
-    final kdaScore = (kda / 4.0 * 100).clamp(0.0, 100.0);
-    final csmScore = (csm / 9.0 * 100).clamp(0.0, 100.0);
-    final dpmScore = (dpm / 800.0 * 100).clamp(0.0, 100.0);
-    final kpScore = (kp / 65.0 * 100).clamp(0.0, 100.0);
-    final visScore = (vpm / 1.5 * 100).clamp(0.0, 100.0);
+    final benchmark = _benchmarks(role);
+    final kdaScore = _score(kda, benchmark.kda);
+    final csmScore = _score(csm, benchmark.csm);
+    final dpmScore = _score(dpm, benchmark.dpm);
+    final kpScore = _score(kp, benchmark.kp);
+    final visScore = _score(vpm, benchmark.vpm);
 
     double totalScore;
     Map<String, double> breakdown;
 
     switch (role) {
       case ScoutRole.top:
+        final objScore = _score(
+          durationMinutes <= 0 ? 0 : objectiveDamage / durationMinutes,
+          benchmark.objectiveDamagePerMinute,
+        );
+        totalScore =
+            dpmScore * 0.25 +
+            csmScore * 0.20 +
+            objScore * 0.20 +
+            kdaScore * 0.15 +
+            kpScore * 0.10 +
+            visScore * 0.10;
+        breakdown = {
+          'Daño': 25.0,
+          'Farm': 20.0,
+          'Objetivos': 20.0,
+          'KDA': 15.0,
+          'KP': 10.0,
+          'Visión': 10.0,
+        };
+        break;
       case ScoutRole.mid:
         totalScore =
             dpmScore * 0.30 +
@@ -379,11 +470,10 @@ class ScoutProfileAnalyzer {
         };
         break;
       case ScoutRole.jungle:
-        final objScore =
-            (durationMinutes <= 0
-                    ? 0.0
-                    : (objectiveDamage / durationMinutes) / 500.0 * 100)
-                .clamp(0.0, 100.0);
+        final objScore = _score(
+          durationMinutes <= 0 ? 0 : objectiveDamage / durationMinutes,
+          benchmark.objectiveDamagePerMinute,
+        );
         totalScore =
             kpScore * 0.25 +
             objScore * 0.25 +
@@ -431,6 +521,72 @@ class ScoutProfileAnalyzer {
     );
   }
 }
+
+/// Targets used to normalize unlike responsibilities before applying the
+/// role-specific weights. They are deliberately versioned through
+/// [ScoutPerformanceScore.currentVersion] so stored ratings remain explainable
+/// if the calibration changes later.
+({
+  double kda,
+  double csm,
+  double dpm,
+  double kp,
+  double vpm,
+  double objectiveDamagePerMinute,
+})
+_benchmarks(ScoutRole role) => switch (role) {
+  ScoutRole.top => (
+    kda: 3.2,
+    csm: 7.5,
+    dpm: 650,
+    kp: 55,
+    vpm: 0.8,
+    objectiveDamagePerMinute: 350,
+  ),
+  ScoutRole.mid => (
+    kda: 3.5,
+    csm: 8,
+    dpm: 750,
+    kp: 60,
+    vpm: 0.9,
+    objectiveDamagePerMinute: 300,
+  ),
+  ScoutRole.jungle => (
+    kda: 3.8,
+    csm: 6,
+    dpm: 550,
+    kp: 70,
+    vpm: 1,
+    objectiveDamagePerMinute: 500,
+  ),
+  ScoutRole.bottom => (
+    kda: 3.5,
+    csm: 8.5,
+    dpm: 800,
+    kp: 65,
+    vpm: 0.7,
+    objectiveDamagePerMinute: 250,
+  ),
+  ScoutRole.support => (
+    kda: 4,
+    csm: 1.5,
+    dpm: 350,
+    kp: 70,
+    vpm: 1.5,
+    objectiveDamagePerMinute: 150,
+  ),
+  ScoutRole.unknown => (
+    kda: 4,
+    csm: 9,
+    dpm: 800,
+    kp: 65,
+    vpm: 1.5,
+    objectiveDamagePerMinute: 500,
+  ),
+};
+
+double _score(num value, num target) =>
+    target <= 0 ? 0 : (value / target * 100).clamp(0.0, 100.0).toDouble();
 
 class _RelationshipAccumulator {
   _RelationshipAccumulator({

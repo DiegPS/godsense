@@ -74,10 +74,67 @@ void main() {
       objectiveDamage: 12000,
     );
 
-    expect(topScore.version, 1);
+    expect(topScore.version, 2);
     expect(topScore.value, greaterThanOrEqualTo(50));
     expect(topScore.value, lessThanOrEqualTo(100));
-    expect(topScore.breakdown, containsPair('Daño', 30.0));
+    expect(topScore.breakdown, containsPair('Objetivos', 20.0));
+  });
+
+  test(
+    'normalizes the same performance according to role responsibilities',
+    () {
+      final topScore = ScoutProfileAnalyzer.calculatePerformanceScore(
+        role: ScoutRole.top,
+        kills: 2,
+        deaths: 5,
+        assists: 15,
+        cs: 45,
+        durationMinutes: 30,
+        damage: 10000,
+        teamKills: 25,
+        visionScore: 45,
+        objectiveDamage: 2500,
+      );
+      final supportScore = ScoutProfileAnalyzer.calculatePerformanceScore(
+        role: ScoutRole.support,
+        kills: 2,
+        deaths: 5,
+        assists: 15,
+        cs: 45,
+        durationMinutes: 30,
+        damage: 10000,
+        teamKills: 25,
+        visionScore: 45,
+        objectiveDamage: 2500,
+      );
+
+      expect(supportScore.value, greaterThan(topScore.value));
+      expect(supportScore.breakdown, isNot(contains('Farm')));
+      expect(supportScore.breakdown, containsPair('Visión', 30.0));
+    },
+  );
+
+  test('does not award farming badge to a support from global CS', () {
+    final result = analyzer.analyze(
+      [
+        _match(
+          1,
+          championId: 40,
+          won: true,
+          kills: 1,
+          deaths: 2,
+          role: 'UTILITY',
+          cs: 240,
+        ),
+      ],
+      puuid: puuid,
+      championNames: const {40: 'Janna'},
+    );
+
+    expect(
+      result.badges.map((badge) => badge['name']),
+      isNot(contains('Farmeador constante')),
+    );
   });
 
   test('returns no invented analytics without match evidence', () {
@@ -105,10 +162,11 @@ LocalMatchRecord _match(
   required int kills,
   required int deaths,
   String role = 'BOTTOM',
+  int cs = 210,
 }) => LocalMatchRecord(
   match: MatchKey(platformId: PlatformId('LA1'), gameId: id),
   puuid: Puuid('player'),
   summaryJson:
-      '''{"gameDuration":1800,"participants":[{"participantId":1,"championId":$championId,"teamId":100,"timeline":{"lane":"$role"},"stats":{"win":$won,"kills":$kills,"deaths":$deaths,"assists":6,"totalMinionsKilled":210,"neutralMinionsKilled":0,"visionScore":24,"damageDealtToObjectives":5000,"totalDamageDealtToChampions":22000,"goldEarned":12500}}],"participantIdentities":[{"participantId":1,"player":{"puuid":"player","gameName":"Player","tagLine":"LAN"}}]}''',
+      '''{"gameDuration":1800,"participants":[{"participantId":1,"championId":$championId,"teamId":100,"timeline":{"lane":"$role"},"stats":{"win":$won,"kills":$kills,"deaths":$deaths,"assists":6,"totalMinionsKilled":$cs,"neutralMinionsKilled":0,"visionScore":24,"damageDealtToObjectives":5000,"totalDamageDealtToChampions":22000,"goldEarned":12500}}],"participantIdentities":[{"participantId":1,"player":{"puuid":"player","gameName":"Player","tagLine":"LAN"}}]}''',
   syncedAt: DateTime.utc(2026),
 );

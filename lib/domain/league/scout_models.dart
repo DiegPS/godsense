@@ -146,7 +146,7 @@ class ScoutPerformanceScore {
     required this.breakdown,
   });
 
-  static const currentVersion = 1;
+  static const currentVersion = 2;
 
   final int value; // 0 - 100
   final int version;
