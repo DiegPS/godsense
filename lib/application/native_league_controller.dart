@@ -28,6 +28,13 @@ import 'live_game_processor.dart';
 import 'live_ranked_profile_loader.dart';
 import 'native_league_foundation.dart';
 
+// WebSocket events provide immediacy. These intervals only reconcile state and
+// recover from missed events.
+const _lcuReconciliationInterval = Duration(seconds: 1);
+const _reconciliationCoalesceWindow = Duration(milliseconds: 800);
+const _lcuEventDebounce = Duration(milliseconds: 40);
+const _backgroundLiveProbeInterval = Duration(seconds: 5);
+
 class NativeLeagueState {
   const NativeLeagueState({
     this.lcuConnected = false,
@@ -263,6 +270,13 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
   String? _draftAccountKey;
   bool _draftPoolLoading = false;
   DateTime? _lastDraftPoolAttempt;
+  DateTime? _lastLiveProbe;
+  String? _lastObservedPhase;
+  String? _rankedRosterCompleteKey;
+  bool _draftPoolLoaded = false;
+  bool _forceAccountSync = false;
+  bool _forceCapabilityProbe = false;
+  DateTime? _lastPollStarted;
 
   int? get localSummonerId => _localSummonerId;
 
@@ -346,23 +360,37 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
     _lcuEvents.start();
     unawaited(_poll());
     _timer = Timer.periodic(
-      const Duration(milliseconds: 500),
+      _lcuReconciliationInterval,
       (_) => unawaited(_poll()),
     );
   }
 
   void _onLcuEvent(LcuApiEvent event) {
-    if (!_reconciledLcuFamilies.any(event.uri.startsWith)) return;
+    if (event.uri.startsWith('/lol-summoner/')) {
+      _forceAccountSync = true;
+      _localSummonerId = null;
+    }
+    if (_capabilityRelevantLcuFamilies.any(event.uri.startsWith)) {
+      _forceCapabilityProbe = true;
+    }
+    if (!_immediateLcuFamilies.any(event.uri.startsWith)) return;
     _eventDebounce?.cancel();
     _eventDebounce = Timer(
-      const Duration(milliseconds: 40),
-      () => unawaited(_poll()),
+      _lcuEventDebounce,
+      () => unawaited(_poll(eventDriven: true)),
     );
   }
 
-  Future<void> _poll() async {
+  Future<void> _poll({bool eventDriven = false}) async {
     if (_polling) return;
+    final now = DateTime.now();
+    if (!eventDriven &&
+        _lastPollStarted != null &&
+        now.difference(_lastPollStarted!) < _reconciliationCoalesceWindow) {
+      return;
+    }
     _polling = true;
+    _lastPollStarted = now;
     try {
       var lcuConnected = false;
       var phase = 'NO_LCU';
@@ -374,14 +402,20 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
           final phaseRaw = await _lcu.get('/lol-gameflow/v1/gameflow-phase');
           phase = phaseRaw?.toString() ?? 'None';
           lcuConnected = true;
+          _updatePhaseScopedCaches(phase);
           if (phase == 'ChampSelect') {
-            final summoner = await _lcu.get(
-              '/lol-summoner/v1/current-summoner',
-            );
-            if (summoner is Map) {
-              _localSummonerId = (summoner['summonerId'] as num?)?.toInt();
-              _ensureDraftPoolLoaded(summoner['puuid']?.toString());
+            var draftPuuid =
+                foundation?.state.account.context?.account.puuid.value;
+            if (_localSummonerId == null || draftPuuid == null) {
+              final summoner = await _lcu.get(
+                '/lol-summoner/v1/current-summoner',
+              );
+              if (summoner is Map) {
+                _localSummonerId = (summoner['summonerId'] as num?)?.toInt();
+                draftPuuid = summoner['puuid']?.toString();
+              }
             }
+            _ensureDraftPoolLoaded(draftPuuid);
             final session = await _lcu.get('/lol-champ-select/v1/session');
             champSelectSession = session;
             if (session is Map) {
@@ -416,13 +450,36 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
               gameflowPhase: phase,
               champSelectSession: champSelectSession,
               gameId: int.tryParse(_currentGameId ?? ''),
+              forceAccountSync: _takeForcedAccountSync(),
+              forceCapabilityProbe: _takeForcedCapabilityProbe(),
             );
+        _localSummonerId =
+            foundationState.account.context?.account.summonerId ??
+            _localSummonerId;
       } catch (_) {
         // Persistence and account enrichment must never interrupt live data.
       }
-      final liveStopwatch = Stopwatch()..start();
-      final liveData = await _live.allGameData();
-      final liveLatency = liveStopwatch.elapsedMicroseconds / 1000;
+      Map<String, dynamic>? liveData;
+      var liveLatency = state.liveApiLatencyMilliseconds;
+      final liveProbed = _shouldProbeLiveClient(phase);
+      if (liveProbed) {
+        _lastLiveProbe = DateTime.now();
+        final liveStopwatch = Stopwatch()..start();
+        liveData = await _live.allGameData();
+        liveLatency = liveStopwatch.elapsedMicroseconds / 1000;
+      }
+      if (!liveProbed) {
+        state = state.copyWith(
+          lcuConnected: lcuConnected,
+          gameflowPhase: phase,
+          lobby: lobby,
+          accountContext: foundationState?.account,
+          lcuCapabilities: foundationState?.capabilities,
+          gameSession: foundationState?.gameSession,
+          clearError: true,
+        );
+        return;
+      }
       await (foundation ??= NativeLeagueFoundation(
         client: _lcu,
       )).observeLiveClient(
@@ -520,6 +577,42 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
       state = state.copyWith(lastError: error.toString());
     } finally {
       _polling = false;
+    }
+  }
+
+  bool _takeForcedAccountSync() {
+    final value = _forceAccountSync;
+    _forceAccountSync = false;
+    return value;
+  }
+
+  bool _takeForcedCapabilityProbe() {
+    final value = _forceCapabilityProbe;
+    _forceCapabilityProbe = false;
+    return value;
+  }
+
+  bool _shouldProbeLiveClient(String phase) {
+    if (phase == 'InProgress' || state.inGame) return true;
+    final last = _lastLiveProbe;
+    return last == null ||
+        DateTime.now().difference(last) >= _backgroundLiveProbeInterval;
+  }
+
+  void _updatePhaseScopedCaches(String phase) {
+    final previous = _lastObservedPhase;
+    if (phase == previous) return;
+    _lastObservedPhase = phase;
+    if (phase == 'ChampSelect') {
+      _draftPoolLoaded = false;
+      _lastDraftPoolAttempt = null;
+      _draftMastery = const [];
+      _draftPickableIds = const {};
+      _runeRequestKey = null;
+      _itemRecommendationRequestKey = null;
+    }
+    if (previous == 'InProgress' && phase != 'InProgress') {
+      _rankedRosterCompleteKey = null;
     }
   }
 
@@ -783,7 +876,8 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
       _lastDraftPoolAttempt = null;
     }
     final now = DateTime.now();
-    if (_draftPoolLoading ||
+    if (_draftPoolLoaded ||
+        _draftPoolLoading ||
         (_lastDraftPoolAttempt != null &&
             now.difference(_lastDraftPoolAttempt!) <
                 const Duration(seconds: 10))) {
@@ -805,6 +899,7 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
         _draftPickableIds = pickable is List
             ? pickable.whereType<num>().map((value) => value.toInt()).toSet()
             : const {};
+        _draftPoolLoaded = mastery is List && pickable is List;
       } catch (_) {
         // Never substitute fabricated picks if the local pool is unavailable.
       } finally {
@@ -1028,7 +1123,8 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
       return;
     }
     final active = _stringMap(game['active_player']);
-    final rawChampion = active['championName']?.toString() ??
+    final rawChampion =
+        active['championName']?.toString() ??
         active['champion_name']?.toString() ??
         '';
     if (rawChampion.isEmpty) return;
@@ -1043,7 +1139,8 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
     }
     if (championId <= 0) return;
 
-    final position = LeaguePosition.tryParse(active['position']) ??
+    final position =
+        LeaguePosition.tryParse(active['position']) ??
         LeaguePosition.tryParse(active['role']) ??
         LeaguePosition.middle;
 
@@ -1191,10 +1288,15 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
     final key = '${_currentGameId ?? ''}|${identities.join('|')}';
     if (_rankedRosterKey != key) {
       _rankedRosterKey = key;
+      _rankedRosterCompleteKey = null;
       _liveRankedProfiles.clear();
       _lastRankedProfilesAttempt = null;
     }
-    if (_rankedProfilesLoading || identities.isEmpty) return;
+    if (_rankedRosterCompleteKey == key ||
+        _rankedProfilesLoading ||
+        identities.isEmpty) {
+      return;
+    }
     final now = DateTime.now();
     if (_lastRankedProfilesAttempt != null &&
         now.difference(_lastRankedProfilesAttempt!) <
@@ -1220,7 +1322,10 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
           loadRanked: loadLocalRanked,
         );
         final profiles = await loader.load(players);
-        if (_rankedRosterKey == key) _liveRankedProfiles.addAll(profiles);
+        if (_rankedRosterKey == key) {
+          _liveRankedProfiles.addAll(profiles);
+          _rankedRosterCompleteKey = key;
+        }
       } finally {
         _rankedProfilesLoading = false;
       }
@@ -1243,14 +1348,13 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
   }
 }
 
-const _reconciledLcuFamilies = <String>[
+const _immediateLcuFamilies = <String>[
   '/lol-gameflow/',
   '/lol-champ-select/',
   '/lol-summoner/',
-  '/lol-ranked/',
-  '/lol-match-history/',
-  '/lol-perks/',
 ];
+
+const _capabilityRelevantLcuFamilies = <String>['/lol-summoner/'];
 
 Map<String, dynamic> _stringMap(Object? value) {
   if (value is! Map) return const {};

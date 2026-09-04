@@ -78,6 +78,74 @@ void main() {
     expect(disconnected.account.context?.account.puuid.value, 'player-puuid');
   });
 
+  test('reconciles account on its safety cadence, not on every tick', () async {
+    await foundation.observeLcu(connected: true, gameflowPhase: 'Lobby');
+    final initialAccountReads = client.paths
+        .where((path) => path == '/lol-summoner/v1/current-summoner')
+        .length;
+
+    now = now.add(const Duration(seconds: 29));
+    await foundation.observeLcu(connected: true, gameflowPhase: 'Lobby');
+    expect(
+      client.paths
+          .where((path) => path == '/lol-summoner/v1/current-summoner')
+          .length,
+      initialAccountReads,
+    );
+
+    now = now.add(const Duration(seconds: 1));
+    await foundation.observeLcu(connected: true, gameflowPhase: 'Lobby');
+    expect(
+      client.paths
+          .where((path) => path == '/lol-summoner/v1/current-summoner')
+          .length,
+      initialAccountReads + 1,
+    );
+  });
+
+  test('probes capabilities only when their context changes', () async {
+    await foundation.observeLcu(connected: true, gameflowPhase: 'Lobby');
+    final initialGameflowProbes = client.paths
+        .where((path) => path == '/lol-gameflow/v1/gameflow-phase')
+        .length;
+
+    now = now.add(const Duration(seconds: 1));
+    await foundation.observeLcu(connected: true, gameflowPhase: 'Matchmaking');
+    expect(
+      client.paths
+          .where((path) => path == '/lol-gameflow/v1/gameflow-phase')
+          .length,
+      initialGameflowProbes,
+    );
+
+    await foundation.observeLcu(connected: true, gameflowPhase: 'ChampSelect');
+    expect(
+      client.paths
+          .where((path) => path == '/lol-gameflow/v1/gameflow-phase')
+          .length,
+      initialGameflowProbes + 1,
+    );
+  });
+
+  test('does not synchronize Scout again merely because time passed', () async {
+    await foundation.observeLcu(connected: true, gameflowPhase: 'Lobby');
+    await Future<void>.delayed(Duration.zero);
+    final initialHistorySyncs = client.paths
+        .where((path) => path.contains('begIndex=0&endIndex=30'))
+        .length;
+    expect(initialHistorySyncs, 1);
+
+    now = now.add(const Duration(minutes: 3));
+    await foundation.observeLcu(connected: true, gameflowPhase: 'Lobby');
+    await Future<void>.delayed(Duration.zero);
+    expect(
+      client.paths
+          .where((path) => path.contains('begIndex=0&endIndex=30'))
+          .length,
+      initialHistorySyncs,
+    );
+  });
+
   test('journals champ-select session separately from gameflow', () async {
     await foundation.observeLcu(
       connected: true,

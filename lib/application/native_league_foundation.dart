@@ -25,6 +25,9 @@ import 'local_scout_sync_service.dart';
 import 'tactical_advice_journal_adapter.dart';
 import 'vision_journal_adapter.dart';
 
+const _accountReconciliationInterval = Duration(seconds: 30);
+const _capabilityReconciliationInterval = Duration(minutes: 5);
+
 class NativeLeagueFoundationState {
   const NativeLeagueFoundationState({
     required this.account,
@@ -91,6 +94,7 @@ class NativeLeagueFoundation {
     now: _now,
   );
   Future<void>? _scoutSyncRunning;
+  bool _scoutSyncPending = false;
   Future<void>? _initializing;
   DateTime? _lastAccountSync;
   DateTime? _lastCapabilityProbe;
@@ -101,7 +105,11 @@ class NativeLeagueFoundation {
   int _transportGeneration = 0;
   CaptureEpochId? _activeCaptureEpochId;
   bool _wasConnected = false;
+  bool _initialScoutSyncScheduled = false;
+  String? _lastObservedGameflowPhase;
+  bool _postGameScoutSyncPending = false;
   bool _disposed = false;
+  final Map<String, String> _snapshotHashes = {};
 
   NativeLeagueFoundationState get state => _state;
 
@@ -280,12 +288,18 @@ class NativeLeagueFoundation {
     required String gameflowPhase,
     Object? champSelectSession,
     int? gameId,
+    bool forceAccountSync = false,
+    bool forceCapabilityProbe = false,
   }) async {
     try {
       await _ensureInitialized();
       if (_disposed) return _state;
       final now = _now().toUtc();
       if (!connected) {
+        if (_wasConnected) {
+          _initialScoutSyncScheduled = false;
+          _lastAccountSync = null;
+        }
         _wasConnected = false;
         final account = _accounts!.markDisconnected('LCU is disconnected.');
         if (_lastCapabilityContext != 'disconnected') {
@@ -310,12 +324,15 @@ class NativeLeagueFoundation {
         );
         _wasConnected = true;
       }
-      if (_lastAccountSync == null ||
-          now.difference(_lastAccountSync!) >= const Duration(seconds: 5)) {
+      final previousPuuid = _accounts!.state.context?.account.puuid.value;
+      if (forceAccountSync ||
+          _lastAccountSync == null ||
+          now.difference(_lastAccountSync!) >= _accountReconciliationInterval) {
         await _accounts!.synchronize();
         _lastAccountSync = now;
       }
       final account = _accounts!.state.context?.account;
+      final accountChanged = previousPuuid != account?.puuid.value;
       final session = _sessions.observeLcu(
         connected: true,
         gameflowPhase: gameflowPhase,
@@ -349,21 +366,41 @@ class NativeLeagueFoundation {
         gameflowPhase: gameflowPhase,
         clientVersion: context?.account.clientVersion,
       );
+      final capabilityPhase = gameflowPhase == 'ChampSelect'
+          ? 'champ-select'
+          : 'outside-champ-select';
       final contextKey = [
         context?.account.puuid.value,
         gameId,
-        gameflowPhase,
+        capabilityPhase,
         context?.account.clientVersion,
       ].join('|');
-      if (_lastCapabilityProbe == null ||
+      if (forceCapabilityProbe ||
+          _lastCapabilityProbe == null ||
           contextKey != _lastCapabilityContext ||
           now.difference(_lastCapabilityProbe!) >=
-              const Duration(seconds: 30)) {
+              _capabilityReconciliationInterval) {
         await _refreshCapabilities(
           capabilityContext,
           now,
           contextKey: contextKey,
         );
+      }
+      if (_lastObservedGameflowPhase == 'InProgress' &&
+          gameflowPhase != 'InProgress') {
+        _postGameScoutSyncPending = true;
+      }
+      _lastObservedGameflowPhase = gameflowPhase;
+      final postGameDataReady =
+          _postGameScoutSyncPending &&
+          gameflowPhase != 'PreEndOfGame' &&
+          gameflowPhase != 'WaitingForStats';
+      if (!_initialScoutSyncScheduled || accountChanged || postGameDataReady) {
+        final scheduled = _scheduleScoutSync(now, force: true);
+        if (scheduled) {
+          _initialScoutSyncScheduled = true;
+          if (postGameDataReady) _postGameScoutSyncPending = false;
+        }
       }
       return _state = NativeLeagueFoundationState(
         account: _accounts!.state,
@@ -416,6 +453,7 @@ class NativeLeagueFoundation {
       repository: _scoutRepository!,
       now: _now,
       detailLimit: 5,
+      detailConcurrency: 2,
     );
     _accounts = AccountContextCoordinator(
       source: LcuCurrentAccountSource(client: client, now: _now),
@@ -446,30 +484,41 @@ class NativeLeagueFoundation {
       gameSession: _sessions.state,
       lastScoutSync: _state.lastScoutSync,
     );
-    _scheduleScoutSync(now);
   }
 
-  void _scheduleScoutSync(DateTime now) {
+  bool _scheduleScoutSync(DateTime now, {bool force = false}) {
     final account = _accounts?.state.context?.account;
     if (account == null ||
-        _scoutSyncRunning != null ||
         (!_state.capabilities.canLoadRanked &&
             !_state
                 .capabilities[LcuCapabilityId.matchHistoryList]
                 .isAvailable)) {
-      return;
+      return false;
+    }
+    if (_scoutSyncRunning != null) {
+      _scoutSyncPending = true;
+      return false;
     }
     final accountChanged = _lastScoutPuuid != account.puuid.value;
-    if (!accountChanged &&
+    if (!force &&
+        !accountChanged &&
         _lastScoutSyncAt != null &&
         now.difference(_lastScoutSyncAt!) < const Duration(minutes: 2)) {
-      return;
+      return false;
     }
     _lastScoutSyncAt = now;
     _lastScoutPuuid = account.puuid.value;
     final running = _runScoutSync(account.puuid, account.platformId);
     _scoutSyncRunning = running;
-    unawaited(running.whenComplete(() => _scoutSyncRunning = null));
+    unawaited(
+      running.whenComplete(() {
+        _scoutSyncRunning = null;
+        if (!_scoutSyncPending || _disposed) return;
+        _scoutSyncPending = false;
+        _scheduleScoutSync(_now().toUtc(), force: true);
+      }),
+    );
+    return true;
   }
 
   Future<void> _runScoutSync(Puuid puuid, PlatformId platformId) async {
@@ -511,6 +560,10 @@ class NativeLeagueFoundation {
     const codec = JournalPayloadCodec();
     final encoded = codec.encodeJson(payload);
     final account = _accounts!.state.context?.account;
+    final snapshotKey =
+        '${_activeCaptureEpochId?.value ?? _captureEpochId.value}|'
+        '$channel|$semanticKey';
+    if (_snapshotHashes[snapshotKey] == encoded.semanticHash) return;
     await _journal!.append(
       SourceRecordDraft(
         id: EntryId('${_captureEpochId.value}-${_recordCounter++}'),
@@ -535,6 +588,7 @@ class NativeLeagueFoundation {
         retentionClass: retention,
       ),
     );
+    _snapshotHashes[snapshotKey] = encoded.semanticHash;
   }
 
   Future<void> dispose() async {
