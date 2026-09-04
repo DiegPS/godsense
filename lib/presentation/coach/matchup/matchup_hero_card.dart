@@ -59,11 +59,17 @@ class MatchupHeroCard extends StatelessWidget {
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 5,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xFF1E293B),
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: const Color(0x33FFFFFF), width: 1),
+                    border: Border.all(
+                      color: const Color(0x33FFFFFF),
+                      width: 1,
+                    ),
                   ),
                   child: const Text(
                     'VS',
@@ -137,17 +143,28 @@ class MatchupHeroCard extends StatelessWidget {
                   ),
                   child: const Row(
                     children: [
-                      Icon(Icons.info_outline_rounded, size: 16, color: Color(0xFF64748B)),
+                      Icon(
+                        Icons.info_outline_rounded,
+                        size: 16,
+                        color: Color(0xFF64748B),
+                      ),
                       SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           'League todavía no ha revelado un rival.',
-                          style: TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
+                          style: TextStyle(
+                            color: Color(0xFF94A3B8),
+                            fontSize: 12,
+                          ),
                         ),
                       ),
                     ],
                   ),
                 ),
+              if (state.matchup case final matchup?) ...[
+                const SizedBox(height: 12),
+                _MatchupSummary(matchup: matchup),
+              ],
               const SizedBox(height: 12),
               FilledButton.icon(
                 onPressed: importing ? null : onImport,
@@ -155,7 +172,9 @@ class MatchupHeroCard extends StatelessWidget {
                   minimumSize: const Size(double.infinity, 40),
                   backgroundColor: const Color(0xFF0284C7),
                   foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                   elevation: 0,
                 ),
                 icon: importing
@@ -177,14 +196,21 @@ class MatchupHeroCard extends StatelessWidget {
                 Semantics(
                   liveRegion: true,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
-                      color: state.importFeedback.status == CoachImportStatus.failed
+                      color:
+                          state.importFeedback.status ==
+                              CoachImportStatus.failed
                           ? const Color(0x26F43F5E)
                           : const Color(0x1A10B981),
                       borderRadius: BorderRadius.circular(6),
                       border: Border.all(
-                        color: state.importFeedback.status == CoachImportStatus.failed
+                        color:
+                            state.importFeedback.status ==
+                                CoachImportStatus.failed
                             ? const Color(0x4DF43F5E)
                             : const Color(0x4D10B981),
                       ),
@@ -192,7 +218,9 @@ class MatchupHeroCard extends StatelessWidget {
                     child: Text(
                       state.importFeedback.message!,
                       style: TextStyle(
-                        color: state.importFeedback.status == CoachImportStatus.failed
+                        color:
+                            state.importFeedback.status ==
+                                CoachImportStatus.failed
                             ? const Color(0xFFFDA4AF)
                             : const Color(0xFF6EE7B7),
                         fontSize: 12,
@@ -218,6 +246,71 @@ class MatchupHeroCard extends StatelessWidget {
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+class _MatchupSummary extends StatelessWidget {
+  const _MatchupSummary({required this.matchup});
+
+  final CoachMatchupViewData matchup;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0C1017),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0x1F38BDF8)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (matchup.winCondition.isNotEmpty) ...[
+            const Text(
+              'CONDICIÓN DE LÍNEA',
+              style: TextStyle(
+                color: Color(0xFF38BDF8),
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+                letterSpacing: .7,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              matchup.winCondition,
+              style: const TextStyle(
+                color: Color(0xFFE2E8F0),
+                fontSize: 12,
+                height: 1.3,
+              ),
+            ),
+          ],
+          for (final pattern in matchup.tradingPatterns.take(2)) ...[
+            const SizedBox(height: 6),
+            Text(
+              '• $pattern',
+              style: const TextStyle(
+                color: Color(0xFFCBD5E1),
+                fontSize: 11,
+                height: 1.3,
+              ),
+            ),
+          ],
+          if (matchup.powerSpikes.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              '⚡ ${matchup.powerSpikes.first}',
+              style: const TextStyle(
+                color: Color(0xFFFBBF24),
+                fontSize: 11,
+                height: 1.3,
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -249,10 +342,14 @@ class _EnemyPickerChip extends StatelessWidget {
             duration: const Duration(milliseconds: 150),
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
-              color: isSelected ? const Color(0xFF261017) : const Color(0xFF0C1017),
+              color: isSelected
+                  ? const Color(0xFF261017)
+                  : const Color(0xFF0C1017),
               borderRadius: BorderRadius.circular(8),
               border: Border.all(
-                color: isSelected ? const Color(0xFFF43F5E) : const Color(0x26FFFFFF),
+                color: isSelected
+                    ? const Color(0xFFF43F5E)
+                    : const Color(0x26FFFFFF),
                 width: isSelected ? 1.5 : 1,
               ),
               boxShadow: isSelected
@@ -266,7 +363,9 @@ class _EnemyPickerChip extends StatelessWidget {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: isSelected ? const Color(0xFFF43F5E) : Colors.transparent,
+                      color: isSelected
+                          ? const Color(0xFFF43F5E)
+                          : Colors.transparent,
                       width: 1,
                     ),
                   ),
@@ -284,7 +383,9 @@ class _EnemyPickerChip extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                    color: isSelected ? const Color(0xFFFECDD3) : const Color(0xFF94A3B8),
+                    color: isSelected
+                        ? const Color(0xFFFECDD3)
+                        : const Color(0xFF94A3B8),
                   ),
                 ),
               ],
@@ -339,10 +440,7 @@ class _Champion extends StatelessWidget {
             shape: BoxShape.circle,
             border: Border.all(color: accent, width: 2),
             boxShadow: [
-              BoxShadow(
-                color: accent.withValues(alpha: .25),
-                blurRadius: 8,
-              ),
+              BoxShadow(color: accent.withValues(alpha: .25), blurRadius: 8),
             ],
           ),
           child: AssetPortrait(

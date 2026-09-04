@@ -176,11 +176,7 @@ typedef _EsportsCompositionHUD = EsportsCompositionHUD;
 typedef _MiniGoldBadgeHUD = MiniGoldBadgeHUD;
 
 class GankAlertHUD extends StatelessWidget {
-  const GankAlertHUD({
-    super.key,
-    this.nativeGank,
-    this.gank,
-  });
+  const GankAlertHUD({super.key, this.nativeGank, this.gank});
 
   final NativeTrackerEvent? nativeGank;
   final CompanionAlert? gank;
@@ -189,8 +185,9 @@ class GankAlertHUD extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDanger =
         nativeGank != null || gank?.raw['threat_level'] == 'DANGER';
-    final accentColor =
-        isDanger ? const Color(0xFFEF4444) : const Color(0xFFF59E0B);
+    final accentColor = isDanger
+        ? const Color(0xFFEF4444)
+        : const Color(0xFFF59E0B);
     final champ = nativeGank?.champion ?? gank?.title ?? 'Enemigo';
     final location = nativeGank != null
         ? '${nativeGank!.location} · ${nativeGank!.role}'
@@ -198,8 +195,9 @@ class GankAlertHUD extends StatelessWidget {
 
     return _OverlayGlassCard(
       borderColor: accentColor,
-      backgroundColor:
-          isDanger ? const Color(0xE61A0A0E) : const Color(0xE61C1408),
+      backgroundColor: isDanger
+          ? const Color(0xE61A0A0E)
+          : const Color(0xE61C1408),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
       child: Row(
         children: [
@@ -394,9 +392,7 @@ class ThreatRadarHUD extends StatelessWidget {
                                     .inSeconds,
                               )
                             : _formatDuration(
-                                now
-                                    .difference(sighting!.receivedAt)
-                                    .inSeconds,
+                                now.difference(sighting!.receivedAt).inSeconds,
                               ),
                         style: const TextStyle(
                           fontSize: 9,
@@ -432,8 +428,9 @@ class ThreatRadarHUD extends StatelessWidget {
               final timer = (enemy['respawn_timer'] as num?)?.toDouble() ?? 0;
               final miaDuration = (enemy['mia_duration'] as num?)?.floor() ?? 0;
               final roleStr = enemy['role']?.toString() ?? '';
-              String statusLabel =
-                  roleStr.length > 3 ? roleStr.substring(0, 3) : roleStr;
+              String statusLabel = roleStr.length > 3
+                  ? roleStr.substring(0, 3)
+                  : roleStr;
 
               if (isDead) {
                 statusLabel = timer > 0 ? '${timer.round()}s' : 'DEAD';
@@ -510,8 +507,9 @@ class VoiceCapsuleHUD extends StatelessWidget {
     }
 
     return _OverlayGlassCard(
-      borderColor:
-          isListening ? const Color(0xFF818CF8) : const Color(0x4D818CF8),
+      borderColor: isListening
+          ? const Color(0xFF818CF8)
+          : const Color(0x4D818CF8),
       backgroundColor: const Color(0xE60B0E17),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       borderRadius: BorderRadius.circular(20),
@@ -558,25 +556,29 @@ class VoiceCapsuleHUD extends StatelessWidget {
 }
 
 class MatchupInfoHUD extends StatelessWidget {
-  const MatchupInfoHUD({
-    super.key,
-    required this.matchupData,
-  });
+  const MatchupInfoHUD({super.key, required this.matchupData});
 
   final dynamic matchupData;
 
   @override
   Widget build(BuildContext context) {
     String winCondition = 'Esperando análisis del enfrentamiento…';
-    String? spikes;
+    var tradingPatterns = const <String>[];
+    var powerSpikes = const <String>[];
 
     if (matchupData is Map) {
       final map = matchupData as Map;
-      winCondition = map['win_condition']?.toString() ??
+      winCondition =
+          map['win_condition']?.toString() ??
           map['tip']?.toString() ??
           'Controla la oleada y respeta el rango enemigo.';
-      spikes =
-          map['power_spike']?.toString() ?? map['danger_level']?.toString();
+      tradingPatterns = _overlayStringList(map['trading_patterns']);
+      powerSpikes = _overlayStringList(map['power_spikes']);
+      if (powerSpikes.isEmpty) {
+        final legacy =
+            map['power_spike']?.toString() ?? map['danger_level']?.toString();
+        if (legacy != null && legacy.isNotEmpty) powerSpikes = [legacy];
+      }
     } else if (matchupData is String && (matchupData as String).isNotEmpty) {
       winCondition = matchupData as String;
     }
@@ -609,14 +611,27 @@ class MatchupInfoHUD extends StatelessWidget {
               ),
             ],
           ),
-          if (spikes != null) ...[
+          for (final pattern in tradingPatterns.take(2)) ...[
+            const SizedBox(height: 4),
+            Text(
+              '↔ $pattern',
+              style: const TextStyle(
+                fontSize: 10,
+                color: Color(0xFFCBD5E1),
+                height: 1.2,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+          if (powerSpikes.isNotEmpty) ...[
             const SizedBox(height: 4),
             Row(
               children: [
                 const Text('⚡ ', style: TextStyle(fontSize: 10)),
                 Expanded(
                   child: Text(
-                    spikes,
+                    powerSpikes.first,
                     style: const TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.w500,
@@ -634,11 +649,15 @@ class MatchupInfoHUD extends StatelessWidget {
   }
 }
 
+List<String> _overlayStringList(Object? value) => value is List
+    ? value
+          .map((item) => item.toString().trim())
+          .where((item) => item.isNotEmpty)
+          .toList(growable: false)
+    : const [];
+
 class PriorityDirectivesHUD extends StatelessWidget {
-  const PriorityDirectivesHUD({
-    super.key,
-    required this.directives,
-  });
+  const PriorityDirectivesHUD({super.key, required this.directives});
 
   final List<CoachDirective> directives;
 
@@ -667,7 +686,11 @@ class PriorityDirectivesHUD extends StatelessWidget {
                           : i == 1
                           ? const Color(0xFFF59E0B)
                           : const Color(0xFF38BDF8);
-                      final label = i == 0 ? 'P1' : i == 1 ? 'P2' : 'P3';
+                      final label = i == 0
+                          ? 'P1'
+                          : i == 1
+                          ? 'P2'
+                          : 'P3';
 
                       return Container(
                         margin: const EdgeInsets.only(bottom: 4),
@@ -730,11 +753,7 @@ class PriorityDirectivesHUD extends StatelessWidget {
 }
 
 class EsportsCompositionHUD extends StatelessWidget {
-  const EsportsCompositionHUD({
-    super.key,
-    required this.game,
-    this.aiTeamComp,
-  });
+  const EsportsCompositionHUD({super.key, required this.game, this.aiTeamComp});
 
   final GameSnapshot? game;
   final Map<String, dynamic>? aiTeamComp;
@@ -774,9 +793,7 @@ class EsportsCompositionHUD extends StatelessWidget {
                     borderRadius: BorderRadius.circular(3),
                     child: _NetworkPortrait(
                       url: player['icon_url']?.toString(),
-                      fallbackUrls: _stringValues(
-                        player['icon_fallback_urls'],
-                      ),
+                      fallbackUrls: _stringValues(player['icon_fallback_urls']),
                       size: 20,
                     ),
                   ),
@@ -822,10 +839,7 @@ class EsportsCompositionHUD extends StatelessWidget {
 }
 
 class MiniGoldBadgeHUD extends StatelessWidget {
-  const MiniGoldBadgeHUD({
-    super.key,
-    required this.goldDifference,
-  });
+  const MiniGoldBadgeHUD({super.key, required this.goldDifference});
 
   final int? goldDifference;
 
@@ -1001,11 +1015,7 @@ class _EditableOverlayPanel extends ConsumerWidget {
 }
 
 class LinearBuildsHUD extends StatelessWidget {
-  const LinearBuildsHUD({
-    super.key,
-    required this.coachGroups,
-    this.rawBuilds,
-  });
+  const LinearBuildsHUD({super.key, required this.coachGroups, this.rawBuilds});
 
   final List<RecommendedItemGroupViewData> coachGroups;
   final Map<String, dynamic>? rawBuilds;

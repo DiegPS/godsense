@@ -156,6 +156,25 @@ class GameContextPromptBuilder {
     if (localChamp.isNotEmpty) {
       buffer.writeln('- Tu campeón seleccionado/hover: $localChamp');
     }
+    if (coachState.selectedEnemy != null) {
+      buffer.writeln(
+        '- Rival de línea seleccionado: ${coachState.selectedEnemy}',
+      );
+    }
+    final matchup = coachState.matchup;
+    if (matchup != null) {
+      if (matchup.winCondition.isNotEmpty) {
+        buffer.writeln('- Condición de línea: ${matchup.winCondition}');
+      }
+      if (matchup.tradingPatterns.isNotEmpty) {
+        buffer.writeln(
+          '- Patrones de intercambio: ${matchup.tradingPatterns.join(' ')}',
+        );
+      }
+      if (matchup.powerSpikes.isNotEmpty) {
+        buffer.writeln('- Picos relevantes: ${matchup.powerSpikes.join(' ')}');
+      }
+    }
 
     if (draft != null) {
       if (draft.allies.isNotEmpty) {

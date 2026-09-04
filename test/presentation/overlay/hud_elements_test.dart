@@ -8,16 +8,14 @@ import 'package:godsense/domain/companion_models.dart';
 void main() {
   Widget wrap(Widget child) {
     return ProviderScope(
-      child: MaterialApp(
-        home: Scaffold(
-          body: child,
-        ),
-      ),
+      child: MaterialApp(home: Scaffold(body: child)),
     );
   }
 
   group('HUD 8 Elements Tests', () {
-    testWidgets('1. Gank Alert HUD renders danger and warning states', (tester) async {
+    testWidgets('1. Gank Alert HUD renders danger and warning states', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         wrap(
           GankAlertHUD(
@@ -37,15 +35,14 @@ void main() {
       expect(find.text('Río Bot · JUNGLE'), findsOneWidget);
     });
 
-    testWidgets('2. Threat Radar HUD renders enemy jungle & threat statuses', (tester) async {
+    testWidgets('2. Threat Radar HUD renders enemy jungle & threat statuses', (
+      tester,
+    ) async {
       final now = DateTime.now();
       await tester.pumpWidget(
         wrap(
           ThreatRadarHUD(
-            jungler: const {
-              'champion_name': 'Lee Sin',
-              'role': 'JUNGLE',
-            },
+            jungler: const {'champion_name': 'Lee Sin', 'role': 'JUNGLE'},
             threats: const [
               {
                 'champion_name': 'Darius',
@@ -92,7 +89,9 @@ void main() {
       expect(find.text('22S'), findsOneWidget);
     });
 
-    testWidgets('3. Voice Capsule HUD displays listening and advice states', (tester) async {
+    testWidgets('3. Voice Capsule HUD displays listening and advice states', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         wrap(
           const VoiceCapsuleHUD(
@@ -104,7 +103,10 @@ void main() {
           ),
         ),
       );
-      expect(find.text('Escuchando… suelta la tecla para enviar'), findsOneWidget);
+      expect(
+        find.text('Escuchando… suelta la tecla para enviar'),
+        findsOneWidget,
+      );
 
       await tester.pumpWidget(
         wrap(
@@ -120,23 +122,34 @@ void main() {
       expect(find.text('Congela la oleada antes de Dragón'), findsOneWidget);
     });
 
-    testWidgets('4. Matchup Info HUD renders win condition & spikes', (tester) async {
+    testWidgets('4. Matchup Info HUD renders win condition & spikes', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         wrap(
           const MatchupInfoHUD(
             matchupData: {
               'win_condition': 'Farmea hasta tu pico de poder de nivel 6.',
-              'power_spike': 'Cuidado con su combo a nivel 3.',
+              'trading_patterns': [
+                'Castiga después de que use su habilidad principal.',
+              ],
+              'power_spikes': ['Cuidado con su combo a nivel 3.'],
             },
           ),
         ),
       );
       expect(find.text('ENFRENTAMIENTO'), findsOneWidget);
-      expect(find.text('Farmea hasta tu pico de poder de nivel 6.'), findsOneWidget);
+      expect(
+        find.text('Farmea hasta tu pico de poder de nivel 6.'),
+        findsOneWidget,
+      );
       expect(find.text('Cuidado con su combo a nivel 3.'), findsOneWidget);
+      expect(find.textContaining('Castiga después de que use'), findsOneWidget);
     });
 
-    testWidgets('5. Linear Builds HUD renders items linearly with prices', (tester) async {
+    testWidgets('5. Linear Builds HUD renders items linearly with prices', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         wrap(
           const LinearBuildsHUD(
@@ -149,7 +162,7 @@ void main() {
                     {'item_id': 3031, 'name': 'Infinity Edge', 'count': 1},
                     {'item_id': 3094, 'name': 'Rapid Firecannon', 'count': 1},
                   ],
-                }
+                },
               ],
             },
           ),
@@ -159,7 +172,9 @@ void main() {
       expect(find.byIcon(Icons.chevron_right_rounded), findsOneWidget);
     });
 
-    testWidgets('6. Priority Directives HUD renders P1, P2, P3 cards', (tester) async {
+    testWidgets('6. Priority Directives HUD renders P1, P2, P3 cards', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         wrap(
           const PriorityDirectivesHUD(
@@ -189,7 +204,9 @@ void main() {
       expect(find.text('Pushear oleada y comprar'), findsOneWidget);
     });
 
-    testWidgets('7. Esports Composition HUD renders 5v5 lineup', (tester) async {
+    testWidgets('7. Esports Composition HUD renders 5v5 lineup', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         wrap(
           EsportsCompositionHUD(
@@ -212,13 +229,11 @@ void main() {
       expect(find.text('VS'), findsOneWidget);
     });
 
-    testWidgets('8. Mini Gold Badge HUD displays formatted difference', (tester) async {
+    testWidgets('8. Mini Gold Badge HUD displays formatted difference', (
+      tester,
+    ) async {
       await tester.pumpWidget(
-        wrap(
-          const MiniGoldBadgeHUD(
-            goldDifference: 2500,
-          ),
-        ),
+        wrap(const MiniGoldBadgeHUD(goldDifference: 2500)),
       );
       expect(find.text('DIF. ORO'), findsOneWidget);
       expect(find.text('+2500'), findsOneWidget);

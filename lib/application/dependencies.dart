@@ -68,6 +68,10 @@ final coachControllerProvider =
         importRunes: leagueController.importRuneRecommendation,
         importItems: leagueController.importItemRecommendations,
         reportStore: const SharedPreferencesPostGameReportStore(),
+        analyzeMatchup: ref.read(nativeTacticalEngineProvider).analyze,
+        onEnemySelected: (enemy) => ref
+            .read(companionControllerProvider.notifier)
+            .generateLobbyBrief(enemy),
       );
 
       void synchronize() {

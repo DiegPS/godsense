@@ -197,6 +197,32 @@ class PickAdviceViewData {
   final List<String> reasons;
 }
 
+class CoachMatchupViewData {
+  const CoachMatchupViewData({
+    required this.winCondition,
+    required this.tradingPatterns,
+    required this.powerSpikes,
+    required this.confidence,
+    required this.source,
+  });
+
+  factory CoachMatchupViewData.fromJson(Map<String, dynamic> json) {
+    return CoachMatchupViewData(
+      winCondition: json['win_condition']?.toString() ?? '',
+      tradingPatterns: _coachStringList(json['trading_patterns']),
+      powerSpikes: _coachStringList(json['power_spikes']),
+      confidence: (json['confidence'] as num?)?.toDouble() ?? 0,
+      source: json['source']?.toString() ?? 'unknown',
+    );
+  }
+
+  final String winCondition;
+  final List<String> tradingPatterns;
+  final List<String> powerSpikes;
+  final double confidence;
+  final String source;
+}
+
 enum CoachImportStatus { idle, importing, succeeded, failed }
 
 class CoachImportFeedback {
@@ -257,6 +283,7 @@ class CoachState {
     this.lobby,
     this.localChampion = '',
     this.selectedEnemy,
+    this.matchup,
     this.runeRecommendations = const [],
     this.itemRecommendationGroups = const [],
     this.pickAdvice = const [],
@@ -279,6 +306,7 @@ class CoachState {
   final LobbyState? lobby;
   final String localChampion;
   final String? selectedEnemy;
+  final CoachMatchupViewData? matchup;
   final List<RuneRecommendationViewData> runeRecommendations;
   final List<RecommendedItemGroupViewData> itemRecommendationGroups;
   final List<PickAdviceViewData> pickAdvice;
@@ -302,6 +330,8 @@ class CoachState {
     String? localChampion,
     String? selectedEnemy,
     bool clearSelectedEnemy = false,
+    CoachMatchupViewData? matchup,
+    bool clearMatchup = false,
     List<RuneRecommendationViewData>? runeRecommendations,
     List<RecommendedItemGroupViewData>? itemRecommendationGroups,
     List<PickAdviceViewData>? pickAdvice,
@@ -326,6 +356,7 @@ class CoachState {
     selectedEnemy: clearSelectedEnemy
         ? null
         : selectedEnemy ?? this.selectedEnemy,
+    matchup: clearMatchup ? null : matchup ?? this.matchup,
     runeRecommendations: runeRecommendations ?? this.runeRecommendations,
     itemRecommendationGroups:
         itemRecommendationGroups ?? this.itemRecommendationGroups,
@@ -351,6 +382,12 @@ typedef ImportRuneRecommendation = Future<void> Function(
   RuneRecommendationVariant variant,
 );
 
+typedef AnalyzeCoachMatchup = Map<String, dynamic> Function({
+  Map<String, dynamic>? lobby,
+  Map<String, dynamic>? game,
+  String? selectedEnemy,
+});
+
 class CoachController extends StateNotifier<CoachState> {
   CoachController({
     required ImportRuneRecommendation importRunes,
@@ -359,11 +396,15 @@ class CoachController extends StateNotifier<CoachState> {
     CoachPhaseResolver phaseResolver = const CoachPhaseResolver(),
     ChampionCompositionAnalyzer compositionAnalyzer =
         const ChampionCompositionAnalyzer(),
+    AnalyzeCoachMatchup? analyzeMatchup,
+    FutureOr<void> Function(String enemy)? onEnemySelected,
   }) : _importRunes = importRunes,
        _reportStore = reportStore,
        _importItems = importItems,
        _phaseResolver = phaseResolver,
        _compositionAnalyzer = compositionAnalyzer,
+       _analyzeMatchup = analyzeMatchup,
+       _onEnemySelected = onEnemySelected,
        super(const CoachState());
 
   final ImportRuneRecommendation _importRunes;
@@ -375,10 +416,14 @@ class CoachController extends StateNotifier<CoachState> {
   final Future<void> Function() _importItems;
   final CoachPhaseResolver _phaseResolver;
   final ChampionCompositionAnalyzer _compositionAnalyzer;
+  final AnalyzeCoachMatchup? _analyzeMatchup;
+  final FutureOr<void> Function(String enemy)? _onEnemySelected;
+  Map<String, dynamic>? _lastLiveGame;
   CoachPhase? _manualPhase;
   DateTime? _lastVoiceAnswer;
 
   void synchronize(CoachInputs inputs) {
+    _lastLiveGame = inputs.liveGame;
     if (inputs.accountKey != _accountKey) {
       _accountKey = inputs.accountKey;
       _lastSavedReport = null;
@@ -446,6 +491,11 @@ class CoachController extends StateNotifier<CoachState> {
     final selectedEnemy = enemies.contains(state.selectedEnemy)
         ? state.selectedEnemy
         : enemies.firstOrNull;
+    final matchup = _resolveMatchup(
+      inputs.lobby,
+      inputs.liveGame,
+      selectedEnemy,
+    );
     final voiceHistory = [...state.voiceHistory];
     if (inputs.voiceAdvice != null &&
         inputs.voiceAnsweredAt != null &&
@@ -486,6 +536,8 @@ class CoachController extends StateNotifier<CoachState> {
           '',
       selectedEnemy: selectedEnemy,
       clearSelectedEnemy: selectedEnemy == null,
+      matchup: matchup,
+      clearMatchup: matchup == null,
       runeRecommendations: _runes(inputs.runes, inputs.assets),
       itemRecommendationGroups: _items(inputs.items, inputs.assets),
       pickAdvice: _pickAdvice(inputs.lobby?.pickAdvice),
@@ -516,8 +568,46 @@ class CoachController extends StateNotifier<CoachState> {
     }
   }
 
-  void selectEnemy(String enemy) =>
-      state = state.copyWith(selectedEnemy: enemy);
+  void selectEnemy(String enemy) {
+    final selected = enemy.trim();
+    if (selected.isEmpty) return;
+    final matchup = _resolveMatchup(state.lobby, _lastLiveGame, selected);
+    state = state.copyWith(
+      selectedEnemy: selected,
+      matchup: matchup,
+      clearMatchup: matchup == null,
+    );
+    final callback = _onEnemySelected;
+    if (callback != null) {
+      unawaited(
+        Future<void>.sync(() => callback(selected)).catchError((Object _) {}),
+      );
+    }
+  }
+
+  CoachMatchupViewData? _resolveMatchup(
+    LobbyState? lobby,
+    Map<String, dynamic>? game,
+    String? selectedEnemy,
+  ) {
+    final analyze = _analyzeMatchup;
+    if (analyze == null || selectedEnemy == null) return null;
+    final result = analyze(
+      lobby: lobby == null
+          ? null
+          : {
+              'builds': lobby.builds,
+              'snapshot': {
+                'my_team': lobby.myTeam,
+                'their_team': lobby.enemyTeam,
+              },
+            },
+      game: game,
+      selectedEnemy: selectedEnemy,
+    );
+    final raw = _coachMap(result['matchup']);
+    return raw.isEmpty ? null : CoachMatchupViewData.fromJson(raw);
+  }
 
   void showPhase(CoachPhase? phase) {
     _manualPhase = phase;
@@ -681,6 +771,17 @@ List<Map<String, dynamic>> _mapList(Object? value) => value is List
           .map(
             (item) => item.map((key, value) => MapEntry(key.toString(), value)),
           )
+          .toList(growable: false)
+    : const [];
+
+Map<String, dynamic> _coachMap(Object? value) => value is Map
+    ? value.map((key, item) => MapEntry(key.toString(), item))
+    : const {};
+
+List<String> _coachStringList(Object? value) => value is List
+    ? value
+          .map((item) => item.toString().trim())
+          .where((item) => item.isNotEmpty)
           .toList(growable: false)
     : const [];
 

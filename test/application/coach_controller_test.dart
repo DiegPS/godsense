@@ -111,6 +111,64 @@ void main() {
     expect(controller.state.importFeedback.status, CoachImportStatus.failed);
     expect(controller.state.importFeedback.message, contains('LCU offline'));
   });
+
+  test(
+    'propagates selected enemy and refreshes the projected matchup',
+    () async {
+      String? propagatedEnemy;
+      final controller = CoachController(
+        importRunes: (_) async {},
+        importItems: () async {},
+        analyzeMatchup: ({lobby, game, selectedEnemy}) => {
+          'matchup': {
+            'win_condition': 'Juega alrededor de $selectedEnemy.',
+            'trading_patterns': ['Castiga su habilidad principal.'],
+            'power_spikes': ['Respeta nivel 6.'],
+            'confidence': .8,
+            'source': 'test',
+          },
+        },
+        onEnemySelected: (enemy) => propagatedEnemy = enemy,
+      );
+      addTearDown(controller.dispose);
+      controller.synchronize(
+        CoachInputs(
+          gameflowPhase: 'ChampSelect',
+          session: const GameSessionState(),
+          liveGame: null,
+          lobby: LobbyState.fromJson({
+            'phase': 'IN_SELECT',
+            'snapshot': {
+              'my_team': [
+                {'champion_name': 'Ahri', 'is_local': true},
+              ],
+              'their_team': [
+                {'champion_name': 'Zed'},
+                {'champion_name': 'Vex'},
+              ],
+            },
+          }),
+          runes: null,
+          items: null,
+          jungle: null,
+          directives: const [],
+          threats: const [],
+          voiceProcessing: false,
+          voiceQuestion: '',
+          voiceAdvice: null,
+          voiceAnsweredAt: null,
+        ),
+      );
+
+      controller.selectEnemy('Vex');
+      await Future<void>.delayed(Duration.zero);
+
+      expect(propagatedEnemy, 'Vex');
+      expect(controller.state.selectedEnemy, 'Vex');
+      expect(controller.state.matchup?.winCondition, contains('Vex'));
+      expect(controller.state.matchup?.tradingPatterns, isNotEmpty);
+    },
+  );
 }
 
 CoachInputs _voiceInput(int index) => CoachInputs(

@@ -101,6 +101,14 @@ void main() {
     final coachState = CoachState(
       phase: CoachPhase.champSelect,
       localChampion: 'Ahri',
+      selectedEnemy: 'Zed',
+      matchup: CoachMatchupViewData(
+        winCondition: 'Mantén distancia hasta que Zed use su sombra.',
+        tradingPatterns: ['Castiga después de su sombra.'],
+        powerSpikes: ['Respeta su nivel 6.'],
+        confidence: .8,
+        source: 'riot_champion_semantics',
+      ),
       lobby: LobbyState(
         phase: 'ChampSelect',
         briefReady: true,
@@ -146,6 +154,10 @@ void main() {
       contains('ESTADO ACTUAL: Selección de Campeones (Champ Select)'),
     );
     expect(prompt, contains('Tu campeón seleccionado/hover: Ahri'));
+    expect(prompt, contains('Rival de línea seleccionado: Zed'));
+    expect(prompt, contains('Condición de línea: Mantén distancia'));
+    expect(prompt, contains('Patrones de intercambio: Castiga'));
+    expect(prompt, contains('Picos relevantes: Respeta su nivel 6'));
     expect(prompt, contains('Aliados en lobby: Ahri (MIDDLE) [locked] [TÚ]'));
     expect(prompt, contains('Enemigos en lobby: Zed (MIDDLE) [locked]'));
     expect(prompt, contains('Bloqueos (Bans IDs): 7'));
