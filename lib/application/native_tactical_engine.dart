@@ -1093,10 +1093,19 @@ Map<String, dynamic> _matchup(
   final enemyBasicAbilities = enemyAbilities
       .where((ability) => ability['slot'] != 'R')
       .toList(growable: false);
-  final enemyCommitment = [...enemyBasicAbilities]
-    ..sort(
-      (left, right) => _firstCooldown(right).compareTo(_firstCooldown(left)),
-    );
+  final enemyCommitment =
+      enemyBasicAbilities
+          .where(
+            (ability) =>
+                ability['matchup_threat'] == true ||
+                (ability['matchup_priority'] as num? ?? 0) > 0,
+          )
+          .toList()
+        ..sort(
+          (left, right) => (right['matchup_priority'] as num? ?? 0).compareTo(
+            left['matchup_priority'] as num? ?? 0,
+          ),
+        );
   final commitmentName = enemyCommitment.firstOrNull?['name']
       ?.toString()
       .trim();
@@ -1127,7 +1136,7 @@ Map<String, dynamic> _matchup(
   }
   if (_axis(enemyStyle, 'durability') >= 2) {
     tradingPatterns.add(
-      'Prioriza intercambios cortos: $enemy tiene un perfil de resistencia alto.',
+      '$enemy tiene resistencia alta: no elijas intercambio corto o extendido sólo por esa etiqueta; confirma escudos, sustain y recursos antes de entrar.',
     );
   }
   if (tradingPatterns.isEmpty) {
@@ -1147,9 +1156,9 @@ Map<String, dynamic> _matchup(
     else if (localRangeClass == 'ranged' && enemyRangeClass == 'melee')
       'Niveles 2-3: protege la distancia mientras disputas la prioridad de oleada; no se conoce la XP exacta del próximo súbdito.',
     if (ultimateName != null && ultimateName.isNotEmpty)
-      'Desde nivel 6, respeta $ultimateName de $enemy.'
+      'Respeta $ultimateName de $enemy cuando su definitiva esté disponible.'
     else
-      'Nivel 6 de $enemy.',
+      'Confirma visualmente cuándo la definitiva de $enemy esté disponible.',
     'Primer objeto completo.',
   ];
 
@@ -1207,6 +1216,16 @@ Map<String, dynamic> _matchup(
       'source': localPowerCurve != null || enemyPowerCurve != null
           ? 'lcu_champion_data'
           : 'unknown',
+    },
+    'ability_context': {
+      'known_basic_abilities': enemyBasicAbilities
+          .map((ability) => ability['name']?.toString() ?? '')
+          .where((name) => name.isNotEmpty)
+          .toList(growable: false),
+      'classified_matchup_threat': commitmentName,
+      'selection_basis': commitmentName == null
+          ? 'unclassified; no ability is guessed from cooldown alone'
+          : 'explicit_matchup_metadata',
     },
     'avoid': [
       'Intercambiar dentro de una oleada enemiga grande.',
@@ -1270,12 +1289,6 @@ String _matchupWinCondition({
 
 double _axis(Map<String, dynamic> style, String key) =>
     (style[key] as num?)?.toDouble() ?? 0;
-
-double _firstCooldown(Map<String, dynamic> ability) {
-  final raw = ability['cooldown']?.toString() ?? '';
-  final match = RegExp(r'\d+(?:\.\d+)?').firstMatch(raw);
-  return double.tryParse(match?.group(0) ?? '') ?? 0;
-}
 
 List<String> _stringList(Object? value) => value is List
     ? value

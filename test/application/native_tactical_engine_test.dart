@@ -526,7 +526,12 @@ void main() {
             },
             'abilities': [
               {'slot': 'Q', 'name': 'Mistral Misil', 'cooldown': '8 / 7 / 6'},
-              {'slot': 'W', 'name': 'Espacio Personal', 'cooldown': '16 / 14'},
+              {
+                'slot': 'W',
+                'name': 'Espacio Personal',
+                'cooldown': '16 / 14',
+                'matchup_threat': true,
+              },
               {'slot': 'R', 'name': 'Estallido Sombrío', 'cooldown': '140'},
             ],
           },
@@ -581,7 +586,18 @@ void main() {
     );
 
     final matchup = result['matchup'] as Map;
-    expect(matchup['trading_patterns'], contains(contains('Espacio Personal')));
+    expect(
+      matchup['trading_patterns'],
+      isNot(contains(contains('Espacio Personal'))),
+    );
+    expect(
+      (matchup['ability_context'] as Map)['known_basic_abilities'],
+      containsAll(['Mistral Misil', 'Espacio Personal']),
+    );
+    expect(
+      (matchup['ability_context'] as Map)['classified_matchup_threat'],
+      isNull,
+    );
     expect(matchup['matchup_intel_n'], greaterThan(0));
   });
 }
