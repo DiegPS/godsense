@@ -341,6 +341,54 @@ void main() {
     expect(answer.rationale.toLowerCase(), contains('regla general'));
     expect(answer.evidence.last.confidence, 0.55);
   });
+
+  test('uses Riot champion semantics when matchup context is available', () {
+    final result = engine.analyze(
+      game: {
+        'active_player': {
+          'champion_name': 'Ahri',
+          'summoner_name': 'Local',
+          'tag_line': 'LAN',
+          'role': 'MIDDLE',
+        },
+        'allies': [
+          {
+            'champion_name': 'Ahri',
+            'summoner_name': 'Local',
+            'tag_line': 'LAN',
+            'role': 'MIDDLE',
+            'champion_profile': {
+              'classes': ['Mage'],
+              'playstyle': {'mobility': 3},
+            },
+          },
+        ],
+        'enemies': [
+          {
+            'champion_name': 'Vex',
+            'role': 'MIDDLE',
+            'champion_profile': {
+              'classes': ['Mage'],
+              'playstyle': {'crowdControl': 3, 'durability': 1},
+              'tactical': {'damageType': 'MAGIC_DAMAGE'},
+            },
+            'abilities': [
+              {'slot': 'Q', 'name': 'Mistral Misil', 'cooldown': '8 / 7 / 6'},
+              {'slot': 'W', 'name': 'Espacio Personal', 'cooldown': '16 / 14'},
+              {'slot': 'R', 'name': 'Estallido Sombrío', 'cooldown': '140'},
+            ],
+          },
+        ],
+      },
+    );
+
+    final matchup = result['matchup'] as Map;
+    expect(matchup['source'], 'riot_champion_semantics');
+    expect(matchup['matchup_intel_n'], greaterThan(0));
+    expect(matchup['confidence'], greaterThan(0.55));
+    expect(matchup['trading_patterns'], contains(contains('Espacio Personal')));
+    expect(matchup['rationale'], contains('no afirma estadísticas históricas'));
+  });
 }
 
 Map<String, dynamic> _game({

@@ -154,12 +154,14 @@ class NativeTacticalEngine {
         .where((player) => player['is_local'] == true)
         .firstOrNull;
     final localChampion = _champion(local);
-    final opponent = enemies.any((enemy) => _champion(enemy) == selectedEnemy)
-        ? selectedEnemy
-        : _laneOpponent(local, enemies);
+    final opponent = selectedEnemy == null
+        ? _laneOpponentPlayer(local, enemies)
+        : enemies
+              .where((enemy) => _champion(enemy) == selectedEnemy)
+              .firstOrNull;
     final matchup = localChampion.isEmpty || opponent == null
         ? null
-        : _matchup(localChampion, opponent);
+        : _matchup(local!, opponent);
     const composition = ChampionCompositionAnalyzer();
     final comp = composition.analyze(allies, enemies);
     final builds = _map(normalizedLobby['builds']);
@@ -451,8 +453,9 @@ class NativeTacticalEngine {
         .where((player) => player['is_local'] == true)
         .firstOrNull;
     final champion = _champion(local);
-    final enemy = _laneOpponent(local, enemies);
-    if (champion.isEmpty || enemy == null) {
+    final enemyPlayer = _laneOpponentPlayer(local, enemies);
+    final enemy = _champion(enemyPlayer);
+    if (champion.isEmpty || enemyPlayer == null || enemy.isEmpty) {
       return TacticalAdvice(
         id: 'voice_matchup_unavailable',
         title: 'Matchup sin confirmar',
@@ -463,7 +466,7 @@ class NativeTacticalEngine {
         evidence: [question],
       );
     }
-    final matchup = _matchup(champion, enemy);
+    final matchup = _matchup(local!, enemyPlayer);
     final patterns =
         (matchup['trading_patterns'] as List?)?.whereType<String>().toList(
           growable: false,
@@ -474,7 +477,7 @@ class NativeTacticalEngine {
       id: 'voice_matchup_context',
       title: '$champion contra $enemy',
       hints: [...patterns, if (winCondition.isNotEmpty) winCondition],
-      rationale: 'Regla general determinista; todavía no es conocimiento específico validado para esta pareja.',
+      rationale: matchup['rationale']?.toString() ?? 'Regla general determinista; no hay semántica específica disponible para esta pareja.',
       ttsText:
           '$champion contra $enemy. ${patterns.firstOrNull ?? winCondition}',
       priority: 60,
@@ -491,10 +494,10 @@ class NativeTacticalEngine {
           gameTime,
         ),
         TacticalEvidence(
-          factType: 'general_matchup_rule',
+          factType: matchup['source']?.toString() ?? 'general_matchup_rule',
           source: FactSource.derived,
           observedAt: now,
-          confidence: 0.55,
+          confidence: (matchup['confidence'] as num?)?.toDouble() ?? 0.55,
           gameTimeSeconds: gameTime,
         ),
       ],
@@ -754,22 +757,131 @@ TacticalEvidence _evidence(
   gameTimeSeconds: gameTime,
 );
 
-Map<String, dynamic> _matchup(String champion, String enemy) => {
-  'trading_patterns': [
-    'Busca intercambios después de que $enemy gaste su habilidad principal.',
-    'Conserva una salida hasta localizar al jungla enemigo.',
-  ],
-  'power_spikes': ['Nivel 6 de $champion.', 'Primer objeto completo.'],
-  'win_condition':
-      'Controla la oleada y fuerza acciones sólo con información del jungla.',
-  'avoid': [
-    'Intercambiar dentro de una oleada enemiga grande.',
-    'Entrar al río sin prioridad ni visión.',
-  ],
-  'matchup_intel_n': 0,
-  'confidence': 0.55,
-  'source': 'deterministic_general_rule',
-};
+Map<String, dynamic> _matchup(
+  Map<String, dynamic> local,
+  Map<String, dynamic> opponent,
+) {
+  final champion = _champion(local);
+  final enemy = _champion(opponent);
+  final localProfile = _map(local['champion_profile']);
+  final enemyProfile = _map(opponent['champion_profile']);
+  final localStyle = _map(localProfile['playstyle']);
+  final enemyStyle = _map(enemyProfile['playstyle']);
+  final localTactical = _map(localProfile['tactical']);
+  final enemyTactical = _map(enemyProfile['tactical']);
+  final enemyAbilities = _mapList(opponent['abilities'])
+      .where((ability) => ability['slot'] != 'P')
+      .toList(growable: false);
+  final enemyBasicAbilities = enemyAbilities
+      .where((ability) => ability['slot'] != 'R')
+      .toList(growable: false);
+  final enemyCommitment = [...enemyBasicAbilities]
+    ..sort(
+      (left, right) => _firstCooldown(right).compareTo(_firstCooldown(left)),
+    );
+  final commitmentName = enemyCommitment.firstOrNull?['name']
+      ?.toString()
+      .trim();
+
+  final tradingPatterns = <String>[];
+  if (commitmentName != null && commitmentName.isNotEmpty) {
+    tradingPatterns.add(
+      'La ventana más clara aparece después de que $enemy use $commitmentName.',
+    );
+  }
+  if (_axis(enemyStyle, 'crowdControl') >= 2) {
+    tradingPatterns.add(
+      'Conserva tu movilidad hasta ver el control principal de $enemy.',
+    );
+  } else if (_axis(localStyle, 'mobility') >= 2) {
+    tradingPatterns.add(
+      'Usa tu movilidad para intercambiar sin perder la ruta de salida.',
+    );
+  }
+  if (_axis(enemyStyle, 'durability') >= 2) {
+    tradingPatterns.add(
+      'Prioriza intercambios cortos: $enemy tiene un perfil de resistencia alto.',
+    );
+  }
+  if (tradingPatterns.isEmpty) {
+    tradingPatterns.add(
+      'Busca intercambios después de que $enemy comprometa una habilidad básica.',
+    );
+  }
+  tradingPatterns.add('Conserva una salida hasta localizar al jungla enemigo.');
+
+  final ultimate = enemyAbilities
+      .where((ability) => ability['slot'] == 'R')
+      .firstOrNull;
+  final ultimateName = ultimate?['name']?.toString().trim();
+  final powerSpikes = <String>[
+    if (ultimateName != null && ultimateName.isNotEmpty)
+      'Desde nivel 6, respeta $ultimateName de $enemy.'
+    else
+      'Nivel 6 de $enemy.',
+    'Primer objeto completo.',
+  ];
+
+  final enemyDamageType = enemyTactical['damageType']?.toString().trim();
+  final localClasses = _stringList(localProfile['classes']);
+  final enemyClasses = _stringList(enemyProfile['classes']);
+  final knownInputs = <Object?>[
+    if (localStyle.isNotEmpty) localStyle,
+    if (enemyStyle.isNotEmpty) enemyStyle,
+    if (localClasses.isNotEmpty) localClasses,
+    if (enemyClasses.isNotEmpty) enemyClasses,
+    if (localTactical.isNotEmpty) localTactical,
+    if (enemyTactical.isNotEmpty) enemyTactical,
+    ...enemyAbilities,
+  ].length;
+  final hasSemantics = knownInputs > 0;
+  final confidence =
+      (0.55 +
+              (localProfile.isNotEmpty ? 0.08 : 0) +
+              (enemyProfile.isNotEmpty ? 0.12 : 0) +
+              (enemyAbilities.isNotEmpty ? 0.1 : 0))
+          .clamp(0.55, 0.85);
+  final profileSummary = [
+    if (enemyDamageType != null && enemyDamageType.isNotEmpty)
+      'daño $enemyDamageType',
+    if (enemyClasses.isNotEmpty) enemyClasses.join('/'),
+  ].join(' · ');
+
+  return {
+    'trading_patterns': tradingPatterns,
+    'power_spikes': powerSpikes,
+    'win_condition':
+        'Controla la oleada y fuerza acciones sólo con información del jungla.',
+    'avoid': [
+      'Intercambiar dentro de una oleada enemiga grande.',
+      'Entrar al río sin prioridad ni visión.',
+    ],
+    'matchup_intel_n': knownInputs,
+    'confidence': confidence,
+    'source': hasSemantics
+        ? 'riot_champion_semantics'
+        : 'deterministic_general_rule',
+    'rationale': hasSemantics
+        ? 'Consejo derivado de atributos oficiales de $champion y $enemy${profileSummary.isEmpty ? '' : ' ($profileSummary)'}; no afirma estadísticas históricas de la pareja.'
+        : 'Regla general determinista; no hay semántica específica disponible para esta pareja.',
+  };
+}
+
+double _axis(Map<String, dynamic> style, String key) =>
+    (style[key] as num?)?.toDouble() ?? 0;
+
+double _firstCooldown(Map<String, dynamic> ability) {
+  final raw = ability['cooldown']?.toString() ?? '';
+  final match = RegExp(r'\d+(?:\.\d+)?').firstMatch(raw);
+  return double.tryParse(match?.group(0) ?? '') ?? 0;
+}
+
+List<String> _stringList(Object? value) => value is List
+    ? value
+          .map((item) => item.toString().trim())
+          .where((item) => item.isNotEmpty)
+          .toList(growable: false)
+    : const [];
 
 String _champion(Map<String, dynamic>? player) =>
     player?['champion_name']?.toString().trim() ?? '';
@@ -802,7 +914,7 @@ Map<String, dynamic> _coachingContext(
   };
 }
 
-String? _laneOpponent(
+Map<String, dynamic>? _laneOpponentPlayer(
   Map<String, dynamic>? local,
   List<Map<String, dynamic>> enemies,
 ) {
@@ -810,8 +922,7 @@ String? _laneOpponent(
   if (role.isEmpty || role == 'UNKNOWN') return null;
   return enemies
       .where((enemy) => enemy['position']?.toString().toUpperCase() == role)
-      .map(_champion)
-      .where((name) => name.isNotEmpty)
+      .where((enemy) => _champion(enemy).isNotEmpty)
       .firstOrNull;
 }
 
