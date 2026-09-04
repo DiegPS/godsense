@@ -218,7 +218,8 @@ class _GsButtonState extends State<GsButton> {
     }
 
     final double targetHeight =
-        widget.height ?? (widget.compact ? GsSizes.controlHeightCompact : GsSizes.controlHeight);
+        widget.height ??
+        (widget.compact ? GsSizes.controlHeightCompact : GsSizes.controlHeight);
     final double iconSize = widget.compact ? 13.0 : 15.0;
 
     return MouseRegion(
@@ -229,9 +230,7 @@ class _GsButtonState extends State<GsButton> {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 120),
           height: targetHeight,
-          padding: EdgeInsets.symmetric(
-            horizontal: widget.compact ? 10 : 14,
-          ),
+          padding: EdgeInsets.symmetric(horizontal: widget.compact ? 10 : 14),
           decoration: BoxDecoration(
             color: bg,
             borderRadius: BorderRadius.circular(GsSizes.radius),
@@ -351,7 +350,8 @@ class _GsIconButtonState extends State<GsIconButton> {
         break;
     }
 
-    final targetSize = widget.size ??
+    final targetSize =
+        widget.size ??
         (widget.compact ? GsSizes.controlHeightCompact : GsSizes.controlHeight);
 
     Widget content = MouseRegion(
@@ -369,11 +369,7 @@ class _GsIconButtonState extends State<GsIconButton> {
             borderRadius: BorderRadius.circular(GsSizes.radius),
             border: Border.all(color: border, width: 1),
           ),
-          child: Icon(
-            widget.icon,
-            size: widget.iconSize,
-            color: fg,
-          ),
+          child: Icon(widget.icon, size: widget.iconSize, color: fg),
         ),
       ),
     );
@@ -422,7 +418,8 @@ class GsInput extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final targetHeight = height ??
+    final targetHeight =
+        height ??
         (compact ? GsSizes.controlHeightCompact : GsSizes.controlHeight);
     final fontSize = compact ? 12.0 : 13.0;
 
@@ -436,11 +433,8 @@ class GsInput extends StatelessWidget {
         textInputAction: textInputAction,
         onChanged: onChanged,
         onSubmitted: onSubmitted,
-        style: style ??
-            TextStyle(
-              fontSize: fontSize,
-              color: GsColors.textPrimary,
-            ),
+        style:
+            style ?? TextStyle(fontSize: fontSize, color: GsColors.textPrimary),
         decoration: InputDecoration(
           isDense: true,
           contentPadding: const EdgeInsets.symmetric(
@@ -448,10 +442,7 @@ class GsInput extends StatelessWidget {
             vertical: 9,
           ),
           hintText: hintText,
-          hintStyle: TextStyle(
-            fontSize: fontSize,
-            color: GsColors.textMuted,
-          ),
+          hintStyle: TextStyle(fontSize: fontSize, color: GsColors.textMuted),
           prefixText: prefixText,
           prefixStyle: const TextStyle(
             color: GsColors.cyan,
@@ -669,15 +660,14 @@ class GsSelect<T> extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final enabled = onChanged != null;
-    final targetHeight = height ??
+    final targetHeight =
+        height ??
         (compact ? GsSizes.controlHeightCompact : GsSizes.controlHeight);
 
     final content = Container(
       height: targetHeight,
       alignment: Alignment.center,
-      padding: EdgeInsets.symmetric(
-        horizontal: compact ? 10 : 12,
-      ),
+      padding: EdgeInsets.symmetric(horizontal: compact ? 10 : 12),
       decoration: BoxDecoration(
         color: const Color(0xFF0F172A),
         borderRadius: BorderRadius.circular(GsSizes.radius),
@@ -890,87 +880,6 @@ class GsMetricStat extends StatelessWidget {
           ),
         ],
       ],
-    );
-  }
-}
-
-/// System Health & Diagnostics Matrix
-class GsHealthMatrix extends StatelessWidget {
-  const GsHealthMatrix({super.key, required this.components});
-
-  final Map<String, ({bool alive, String? latency, String? error})> components;
-
-  @override
-  Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: components.entries.map((entry) {
-        final name = entry.key;
-        final info = entry.value;
-        final isAlive = info.alive;
-
-        return Container(
-          width: 175,
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          decoration: BoxDecoration(
-            color: GsColors.surfaceElevated,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: isAlive
-                  ? const Color(0x2610B981)
-                  : const Color(0x33EF4444),
-              width: 1,
-            ),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 8,
-                height: 8,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: isAlive ? GsColors.emerald : GsColors.crimson,
-                  boxShadow: isAlive
-                      ? const [
-                          BoxShadow(color: Color(0x8010B981), blurRadius: 4),
-                        ]
-                      : null,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      name.toUpperCase(),
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0,
-                        color: GsColors.textPrimary,
-                      ),
-                    ),
-                    Text(
-                      isAlive
-                          ? (info.latency ?? 'Listo')
-                          : (info.error ?? 'Requiere atención'),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        color: isAlive ? GsColors.emerald : GsColors.crimson,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        );
-      }).toList(),
     );
   }
 }

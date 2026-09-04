@@ -12,12 +12,8 @@ void main() {
       final gateway = NativeCompanionGateway();
 
       final health = await gateway.health();
-      final coach = await const NativeCoachHealthGateway().health();
-
       expect(health['runtime'], 'in_process');
       expect(health['status'], 'ok');
-      expect(coach['runtime'], 'in_process');
-      expect(await const InProcessCompanionRuntime().ensureStarted(), isTrue);
       await gateway.closeAlerts();
     },
   );

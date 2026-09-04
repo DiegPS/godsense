@@ -12,20 +12,6 @@ abstract interface class CompanionGateway {
   Future<void> closeAlerts();
 }
 
-abstract interface class CompanionRuntime {
-  Future<bool> ensureStarted();
-  void dispose();
-}
-
-abstract interface class CoachGateway {
-  Future<Map<String, dynamic>> health();
-}
-
-abstract interface class CoachRuntime {
-  Future<bool> ensureStarted();
-  void dispose();
-}
-
 class CompanionGatewayException implements Exception {
   const CompanionGatewayException(this.message, {this.statusCode});
 

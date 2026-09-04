@@ -6,17 +6,9 @@ import '../domain/companion_gateway.dart';
 import '../domain/companion_models.dart';
 
 class CompanionController extends StateNotifier<CompanionState> {
-  CompanionController(
-    this.client, {
-    required this.runtime,
-    required this.coach,
-    required this.coachRuntime,
-  }) : super(const CompanionState());
+  CompanionController(this.client) : super(const CompanionState());
 
   final CompanionGateway client;
-  final CompanionRuntime runtime;
-  final CoachGateway coach;
-  final CoachRuntime coachRuntime;
   final List<Timer> _timers = [];
   StreamSubscription<Map<String, dynamic>>? _alertsSubscription;
   Timer? _reconnectTimer;
@@ -28,15 +20,11 @@ class CompanionController extends StateNotifier<CompanionState> {
   Future<void> start() async {
     if (_started) return;
     _started = true;
-    await coachRuntime.ensureStarted();
-    await runtime.ensureStarted();
     try {
-      final results = await Future.wait([client.health(), coach.health()]);
-      final health = CompanionHealth.fromJson(results[0]);
+      final health = CompanionHealth.fromJson(await client.health());
       state = state.copyWith(
         connection: CompanionConnection.online,
         health: health,
-        localCoachHealth: results[1],
         clearError: true,
       );
     } catch (_) {}
@@ -111,12 +99,10 @@ class CompanionController extends StateNotifier<CompanionState> {
     if (_slowPolling) return;
     _slowPolling = true;
     try {
-      final results = await Future.wait([client.health(), coach.health()]);
-      final health = CompanionHealth.fromJson(results[0]);
+      final health = CompanionHealth.fromJson(await client.health());
       state = state.copyWith(
         connection: CompanionConnection.online,
         health: health,
-        localCoachHealth: results[1],
         clearError: true,
       );
     } catch (error) {
@@ -200,8 +186,6 @@ class CompanionController extends StateNotifier<CompanionState> {
     _reconnectTimer?.cancel();
     unawaited(_alertsSubscription?.cancel() ?? Future<void>.value());
     unawaited(client.closeAlerts());
-    runtime.dispose();
-    coachRuntime.dispose();
     super.dispose();
   }
 }

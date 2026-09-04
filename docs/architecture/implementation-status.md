@@ -11,7 +11,7 @@
 | Area | Implemented contract | Verification |
 | --- | --- | --- |
 | UI composition | Native Flutter navigation, modular pages, overlay, window manager; no `go_router` | Widget tests and Windows debug build |
-| Core runtime | League, vision, deterministic coaching, voice and persistence remain in-process and do not require a backend | Legacy runtime sources, unused backend placeholders, and Dio dependency removed |
+| Core runtime | League, vision, deterministic coaching, voice and persistence remain in-process and do not require a backend | External coach/runtime shims, unused support exporters and IPC placeholders removed |
 | Optional AI runtime | Version-pinned OpenCode/Kilo packages, isolated process lifecycle, dynamic loopback port, ephemeral Basic Auth, health gating and Windows Job Object cleanup | Real OpenCode 1.18.25 and Kilo 7.5.9 installations pass process/API integration tests |
 | AI local API | Shared typed client covers providers, auth methods, sessions, messages, async prompt, abort, delete and SSE | Same integration test passes against both runtimes without inference or billing |
 | Vision | Continuous DXGI Desktop Duplication capture plus isolated DartCV processing; independent from League focus and game phase | Exact parity on 120 synthetic and 866 real frames; real Windows DXGI smoke run |
@@ -25,10 +25,12 @@
 | Jungle routes | Patch-exact Riot `Map11` routes for both teams, with validated camp order and offline cache | Live CommunityDragon 16.17 extraction and parser/cache tests |
 | Live Client | Native polling, current projection, complete event journal, logical game time | Adapter and projection parity tests |
 | Live champion abilities | Patch-resolved Data Dragon passive and Q/W/E/R data enriches the live roster without blocking Live Client polling | Catalog and projection tests |
-| Scout | Connected account plus arbitrary Riot ID lookup through LCU; legacy participant identities/stats are normalized; rank, scoreboards, factual playstyle metrics and signature champions remain available from the account-scoped cache | Live LCU 16.17 lookup/schema inspection and SQLite/controller/analyzer/widget tests |
+| Scout | Connected account plus arbitrary Riot ID lookup through LCU; participant identities/stats are normalized; rank, scoreboards, timelines, factual playstyle metrics and signature champions remain available from the account-scoped cache and update progressively | Live LCU 16.17 lookup/schema inspection and SQLite/controller/analyzer/widget tests |
 | Data Dragon | Resource contracts, patch resolution, validation, and content-addressed cache | Resolver tests |
 | Voice | Sherpa STT, global Push-to-Talk, multiple local TTS models, native playback | Unit/lifecycle tests; copied-model discovery tests |
-| Voice coach | `STT -> intent -> live/lobby/vision/Riot facts -> advice -> TTS`; answers jungle, objective-specific state, build, measured game/lane state, and matchup context, with stale-result suppression | Controller and 17 tactical engine tests |
+| Voice coach | `STT -> intent -> live/lobby/vision/Riot facts -> advice -> TTS`; open questions use the selected AI runtime when ready and fall back to deterministic advice on failure | Controller and tactical engine tests |
+| Matchup coaching | Uses Riot client playstyle/class/tactical attributes and patch-resolved ability names/cooldowns when available; explicitly falls back to general rules without inventing pair win rates | Tactical engine semantic and fallback tests |
+| Optional AI conversation | Persistent local conversation, selected provider/model, incremental SSE rendering, cancellation, runtime auto-start preference and provider API-key/OAuth flows | Controller, client and widget tests plus real Kilo/OpenCode API probes |
 | Provenance | Raw source records separated from decoded observations/events/advice | SQLite repository and adapter tests |
 | Vision journal | DartCV sightings stored by `MatchKey`, session generation, game time, and confidence | Adapter deduplication tests |
 | Advice journal | Voice question and tactical advice stored separately with evidence and confidence | Adapter tests |
@@ -37,9 +39,9 @@
 
 ## Current measured baseline
 
-The complete suite currently has 171 passing tests and 13 explicitly skipped
-native smoke tests. The skipped tests require model-path environment variables;
-model discovery from the copied Airstream cache is covered separately.
+Static analysis is kept at zero issues. Native smoke tests that require a live
+League session or explicit model-path environment variables remain environment
+gates; copied-model discovery is covered separately.
 
 The latest complete real-corpus run processed 866 frames with:
 
@@ -88,12 +90,12 @@ Before a release candidate, run an on-machine acceptance session covering:
 7. Push-to-Talk, selected Sherpa model, audio playback, overlay focus, and
    fullscreen League behavior on the target machine.
 
-## Next product decision: matchup-specific tactical knowledge
+## Optional future input: statistical matchup evidence
 
-Matchup-specific advice needs a trusted, versioned input. Runes and item builds
-now use Riot-owned artifacts and retain their patch, champion, position, map,
-mode, IDs, and source URI. The next implementation must choose and license a
-matchup evidence source, then store:
+GodSense now produces matchup-specific deterministic advice from Riot-owned
+champion semantics and ability data. It deliberately does not claim historical
+win rates or matchup samples. Adding those statistical claims would require a
+trusted, licensed and versioned evidence source, then storing:
 
 - champion, role, opponent, queue, and rank context;
 - requested patch and exact resolved artifact version;

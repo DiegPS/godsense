@@ -237,25 +237,10 @@ final companionGatewayProvider = Provider<CompanionGateway>((ref) {
   );
 });
 
-final companionRuntimeProvider = Provider<CompanionRuntime>(
-  (_) => const InProcessCompanionRuntime(),
-);
-
-final coachGatewayProvider = Provider<CoachGateway>(
-  (_) => const NativeCoachHealthGateway(),
-);
-
-final coachRuntimeProvider = Provider<CoachRuntime>(
-  (_) => const InProcessCompanionRuntime(),
-);
-
 final companionControllerProvider =
     StateNotifierProvider<CompanionController, CompanionState>((ref) {
       final controller = CompanionController(
         ref.watch(companionGatewayProvider),
-        runtime: ref.watch(companionRuntimeProvider),
-        coach: ref.watch(coachGatewayProvider),
-        coachRuntime: ref.watch(coachRuntimeProvider),
       );
       controller.start();
       return controller;

@@ -342,7 +342,6 @@ class CompanionState {
     this.connection = CompanionConnection.connecting,
     this.webSocketConnected = false,
     this.health,
-    this.localCoachHealth = const {},
     this.lobby,
     this.lobbyHealth = const {},
     this.settings,
@@ -358,7 +357,6 @@ class CompanionState {
   final CompanionConnection connection;
   final bool webSocketConnected;
   final CompanionHealth? health;
-  final Map<String, dynamic> localCoachHealth;
   final LobbyState? lobby;
   final Map<String, dynamic> lobbyHealth;
   final CompanionSettings? settings;
@@ -374,7 +372,6 @@ class CompanionState {
     CompanionConnection? connection,
     bool? webSocketConnected,
     CompanionHealth? health,
-    Map<String, dynamic>? localCoachHealth,
     LobbyState? lobby,
     Map<String, dynamic>? lobbyHealth,
     CompanionSettings? settings,
@@ -391,7 +388,6 @@ class CompanionState {
       connection: connection ?? this.connection,
       webSocketConnected: webSocketConnected ?? this.webSocketConnected,
       health: health ?? this.health,
-      localCoachHealth: localCoachHealth ?? this.localCoachHealth,
       lobby: lobby ?? this.lobby,
       lobbyHealth: lobbyHealth ?? this.lobbyHealth,
       settings: settings ?? this.settings,

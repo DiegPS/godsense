@@ -158,27 +158,6 @@ class NativeCompanionGateway implements CompanionGateway {
   }
 }
 
-class InProcessCompanionRuntime implements CompanionRuntime, CoachRuntime {
-  const InProcessCompanionRuntime();
-
-  @override
-  Future<bool> ensureStarted() async => true;
-
-  @override
-  void dispose() {}
-}
-
-class NativeCoachHealthGateway implements CoachGateway {
-  const NativeCoachHealthGateway();
-
-  @override
-  Future<Map<String, dynamic>> health() async => const {
-    'status': 'ok',
-    'runtime': 'in_process',
-    'opencode': {'state': 'not_required'},
-  };
-}
-
 const _defaultSettings = <String, dynamic>{
   'ptt_key': 'delete',
   'tts_enabled': true,

@@ -92,12 +92,7 @@ Widget _testApp() {
     overrides: [
       nativeLeagueProvider.overrideWith((_) => NativeLeagueController()),
       companionControllerProvider.overrideWith(
-        (_) => CompanionController(
-          NativeCompanionGateway(),
-          runtime: const InProcessCompanionRuntime(),
-          coach: const NativeCoachHealthGateway(),
-          coachRuntime: const InProcessCompanionRuntime(),
-        ),
+        (_) => CompanionController(NativeCompanionGateway()),
       ),
     ],
     child: const GodSenseApp(),
