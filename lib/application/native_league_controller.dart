@@ -243,6 +243,7 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
   final Map<int, String> _championNames = {};
   final Map<int, String> _championAliases = {};
   final Map<int, Map<String, dynamic>> _championProfiles = {};
+  final Map<int, Future<void>> _championProfileLoads = {};
   String? _championProfilesVersion;
   final Map<String, String> _championPortraits = {};
   String? _portraitPatch;
@@ -347,6 +348,44 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
       }
     }
     return Map.unmodifiable(_championNames);
+  }
+
+  Future<void> _ensureChampionProfileLoaded(int id) async {
+    if (id <= 0) return;
+    if (_championNames.containsKey(id) &&
+        (_championAliases[id]?.isNotEmpty ?? false) &&
+        _championProfiles.containsKey(id)) {
+      return;
+    }
+    final existing = _championProfileLoads[id];
+    if (existing != null) return existing;
+    final loading = _loadChampionProfile(id);
+    _championProfileLoads[id] = loading;
+    try {
+      await loading;
+    } finally {
+      _championProfileLoads.remove(id);
+    }
+  }
+
+  Future<void> _loadChampionProfile(int id) async {
+    final version = _championProfilesVersion;
+    final data = await _lcu.get('/lol-game-data/assets/v1/champions/$id.json');
+    if (data is! Map || _championProfilesVersion != version) return;
+    _championNames[id] = data['name']?.toString() ?? '$id';
+    _championAliases[id] = data['alias']?.toString() ?? '';
+    _championProfiles[id] = {
+      'champion_id': id,
+      'champion_alias': data['alias']?.toString() ?? '',
+      'icon_url':
+          'https://raw.communitydragon.org/latest/plugins/'
+          'rcp-be-lol-game-data/global/default/v1/champion-icons/$id.png',
+      'classes': data['roles'] ?? const [],
+      'playstyle': data['playstyleInfo'] ?? const {},
+      'tactical': data['tacticalInfo'] ?? const {},
+      'source': 'lcu_champion_data',
+      'source_version': version,
+    };
   }
 
   void start() {
@@ -632,26 +671,7 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
           (!_championNames.containsKey(id) ||
               (_championAliases[id]?.isEmpty ?? true) ||
               !_championProfiles.containsKey(id))) {
-        final data = await _lcu.get(
-          '/lol-game-data/assets/v1/champions/$id.json',
-        );
-        if (data is Map) {
-          _championNames[id] = data['name']?.toString() ?? '$id';
-          _championAliases[id] = data['alias']?.toString() ?? '';
-          _championProfiles[id] = {
-            'champion_id': id,
-            'champion_alias': data['alias']?.toString() ?? '',
-            'icon_url':
-                'https://raw.communitydragon.org/latest/plugins/'
-                'rcp-be-lol-game-data/global/default/v1/champion-icons/'
-                '$id.png',
-            'classes': data['roles'] ?? const [],
-            'playstyle': data['playstyleInfo'] ?? const {},
-            'tactical': data['tacticalInfo'] ?? const {},
-            'source': 'lcu_champion_data',
-            'source_version': version,
-          };
-        }
+        await _ensureChampionProfileLoaded(id);
       }
     }
     final localCell = (raw['localPlayerCellId'] as num?)?.toInt();
@@ -716,12 +736,14 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
       ].whereType<num>())
         value.toInt(),
     };
+    final normalizedMyTeam = normalize(myTeam);
+    final normalizedTheirTeam = normalize(theirTeam);
     return {
       'phase': 'IN_SELECT',
       'snapshot': {
         'local_player_cell_id': localCell,
-        'my_team': normalize(myTeam),
-        'their_team': normalize(theirTeam),
+        'my_team': normalizedMyTeam,
+        'their_team': normalizedTheirTeam,
         'timer_phase': timer['phase'],
         'time_left_ms': timer['adjustedTimeLeftInPhase'],
         'bans': {
@@ -742,6 +764,8 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
         pickableIds: _draftPickableIds,
         excludedIds: excluded,
         championNames: _championNames,
+        allies: normalizedMyTeam,
+        championProfiles: _championProfiles,
       ),
       'comp_analysis': null,
     };
@@ -894,6 +918,28 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
           '/lol-champ-select/v1/pickable-champion-ids',
         );
         await loadChampionNames();
+        if (mastery is List && pickable is List) {
+          final pickableIds = pickable
+              .whereType<num>()
+              .map((id) => id.toInt())
+              .toSet();
+          final profileIds =
+              _mapList(mastery)
+                  .where(
+                    (entry) => pickableIds.contains(
+                      (entry['championId'] as num?)?.toInt(),
+                    ),
+                  )
+                  .toList()
+                ..sort(
+                  (left, right) => ((right['championPoints'] as num?) ?? 0)
+                      .compareTo((left['championPoints'] as num?) ?? 0),
+                );
+          for (final entry in profileIds.take(12)) {
+            final id = (entry['championId'] as num?)?.toInt();
+            if (id != null) await _ensureChampionProfileLoaded(id);
+          }
+        }
         if (_draftAccountKey != puuid) return;
         _draftMastery = _mapList(mastery);
         _draftPickableIds = pickable is List

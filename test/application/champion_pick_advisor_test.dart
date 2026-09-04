@@ -32,4 +32,50 @@ void main() {
       isEmpty,
     );
   });
+
+  test('balances familiarity with observable composition needs', () {
+    final result = advisor.suggest(
+      mastery: const [
+        {'championId': 1, 'championPoints': 10000, 'championLevel': 7},
+        {'championId': 2, 'championPoints': 8500, 'championLevel': 6},
+      ],
+      pickableIds: {1, 2},
+      excludedIds: {},
+      championNames: {1: 'AD Familiar', 2: 'AP Frontline'},
+      allies: const [
+        {
+          'champion_profile': {
+            'playstyle': {'damage': 2, 'durability': 1, 'crowdControl': 1},
+            'tactical': {'damageType': 'PHYSICAL_DAMAGE'},
+          },
+        },
+        {
+          'champion_profile': {
+            'playstyle': {'damage': 2, 'durability': 1, 'crowdControl': 1},
+            'tactical': {'damageType': 'PHYSICAL_DAMAGE'},
+          },
+        },
+      ],
+      championProfiles: const {
+        1: {
+          'playstyle': {'durability': 1, 'crowdControl': 1},
+          'tactical': {'damageType': 'PHYSICAL_DAMAGE'},
+        },
+        2: {
+          'playstyle': {'durability': 3, 'crowdControl': 3},
+          'tactical': {'damageType': 'MAGIC_DAMAGE'},
+        },
+      },
+    );
+
+    expect(result.first['champion'], 'AP Frontline');
+    expect(result.first['policy'], 'personal_familiarity_and_composition_v1');
+    expect(result.first['score'], contains('encaje'));
+    expect(
+      (result.first['reasons'] as List).whereType<Map>().map(
+        (reason) => reason['play'],
+      ),
+      contains('Aporta un tipo de daño distinto al predominante.'),
+    );
+  });
 }
