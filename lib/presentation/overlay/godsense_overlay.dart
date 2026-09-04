@@ -27,18 +27,18 @@ class _GodSenseOverlayState extends ConsumerState<GodSenseOverlay> {
 
   @override
   Widget build(BuildContext context) {
-    final backend = ref.watch(companionControllerProvider);
+    final companion = ref.watch(companionControllerProvider);
     final nativeVision = ref.watch(nativeVisionProvider);
     final nativeSpeech = ref.watch(nativeSpeechProvider);
     final nativeVoiceCoach = ref.watch(nativeVoiceCoachProvider);
     final calibration = ref.watch(nativeCalibrationProvider).calibration;
     final game = ref.watch(effectiveGameProvider);
     final goldDifference = (game?.raw['team_gold_diff'] as num?)?.toInt();
-    final sighting = backend.alerts
+    final sighting = companion.alerts
         .where((alert) => alert.kind == CompanionAlertKind.junglerSighting)
         .where((alert) => _now.difference(alert.receivedAt).inSeconds < 180)
         .firstOrNull;
-    final gank = backend.alerts
+    final gank = companion.alerts
         .where((alert) => alert.kind == CompanionAlertKind.gank)
         .where((alert) => _now.difference(alert.receivedAt).inSeconds < 5)
         .firstOrNull;
@@ -50,7 +50,7 @@ class _GodSenseOverlayState extends ConsumerState<GodSenseOverlay> {
         .where((event) => event.kind == NativeTrackerEventKind.junglerSighting)
         .where((event) => _now.difference(event.timestamp).inSeconds < 180)
         .firstOrNull;
-    final voice = backend.alerts
+    final voice = companion.alerts
         .where((alert) => alert.kind == CompanionAlertKind.voice)
         .where((alert) {
           final state = alert.raw['state']?.toString();
@@ -64,7 +64,7 @@ class _GodSenseOverlayState extends ConsumerState<GodSenseOverlay> {
         nativeSpeech.pushToTalkPressed ||
         (nativeSpeech.lastTranscriptAt != null &&
             _now.difference(nativeSpeech.lastTranscriptAt!).inSeconds < 8);
-    final visibilityEvent = backend.alerts
+    final visibilityEvent = companion.alerts
         .where((alert) => alert.kind == CompanionAlertKind.overlayVisibility)
         .firstOrNull;
     final layout = ref.watch(overlayLayoutProvider);
@@ -85,7 +85,7 @@ class _GodSenseOverlayState extends ConsumerState<GodSenseOverlay> {
         if (aMia != bMia) return aMia ? -1 : 1;
         return 0;
       });
-    final hiddenPanels = backend.settings?.overlayHiddenPanels ?? const [];
+    final hiddenPanels = companion.settings?.overlayHiddenPanels ?? const [];
     ref.listen(overlayLayoutProvider.select((state) => state.editing), (
       previous,
       editing,
@@ -151,10 +151,7 @@ class _GodSenseOverlayState extends ConsumerState<GodSenseOverlay> {
             _EditableOverlayPanel(
               id: 'gank',
               title: 'Alerta de gank',
-              child: _GankAlertHUD(
-                nativeGank: nativeGank,
-                gank: gank,
-              ),
+              child: _GankAlertHUD(nativeGank: nativeGank, gank: gank),
             ),
           if (!hiddenPanels.contains('jungler'))
             _EditableOverlayPanel(
@@ -187,7 +184,7 @@ class _GodSenseOverlayState extends ConsumerState<GodSenseOverlay> {
               id: 'matchup_info',
               title: 'Enfrentamiento',
               child: _MatchupInfoHUD(
-                matchupData: backend.coaching['matchup'],
+                matchupData: companion.coaching['matchup'],
               ),
             ),
           if (!hiddenPanels.contains('builds'))
@@ -198,28 +195,26 @@ class _GodSenseOverlayState extends ConsumerState<GodSenseOverlay> {
                 coachGroups: ref
                     .watch(coachControllerProvider)
                     .itemRecommendationGroups,
-                rawBuilds: backend.coaching['builds'] is Map
+                rawBuilds: companion.coaching['builds'] is Map
                     ? Map<String, dynamic>.from(
-                        backend.coaching['builds'] as Map,
+                        companion.coaching['builds'] as Map,
                       )
                     : (ref.watch(nativeLeagueProvider).liveGame?['builds']
-                            is Map
-                        ? Map<String, dynamic>.from(
-                            ref
-                                    .watch(nativeLeagueProvider)
-                                    .liveGame!['builds']
-                                as Map,
-                          )
-                        : null),
+                              is Map
+                          ? Map<String, dynamic>.from(
+                              ref
+                                      .watch(nativeLeagueProvider)
+                                      .liveGame!['builds']
+                                  as Map,
+                            )
+                          : null),
               ),
             ),
           if (!hiddenPanels.contains('directives'))
             _EditableOverlayPanel(
               id: 'directives',
               title: 'Directivas',
-              child: _PriorityDirectivesHUD(
-                directives: backend.directives,
-              ),
+              child: _PriorityDirectivesHUD(directives: companion.directives),
             ),
           if (!hiddenPanels.contains('team_comp'))
             _EditableOverlayPanel(
@@ -227,9 +222,9 @@ class _GodSenseOverlayState extends ConsumerState<GodSenseOverlay> {
               title: 'Composición',
               child: _EsportsCompositionHUD(
                 game: game,
-                aiTeamComp: backend.coaching['team_comp'] is Map
+                aiTeamComp: companion.coaching['team_comp'] is Map
                     ? Map<String, dynamic>.from(
-                        backend.coaching['team_comp'] as Map,
+                        companion.coaching['team_comp'] as Map,
                       )
                     : null,
               ),
@@ -244,9 +239,7 @@ class _GodSenseOverlayState extends ConsumerState<GodSenseOverlay> {
             _EditableOverlayPanel(
               id: 'gold_chart',
               title: 'Diferencia de oro',
-              child: _MiniGoldBadgeHUD(
-                goldDifference: goldDifference,
-              ),
+              child: _MiniGoldBadgeHUD(goldDifference: goldDifference),
             ),
         ],
       ),

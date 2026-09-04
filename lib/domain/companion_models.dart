@@ -313,7 +313,7 @@ class CompanionAlert {
         'Overlay edit mode',
         json['edit'] == true ? 'Enabled' : 'Disabled',
       ),
-      CompanionAlertKind.unknown => ('Backend event', type ?? 'Unknown event'),
+      CompanionAlertKind.unknown => ('Evento de GodSense', type ?? 'Evento'),
     };
     return CompanionAlert(
       kind: kind,
@@ -348,7 +348,6 @@ class CompanionState {
     this.settings,
     this.coaching = const {},
     this.coachingStatus = const {},
-    this.supportResult = const {},
     this.directives = const [],
     this.alerts = const [],
     this.lastError,
@@ -365,7 +364,6 @@ class CompanionState {
   final CompanionSettings? settings;
   final Map<String, dynamic> coaching;
   final Map<String, dynamic> coachingStatus;
-  final Map<String, dynamic> supportResult;
   final List<CoachDirective> directives;
   final List<CompanionAlert> alerts;
   final String? lastError;
@@ -382,7 +380,6 @@ class CompanionState {
     CompanionSettings? settings,
     Map<String, dynamic>? coaching,
     Map<String, dynamic>? coachingStatus,
-    Map<String, dynamic>? supportResult,
     List<CoachDirective>? directives,
     List<CompanionAlert>? alerts,
     String? lastError,
@@ -400,7 +397,6 @@ class CompanionState {
       settings: settings ?? this.settings,
       coaching: coaching ?? this.coaching,
       coachingStatus: coachingStatus ?? this.coachingStatus,
-      supportResult: supportResult ?? this.supportResult,
       directives: directives ?? this.directives,
       alerts: alerts ?? this.alerts,
       lastError: clearError ? null : lastError ?? this.lastError,

@@ -1,11 +1,9 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../domain/companion_models.dart';
 import '../domain/summoners_rift_map.dart';
 import '../infrastructure/native_vision/dartcv_minimap_tracker.dart';
 import '../infrastructure/native_vision/native_minimap_calibrator.dart';
@@ -13,7 +11,7 @@ import '../infrastructure/native_vision/desktop_screen_capture.dart';
 import '../infrastructure/native_vision/vision_icon_cache.dart';
 import '../infrastructure/native_vision/vision_runtime.dart';
 
-enum TrackerLogSource { native, legacy }
+enum TrackerLogSource { vision }
 
 class TrackerLogEntry {
   const TrackerLogEntry({
@@ -260,7 +258,6 @@ class NativeVisionController extends StateNotifier<NativeVisionState> {
   int _iconSize = 28;
   DateTime _fpsSample = DateTime.now();
   bool _loggedCaptureStart = false;
-  Future<void> _logWriteQueue = Future.value();
   String _targetSignature = '';
   String? _loadingTargetSignature;
   bool _targetsUpdating = false;
@@ -463,7 +460,7 @@ class NativeVisionController extends StateNotifier<NativeVisionState> {
       _appendLog(
         TrackerLogEntry(
           timestamp: DateTime.now(),
-          source: TrackerLogSource.native,
+          source: TrackerLogSource.vision,
           event: 'targets_refreshed',
           message:
               'Targets: ${loadedNames.join(', ')} · icon $stableIconSize px · '
@@ -591,7 +588,7 @@ class NativeVisionController extends StateNotifier<NativeVisionState> {
         _appendLog(
           TrackerLogEntry(
             timestamp: frame.capturedAt,
-            source: TrackerLogSource.native,
+            source: TrackerLogSource.vision,
             event: 'performance',
             message:
                 'DXGI avg=${averageCapture.toStringAsFixed(2)} ms · CV avg=${averageCv.toStringAsFixed(2)} ms · '
@@ -609,7 +606,7 @@ class NativeVisionController extends StateNotifier<NativeVisionState> {
         _appendLog(
           TrackerLogEntry(
             timestamp: frame.capturedAt,
-            source: TrackerLogSource.native,
+            source: TrackerLogSource.vision,
             event: 'capture_started',
             message:
                 '${capture.width}x${capture.height} BGRA via DXGI · processing ${frame.processingTime.inMilliseconds} ms',
@@ -724,7 +721,7 @@ class NativeVisionController extends StateNotifier<NativeVisionState> {
           _appendLog(
             TrackerLogEntry(
               timestamp: timestamp,
-              source: TrackerLogSource.native,
+              source: TrackerLogSource.vision,
               event: 'native_gank',
               message:
                   'DANGER: ${event.champion}: ${event.location} · ${event.role}',
@@ -760,7 +757,7 @@ class NativeVisionController extends StateNotifier<NativeVisionState> {
           _appendLog(
             TrackerLogEntry(
               timestamp: timestamp,
-              source: TrackerLogSource.native,
+              source: TrackerLogSource.vision,
               event: 'native_jungler_sighting',
               message:
                   '${event.champion}: ${event.location} (${event.region}, unseen ${event.unseenSeconds.toStringAsFixed(1)}s)',
@@ -799,7 +796,7 @@ class NativeVisionController extends StateNotifier<NativeVisionState> {
       _appendLog(
         TrackerLogEntry(
           timestamp: frame.processedAt,
-          source: TrackerLogSource.native,
+          source: TrackerLogSource.vision,
           event: previous == null
               ? 'native_first_identified'
               : 'native_region_changed',
@@ -813,21 +810,6 @@ class NativeVisionController extends StateNotifier<NativeVisionState> {
     }
   }
 
-  void recordLegacy(CompanionAlert alert) {
-    if (alert.kind != CompanionAlertKind.gank &&
-        alert.kind != CompanionAlertKind.junglerSighting) {
-      return;
-    }
-    _appendLog(
-      TrackerLogEntry(
-        timestamp: alert.receivedAt,
-        source: TrackerLogSource.legacy,
-        event: alert.kind.name,
-        message: '${alert.title}: ${alert.message}',
-      ),
-    );
-  }
-
   void clearLogs() => state = state.copyWith(logs: const []);
 
   void _appendLog(TrackerLogEntry entry, {bool notifyUi = true}) {
@@ -835,20 +817,7 @@ class NativeVisionController extends StateNotifier<NativeVisionState> {
       final logs = [entry, ...state.logs].take(15).toList();
       state = state.copyWith(logs: logs);
     }
-    final line = jsonEncode(entry.toJson());
-    debugPrint('[TRACKER][${entry.source.name.toUpperCase()}] $line');
-    _logWriteQueue = _logWriteQueue.then((_) => _writeLog('$line\n'));
-  }
-
-  Future<void> _writeLog(String line) async {
-    try {
-      final appData = Platform.environment['APPDATA'];
-      if (appData == null) return;
-      final directory = Directory('$appData\\GodSense');
-      await directory.create(recursive: true);
-      await File('${directory.path}\\tracker-comparison-$pid.jsonl')
-          .writeAsString(line, mode: FileMode.append, flush: true);
-    } catch (_) {}
+    debugPrint('[TRACKER][VISION] ${entry.event}: ${entry.message}');
   }
 
   @override

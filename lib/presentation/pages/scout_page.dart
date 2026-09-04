@@ -293,18 +293,22 @@ class _ScoutPageState extends ConsumerState<ScoutPage> {
     LocalScoutState state,
     ScoutProfileAnalytics? analytics,
   ) {
-    final legacy = state.profile;
+    final profileData = state.profile;
     final name =
         state.subjectAccount?.riotId?.gameName ??
-        legacy['game_name'] ??
+        profileData['game_name'] ??
         'Invocador';
     final tag =
-        state.subjectAccount?.riotId?.tagLine ?? legacy['tag_line'] ?? 'LAN';
+        state.subjectAccount?.riotId?.tagLine ??
+        profileData['tag_line'] ??
+        'LAN';
     final iconUrl = state.subjectAccount?.profileIconId != null
         ? 'https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1/profile-icons/${state.subjectAccount!.profileIconId}.jpg'
-        : legacy['icon_url']?.toString();
+        : profileData['icon_url']?.toString();
 
-    final rankMap = legacy['rank'] is Map ? legacy['rank'] as Map : const {};
+    final rankMap = profileData['rank'] is Map
+        ? profileData['rank'] as Map
+        : const {};
     final tier = rankMap['tier']?.toString() ?? 'UNRANKED';
     final division = rankMap['division']?.toString() ?? '';
     final lp = (rankMap['lp'] as num?)?.toInt() ?? 0;

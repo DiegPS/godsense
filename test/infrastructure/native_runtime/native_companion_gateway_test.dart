@@ -1,8 +1,5 @@
-import 'dart:io';
-
 import 'package:flutter_test/flutter_test.dart';
 import 'package:godsense/infrastructure/native_runtime/native_companion_gateway.dart';
-import 'package:godsense/infrastructure/native_runtime/native_support_service.dart';
 import 'package:godsense/application/native_tactical_engine.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -53,18 +50,6 @@ void main() {
     gateway.publishAlert({'type': 'overlay_edit', 'edit': true});
 
     expect(await received, {'type': 'overlay_edit', 'edit': true});
-    await gateway.closeAlerts();
-  });
-
-  test('never claims that local support data was uploaded', () async {
-    final root = await Directory.systemTemp.createTemp('godsense-support-');
-    addTearDown(() => root.delete(recursive: true));
-    final gateway = NativeCompanionGateway(
-      support: NativeSupportService(rootDirectory: () async => root),
-    );
-
-    expect((await gateway.createSupportBundle())['contains_secrets'], isFalse);
-    expect((await gateway.reportSupport(note: 'note'))['uploaded'], isFalse);
     await gateway.closeAlerts();
   });
 

@@ -8,8 +8,6 @@ abstract interface class CompanionGateway {
   Future<Map<String, dynamic>> generateLobbyBrief(String candidate);
   Future<Map<String, dynamic>> settings();
   Future<Map<String, dynamic>> updateSettings(Map<String, dynamic> patch);
-  Future<Map<String, dynamic>> createSupportBundle();
-  Future<Map<String, dynamic>> reportSupport({String? note});
   Stream<Map<String, dynamic>> alertEvents();
   Future<void> closeAlerts();
 }

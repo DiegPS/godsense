@@ -43,13 +43,13 @@ class LocalScoutState {
     this.loadingMatchIds = const {},
     this.matchDetailErrors = const {},
     this.lastError,
-    // Legacy maps for backwards compatibility
+    // Compatibility projections kept while callers migrate to typed models.
     Map<String, dynamic>? profile,
     List<Map<String, dynamic>>? matches,
     Map<String, dynamic>? selectedMatch,
-  }) : _legacyProfile = profile,
-       _legacyMatches = matches,
-       _legacySelectedMatch = selectedMatch;
+  }) : _compatibilityProfile = profile,
+       _compatibilityMatches = matches,
+       _compatibilitySelectedMatch = selectedMatch;
 
   final bool loading;
   final String? loadingLabel;
@@ -63,15 +63,15 @@ class LocalScoutState {
   final Map<int, String> matchDetailErrors;
   final String? lastError;
 
-  final Map<String, dynamic>? _legacyProfile;
-  final List<Map<String, dynamic>>? _legacyMatches;
-  final Map<String, dynamic>? _legacySelectedMatch;
+  final Map<String, dynamic>? _compatibilityProfile;
+  final List<Map<String, dynamic>>? _compatibilityMatches;
+  final Map<String, dynamic>? _compatibilitySelectedMatch;
 
   /// Backwards-compatible profile map
   Map<String, dynamic> get profile {
-    final legacy = _legacyProfile;
-    if (legacy != null && legacy.isNotEmpty) {
-      return legacy;
+    final compatibility = _compatibilityProfile;
+    if (compatibility != null && compatibility.isNotEmpty) {
+      return compatibility;
     }
     final account = subjectAccount;
     if (account == null) return const {};
@@ -115,9 +115,9 @@ class LocalScoutState {
 
   /// Backwards-compatible match list
   List<Map<String, dynamic>> get matches {
-    final legacy = _legacyMatches;
-    if (legacy != null && legacy.isNotEmpty) {
-      return legacy;
+    final compatibility = _compatibilityMatches;
+    if (compatibility != null && compatibility.isNotEmpty) {
+      return compatibility;
     }
     return typedMatches
         .map((m) {
@@ -140,9 +140,9 @@ class LocalScoutState {
 
   /// Backwards-compatible selected match detail
   Map<String, dynamic> get selectedMatch {
-    final legacy = _legacySelectedMatch;
-    if (legacy != null && legacy.isNotEmpty) {
-      return legacy;
+    final compatibility = _compatibilitySelectedMatch;
+    if (compatibility != null && compatibility.isNotEmpty) {
+      return compatibility;
     }
     final m = typedSelectedMatch;
     if (m == null) return const {};

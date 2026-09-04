@@ -5,13 +5,13 @@ class OverviewPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final backend = ref.watch(companionControllerProvider);
+    final companion = ref.watch(companionControllerProvider);
     final game = ref.watch(effectiveGameProvider);
     final lobby = ref.watch(effectiveLobbyProvider);
     final calibration = ref.watch(nativeCalibrationProvider).calibration;
     final overlayEnabled = ref.watch(overlayEnabledProvider);
     final speech = ref.watch(nativeSpeechProvider);
-    final alerts = backend.alerts
+    final alerts = companion.alerts
         .where((alert) => alert.isVisibleAlert)
         .take(5);
 
@@ -276,7 +276,7 @@ class OverviewPage extends ConsumerWidget {
             ],
           ),
         ),
-        if (backend.lastError != null) ...[
+        if (companion.lastError != null) ...[
           const SizedBox(height: 12),
           Container(
             padding: const EdgeInsets.all(12),

@@ -8,24 +8,17 @@ class SettingsPage extends ConsumerStatefulWidget {
 }
 
 class _SettingsPageState extends ConsumerState<SettingsPage> {
-  final _supportController = TextEditingController();
   _SettingsSection _section = _SettingsSection.general;
-
-  @override
-  void dispose() {
-    _supportController.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
     final overlayEnabled = ref.watch(overlayEnabledProvider);
-    final backend = ref.watch(companionControllerProvider);
+    final companion = ref.watch(companionControllerProvider);
     final league = ref.watch(nativeLeagueProvider);
     final speech = ref.watch(nativeSpeechProvider);
     final nativeCalibration = ref.watch(nativeCalibrationProvider);
     final calibration = nativeCalibration.calibration;
-    final settings = backend.settings;
+    final settings = companion.settings;
     final meta = settings?.meta ?? const <String, dynamic>{};
     final locks = meta['locks'] is Map ? meta['locks'] as Map : const {};
     const panels = {
@@ -106,7 +99,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     },
                     onChanged:
                         locks.containsKey('language') ||
-                            backend.operationInProgress
+                            companion.operationInProgress
                         ? null
                         : (value) => ref
                               .read(companionControllerProvider.notifier)
@@ -129,7 +122,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     },
                     onChanged:
                         meta['cadence_editable'] != true ||
-                            backend.operationInProgress
+                            companion.operationInProgress
                         ? null
                         : (value) => ref
                               .read(companionControllerProvider.notifier)
@@ -234,7 +227,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 return GsToggleSwitch(
                   title: entry.value,
                   value: !hidden,
-                  onChanged: backend.operationInProgress
+                  onChanged: companion.operationInProgress
                       ? null
                       : (visible) {
                           final next = [...?settings?.overlayHiddenPanels];
@@ -303,46 +296,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                       ? 'Mantén ${speech.settings.pushToTalkKey.toUpperCase()} para hablar con el coach.'
                       : 'La función está desactivada.',
                   ready: speech.settings.pushToTalkEnabled,
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          // 5. Help and export
-          GsCard(
-            title: 'Ayuda y solución de problemas',
-            subtitle: 'Exporta información técnica únicamente cuando soporte te la solicite.',
-            icon: Icons.contact_support_outlined,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                TextField(
-                  controller: _supportController,
-                  maxLines: 2,
-                  decoration: const InputDecoration(
-                    labelText: '¿Qué problema encontraste? (opcional)',
-                    hintText: 'Describe qué intentabas hacer y qué ocurrió.',
-                  ),
-                ),
-                const SizedBox(height: 12),
-                const Text(
-                  'El archivo incluye estados de configuración y funcionamiento. '
-                  'No incluye audio, capturas de pantalla ni credenciales de League.',
-                  style: TextStyle(fontSize: 12, color: GsColors.textSecondary),
-                ),
-                const SizedBox(height: 12),
-                GsButton(
-                  label: 'Exportar información para soporte',
-                  icon: Icons.save_alt_rounded,
-                  loading: backend.operationInProgress,
-                  onPressed: backend.operationInProgress
-                      ? null
-                      : () => _exportSupportInformation(
-                          context,
-                          ref,
-                          _supportController.text,
-                        ),
                 ),
               ],
             ),
@@ -724,48 +677,6 @@ class _PlanRow extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-Future<void> _exportSupportInformation(
-  BuildContext context,
-  WidgetRef ref,
-  String note,
-) async {
-  const type = XTypeGroup(label: 'Archivo ZIP', extensions: ['zip']);
-  final destination = await getSaveLocation(
-    suggestedName: 'godsense-soporte.zip',
-    acceptedTypeGroups: const [type],
-  );
-  if (destination == null || !context.mounted) return;
-
-  final result = await ref
-      .read(companionControllerProvider.notifier)
-      .reportSupport(note);
-  final sourcePath = result?['path']?.toString();
-  if (sourcePath == null || !context.mounted) {
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('No se pudo preparar la información de soporte.'),
-        ),
-      );
-    }
-    return;
-  }
-  try {
-    final temporary = File(sourcePath);
-    await temporary.copy(destination.path);
-    if (await temporary.exists()) await temporary.delete();
-    if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Información guardada en ${destination.path}')),
-    );
-  } catch (error) {
-    if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('No se pudo guardar el archivo: $error')),
     );
   }
 }

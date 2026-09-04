@@ -184,42 +184,6 @@ class CompanionController extends StateNotifier<CompanionState> {
     }
   }
 
-  Future<void> createSupportBundle() async {
-    state = state.copyWith(operationInProgress: true, clearError: true);
-    try {
-      final result = await client.createSupportBundle();
-      state = state.copyWith(
-        supportResult: result,
-        operationInProgress: false,
-        clearError: true,
-      );
-    } catch (error) {
-      state = state.copyWith(
-        operationInProgress: false,
-        lastError: error.toString(),
-      );
-    }
-  }
-
-  Future<Map<String, dynamic>?> reportSupport(String note) async {
-    state = state.copyWith(operationInProgress: true, clearError: true);
-    try {
-      final result = await client.reportSupport(note: note);
-      state = state.copyWith(
-        supportResult: result,
-        operationInProgress: false,
-        clearError: true,
-      );
-      return result;
-    } catch (error) {
-      state = state.copyWith(
-        operationInProgress: false,
-        lastError: error.toString(),
-      );
-      return null;
-    }
-  }
-
   void _recordFailure(Object error) {
     state = state.copyWith(
       connection: CompanionConnection.offline,

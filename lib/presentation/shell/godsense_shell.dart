@@ -89,7 +89,7 @@ class _GodSenseHomeState extends ConsumerState<GodSenseHome> {
   Widget build(BuildContext context) {
     final selectedPage = ref.watch(selectedPageProvider);
     ref.watch(visionSessionCoordinatorProvider);
-    final backend = ref.watch(companionControllerProvider);
+    final companion = ref.watch(companionControllerProvider);
     final nativeLeague = ref.watch(nativeLeagueProvider);
     final overlayLayout = ref.watch(overlayLayoutProvider);
     ref.watch(nativeCalibrationProvider);
@@ -102,17 +102,6 @@ class _GodSenseHomeState extends ConsumerState<GodSenseHome> {
       unawaited(overlayWindowManager.setVisible(context, visible));
     });
 
-    ref.listen(companionControllerProvider, (previous, next) {
-      final alert = next.alerts.firstOrNull;
-      if (alert != null && alert != previous?.alerts.firstOrNull) {
-        ref.read(nativeVisionProvider.notifier).recordLegacy(alert);
-      }
-      overlayParityLogger.record(
-        next,
-        ref.read(nativeVisionProvider),
-        ref.read(effectiveGameProvider),
-      );
-    });
     ref.listen(nativeVisionProvider, (previous, next) {
       final previousKeys =
           previous?.events.map(_nativeVisionEventKey).toSet() ??
@@ -150,18 +139,6 @@ class _GodSenseHomeState extends ConsumerState<GodSenseHome> {
           ref.read(nativeCalibrationProvider.notifier).saveDetected(proposal),
         );
       }
-      overlayParityLogger.record(
-        ref.read(companionControllerProvider),
-        next,
-        ref.read(effectiveGameProvider),
-      );
-    });
-    ref.listen(nativeLeagueProvider, (previous, next) {
-      overlayParityLogger.record(
-        ref.read(companionControllerProvider),
-        ref.read(nativeVisionProvider),
-        ref.read(effectiveGameProvider),
-      );
     });
     final content = switch (selectedPage) {
       0 => const OverviewPage(),
@@ -195,9 +172,9 @@ class _GodSenseHomeState extends ConsumerState<GodSenseHome> {
                     ref.read(selectedPageProvider.notifier).state = destination;
                   }
                 },
-                sessionLabel: _sessionLabel(backend, nativeLeague),
+                sessionLabel: _sessionLabel(companion, nativeLeague),
                 isOnline:
-                    backend.connection == CompanionConnection.online ||
+                    companion.connection == CompanionConnection.online ||
                     nativeLeague.liveGame != null,
               ),
               Expanded(child: content),

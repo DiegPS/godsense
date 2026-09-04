@@ -7,7 +7,7 @@ String _sessionLabel(CompanionState state, NativeLeagueState native) {
     return 'Abre League para comenzar';
   }
   if (state.lobby?.lcuConnected == true) {
-    return '${state.lobby!.phase} · fallback';
+    return '${state.lobby!.phase} · datos parciales';
   }
   return 'Waiting for League';
 }

@@ -335,7 +335,7 @@ class ScoutProfileAnalytics {
   final List<Map<String, dynamic>> badges;
   final List<Map<String, dynamic>> gpi;
 
-  // Compatibility getters for legacy tests
+  // Compatibility projections for map-based consumers during typed migration.
   int get games => gamesCount;
   int get wins => winsCount;
   List<Map<String, dynamic>> get signatureChampions => topChampions

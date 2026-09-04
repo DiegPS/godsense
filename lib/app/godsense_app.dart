@@ -1,11 +1,9 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:file_selector/file_selector.dart';
 import 'package:multiview_desktop/multiview_desktop.dart';
 
 import '../application/account_context_coordinator.dart';
@@ -19,7 +17,6 @@ import '../application/native_vision_controller.dart';
 import '../application/vision_session_coordinator.dart';
 import '../application/local_scout_controller.dart';
 import '../application/overlay_layout_controller.dart';
-import '../application/overlay_parity_logger.dart';
 import '../domain/ai/ai_runtime_models.dart';
 import '../domain/artifacts/artifact_spec.dart';
 import '../domain/companion_models.dart';
@@ -52,7 +49,6 @@ final overlayOpenProvider = StateProvider<bool>((ref) => false);
 
 final appProviderContainer = ProviderContainer();
 final overlayWindowManager = OverlayWindowManager(appProviderContainer);
-final overlayParityLogger = OverlayParityLogger();
 final effectiveGameProvider = Provider<GameSnapshot?>((ref) {
   final native = ref.watch(nativeLeagueProvider);
   return native.liveGame == null
