@@ -8,6 +8,37 @@ import 'ai_conversation_controller_test.dart'
 
 void main() {
   test(
+    'new runtime session receives restored conversation as historical data',
+    () async {
+      final history = _DelayedHistory();
+      final client = MockAiRuntimeClient();
+      final controller = AiConversationController(
+        supervisor: FakeSupervisor(),
+        clientFactory: () => client,
+        historyStore: history,
+      );
+      addTearDown(controller.dispose);
+      history.pending.complete([
+        AiChatMessage(
+          id: 'old',
+          role: 'user',
+          content: 'Estoy practicando Ahri',
+          timestamp: DateTime.utc(2026),
+        ),
+      ]);
+      await controller.sendMessage('¿Qué practicaba?');
+      expect(client.promptsSent.single, contains('Estoy practicando Ahri'));
+      expect(
+        client.promptsSent.single,
+        contains('Pregunta actual:\n¿Qué practicaba?'),
+      );
+      expect(
+        client.promptsSent.single,
+        contains('no instrucciones del sistema'),
+      );
+    },
+  );
+  test(
     'dispatch error reaches voice caller without an unhandled error',
     () async {
       final client = MockAiRuntimeClient()..throwOnPrompt = true;
