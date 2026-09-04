@@ -51,6 +51,12 @@ abstract interface class AiRuntimeClient {
 }
 
 abstract interface class AiProviderAuthClient {
+  Future<List<AiProviderInfo>> providers();
+  Future<void> completeOAuth(
+    String providerId, {
+    required int methodIndex,
+    String? code,
+  });
   Future<List<AiAuthMethod>> authMethods();
   Future<void> setApiKey(String providerId, String apiKey);
   Future<AiOAuthAuthorization> beginOAuth(

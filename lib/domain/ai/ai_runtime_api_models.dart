@@ -39,12 +39,55 @@ class AiAuthMethod {
     required this.type,
     required this.label,
     required this.index,
+    this.prompts = const [],
   });
 
   final String providerId;
   final String type;
   final String label;
   final int index;
+  final List<AiAuthPrompt> prompts;
+}
+
+class AiAuthPrompt {
+  const AiAuthPrompt({
+    required this.key,
+    required this.type,
+    required this.label,
+    this.placeholder,
+    this.options = const {},
+    this.whenKey,
+    this.whenValue,
+    this.whenNot = false,
+  });
+  final String key;
+  final String type;
+  final String label;
+  final String? placeholder;
+  final Map<String, String> options;
+  final String? whenKey;
+  final String? whenValue;
+  final bool whenNot;
+  bool visible(Map<String, String> inputs) =>
+      whenKey == null ||
+      (whenNot ? inputs[whenKey] != whenValue : inputs[whenKey] == whenValue);
+  factory AiAuthPrompt.fromJson(Map raw) {
+    final when = raw['when'];
+    return AiAuthPrompt(
+      key: raw['key'].toString(),
+      type: raw['type'].toString(),
+      label: raw['message']?.toString() ?? raw['key'].toString(),
+      placeholder: raw['placeholder']?.toString(),
+      options: {
+        if (raw['options'] is List)
+          for (final option in (raw['options'] as List).whereType<Map>())
+            option['value'].toString(): option['label'].toString(),
+      },
+      whenKey: when is Map ? when['key']?.toString() : null,
+      whenValue: when is Map ? when['value']?.toString() : null,
+      whenNot: when is Map && when['op'] == 'neq',
+    );
+  }
 }
 
 class AiOAuthAuthorization {

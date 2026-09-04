@@ -113,6 +113,12 @@ class OpenCodeCompatibleRuntimeClient
                 method['type']?.toString() ??
                 'Authentication',
             index: index,
+            prompts: method['prompts'] is List
+                ? (method['prompts'] as List)
+                      .whereType<Map>()
+                      .map(AiAuthPrompt.fromJson)
+                      .toList()
+                : const [],
           ),
         );
       }
@@ -154,6 +160,20 @@ class OpenCodeCompatibleRuntimeClient
   @override
   Future<void> disconnectProvider(String providerId) =>
       _empty('DELETE', '/auth/${_segment(providerId)}');
+
+  @override
+  Future<void> completeOAuth(
+    String providerId, {
+    required int methodIndex,
+    String? code,
+  }) async {
+    await _send(
+      'POST',
+      '/provider/${_segment(providerId)}/oauth/callback',
+      timeout: const Duration(seconds: 85),
+      body: {'method': methodIndex, if (code != null) 'code': code.trim()},
+    );
+  }
 
   @override
   Future<AiSession> createSession({String? title}) async => AiSession.fromJson(
@@ -278,14 +298,13 @@ class OpenCodeCompatibleRuntimeClient
     String method,
     String path, {
     Map<String, Object?>? body,
+    Duration timeout = const Duration(seconds: 10),
   }) async {
     final request = http.Request(method, _uri(path))
       ..headers.addAll(_headers())
       ..body = body == null ? '' : jsonEncode(body);
-    final streamed = await _client
-        .send(request)
-        .timeout(const Duration(seconds: 10));
-    final response = await http.Response.fromStream(streamed);
+    final streamed = await _client.send(request).timeout(timeout);
+    final response = await http.Response.fromStream(streamed).timeout(timeout);
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw AiRuntimeApiException(response.statusCode, response.body);
     }
