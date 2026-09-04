@@ -423,6 +423,8 @@ void main() {
             'champion_profile': {
               'classes': ['Mage'],
               'playstyle': {'mobility': 3},
+              'attack_range': 550,
+              'power_curve': 'late',
             },
           },
         ],
@@ -434,6 +436,8 @@ void main() {
               'classes': ['Mage'],
               'playstyle': {'crowdControl': 3, 'durability': 1},
               'tactical': {'damageType': 'MAGIC_DAMAGE'},
+              'attack_range': 125,
+              'power_curve': 'early',
             },
             'abilities': [
               {'slot': 'Q', 'name': 'Mistral Misil', 'cooldown': '8 / 7 / 6'},
@@ -450,7 +454,15 @@ void main() {
     expect(matchup['matchup_intel_n'], greaterThan(0));
     expect(matchup['confidence'], greaterThan(0.55));
     expect(matchup['trading_patterns'], contains(contains('Espacio Personal')));
+    expect(matchup['trading_patterns'], contains(contains('ventana teórica')));
+    expect((matchup['range_context'] as Map)['local_class'], 'ranged');
+    expect((matchup['range_context'] as Map)['enemy_class'], 'melee');
+    expect(
+      matchup['win_condition'],
+      contains('curva confirmada es más tardía'),
+    );
     expect(matchup['rationale'], contains('no afirma estadísticas históricas'));
+    expect(matchup['rationale'], contains('ni detecta lanzamientos'));
   });
 }
 

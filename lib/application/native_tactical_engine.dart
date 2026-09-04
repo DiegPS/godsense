@@ -883,6 +883,10 @@ Map<String, dynamic> _matchup(
   final enemyStyle = _map(enemyProfile['playstyle']);
   final localTactical = _map(localProfile['tactical']);
   final enemyTactical = _map(enemyProfile['tactical']);
+  final localRange = _attackRange(localProfile);
+  final enemyRange = _attackRange(enemyProfile);
+  final localRangeClass = _rangeClass(localRange);
+  final enemyRangeClass = _rangeClass(enemyRange);
   final enemyAbilities = _mapList(opponent['abilities'])
       .where((ability) => ability['slot'] != 'P')
       .toList(growable: false);
@@ -898,9 +902,18 @@ Map<String, dynamic> _matchup(
       .trim();
 
   final tradingPatterns = <String>[];
+  if (localRangeClass == 'melee' && enemyRangeClass == 'ranged') {
+    tradingPatterns.add(
+      'Cede súbditos antes que vida, deja que la oleada se acerque y entra sólo cuando $enemy pierda espacio o una habilidad clave.',
+    );
+  } else if (localRangeClass == 'ranged' && enemyRangeClass == 'melee') {
+    tradingPatterns.add(
+      'Usa tu rango para castigar súbditos sin romper la distancia de seguridad frente a $enemy.',
+    );
+  }
   if (commitmentName != null && commitmentName.isNotEmpty) {
     tradingPatterns.add(
-      'La ventana más clara aparece después de que $enemy use $commitmentName.',
+      'La ventana teórica más amplia aparece después de que $enemy use $commitmentName; GodSense no confirma aún el lanzamiento ni su cooldown actual.',
     );
   }
   if (_axis(enemyStyle, 'crowdControl') >= 2) {
@@ -929,6 +942,10 @@ Map<String, dynamic> _matchup(
       .firstOrNull;
   final ultimateName = ultimate?['name']?.toString().trim();
   final powerSpikes = <String>[
+    if (localRangeClass == 'melee' && enemyRangeClass == 'ranged')
+      'Niveles 2-3: evalúa la entrada sólo después de conservar vida y acercar la oleada; no se conoce la XP exacta del próximo súbdito.'
+    else if (localRangeClass == 'ranged' && enemyRangeClass == 'melee')
+      'Niveles 2-3: protege la distancia mientras disputas la prioridad de oleada; no se conoce la XP exacta del próximo súbdito.',
     if (ultimateName != null && ultimateName.isNotEmpty)
       'Desde nivel 6, respeta $ultimateName de $enemy.'
     else
@@ -960,12 +977,37 @@ Map<String, dynamic> _matchup(
       'daño $enemyDamageType',
     if (enemyClasses.isNotEmpty) enemyClasses.join('/'),
   ].join(' · ');
+  final localPowerCurve = _knownPowerCurve(localProfile);
+  final enemyPowerCurve = _knownPowerCurve(enemyProfile);
+  final winCondition = _matchupWinCondition(
+    champion: champion,
+    enemy: enemy,
+    localRangeClass: localRangeClass,
+    enemyRangeClass: enemyRangeClass,
+    localPowerCurve: localPowerCurve,
+    enemyPowerCurve: enemyPowerCurve,
+  );
 
   return {
     'trading_patterns': tradingPatterns,
     'power_spikes': powerSpikes,
-    'win_condition':
-        'Controla la oleada y fuerza acciones sólo con información del jungla.',
+    'win_condition': winCondition,
+    'range_context': {
+      'local': localRange,
+      'enemy': enemyRange,
+      'local_class': localRangeClass,
+      'enemy_class': enemyRangeClass,
+      'source': localRange != null || enemyRange != null
+          ? 'lcu_champion_data'
+          : 'unknown',
+    },
+    'scaling_context': {
+      'local': localPowerCurve,
+      'enemy': enemyPowerCurve,
+      'source': localPowerCurve != null || enemyPowerCurve != null
+          ? 'lcu_champion_data'
+          : 'unknown',
+    },
     'avoid': [
       'Intercambiar dentro de una oleada enemiga grande.',
       'Entrar al río sin prioridad ni visión.',
@@ -976,9 +1018,54 @@ Map<String, dynamic> _matchup(
         ? 'riot_champion_semantics'
         : 'deterministic_general_rule',
     'rationale': hasSemantics
-        ? 'Consejo derivado de atributos oficiales de $champion y $enemy${profileSummary.isEmpty ? '' : ' ($profileSummary)'}; no afirma estadísticas históricas de la pareja.'
+        ? 'Consejo derivado de atributos oficiales de $champion y $enemy${profileSummary.isEmpty ? '' : ' ($profileSummary)'}; no afirma estadísticas históricas de la pareja ni detecta lanzamientos de habilidades.'
         : 'Regla general determinista; no hay semántica específica disponible para esta pareja.',
   };
+}
+
+double? _attackRange(Map<String, dynamic> profile) {
+  final raw = profile['attack_range'];
+  if (raw is num) return raw.toDouble();
+  return double.tryParse(raw?.toString() ?? '');
+}
+
+String _rangeClass(double? range) {
+  if (range == null || range <= 0) return 'unknown';
+  return range <= 300 ? 'melee' : 'ranged';
+}
+
+String? _knownPowerCurve(Map<String, dynamic> profile) {
+  final raw = profile['power_curve']?.toString().trim().toLowerCase();
+  if (raw == null || raw.isEmpty) return null;
+  return switch (raw) {
+    'early' || 'early_game' || 'temprano' => 'early',
+    'mid' || 'mid_game' || 'medio' => 'mid',
+    'late' || 'late_game' || 'tardio' || 'tardío' => 'late',
+    _ => null,
+  };
+}
+
+String _matchupWinCondition({
+  required String champion,
+  required String enemy,
+  required String localRangeClass,
+  required String enemyRangeClass,
+  required String? localPowerCurve,
+  required String? enemyPowerCurve,
+}) {
+  final rangePlan = localRangeClass == 'melee' && enemyRangeClass == 'ranged'
+      ? 'Conserva vida, recibe la oleada y busca una entrada cuando $enemy pierda distancia.'
+      : localRangeClass == 'ranged' && enemyRangeClass == 'melee'
+      ? 'Construye ventaja de vida y súbditos manteniendo a $enemy fuera de su rango de entrada.'
+      : 'Controla la oleada y compromete recursos sólo con una ruta de salida y el jungla localizado.';
+  if (localPowerCurve == null || enemyPowerCurve == null) return rangePlan;
+  if (localPowerCurve == 'early' && enemyPowerCurve == 'late') {
+    return '$rangePlan Tu curva confirmada es más temprana: convierte prioridad antes del escalado rival.';
+  }
+  if (localPowerCurve == 'late' && enemyPowerCurve == 'early') {
+    return '$rangePlan Tu curva confirmada es más tardía: reduce intercambios volátiles y conserva recursos.';
+  }
+  return '$rangePlan Las curvas confirmadas de $champion y $enemy no exigen alterar ese plan base.';
 }
 
 double _axis(Map<String, dynamic> style, String key) =>

@@ -383,6 +383,10 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
       'classes': data['roles'] ?? const [],
       'playstyle': data['playstyleInfo'] ?? const {},
       'tactical': data['tacticalInfo'] ?? const {},
+      'attack_range':
+          data['attackRange'] ?? _stringMap(data['stats'])['attackRange'],
+      'power_curve':
+          data['powerCurve'] ?? _stringMap(data['tacticalInfo'])['powerCurve'],
       'source': 'lcu_champion_data',
       'source_version': version,
     };
