@@ -115,7 +115,7 @@ void main() {
   test(
     'propagates selected enemy and refreshes the projected matchup',
     () async {
-      String? propagatedEnemy;
+      final propagatedEnemies = <String>[];
       final controller = CoachController(
         importRunes: (_) async {},
         importItems: () async {},
@@ -128,7 +128,7 @@ void main() {
             'source': 'test',
           },
         },
-        onEnemySelected: (enemy) => propagatedEnemy = enemy,
+        onEnemySelected: propagatedEnemies.add,
       );
       addTearDown(controller.dispose);
       controller.synchronize(
@@ -163,7 +163,7 @@ void main() {
       controller.selectEnemy('Vex');
       await Future<void>.delayed(Duration.zero);
 
-      expect(propagatedEnemy, 'Vex');
+      expect(propagatedEnemies, ['Zed', 'Vex']);
       expect(controller.state.selectedEnemy, 'Vex');
       expect(controller.state.matchup?.winCondition, contains('Vex'));
       expect(controller.state.matchup?.tradingPatterns, isNotEmpty);

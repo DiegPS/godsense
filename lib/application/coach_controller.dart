@@ -491,6 +491,7 @@ class CoachController extends StateNotifier<CoachState> {
     final selectedEnemy = enemies.contains(state.selectedEnemy)
         ? state.selectedEnemy
         : enemies.firstOrNull;
+    final selectionChanged = selectedEnemy != state.selectedEnemy;
     final matchup = _resolveMatchup(
       inputs.lobby,
       inputs.liveGame,
@@ -555,6 +556,7 @@ class CoachController extends StateNotifier<CoachState> {
       postGameReport:
           _postGameReport(completedSnapshot) ?? state.postGameReport,
     );
+    if (selectionChanged) _notifyEnemySelection(selectedEnemy);
   }
 
   Future<void> _restoreReport(String key, int revision) async {
@@ -577,12 +579,15 @@ class CoachController extends StateNotifier<CoachState> {
       matchup: matchup,
       clearMatchup: matchup == null,
     );
+    _notifyEnemySelection(selected);
+  }
+
+  void _notifyEnemySelection(String? enemy) {
     final callback = _onEnemySelected;
-    if (callback != null) {
-      unawaited(
-        Future<void>.sync(() => callback(selected)).catchError((Object _) {}),
-      );
-    }
+    if (callback == null) return;
+    unawaited(
+      Future<void>.sync(() => callback(enemy ?? '')).catchError((Object _) {}),
+    );
   }
 
   CoachMatchupViewData? _resolveMatchup(
