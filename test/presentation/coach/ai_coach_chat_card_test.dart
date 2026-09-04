@@ -36,7 +36,11 @@ class FakeAiConversationNotifier extends StateNotifier<AiConversationState>
   }
 
   @override
-  Future<String> sendAndWait(String text, {String? systemPrompt}) async {
+  Future<String> sendAndWait(
+    String text, {
+    String? systemPrompt,
+    Duration timeout = const Duration(seconds: 45),
+  }) async {
     await sendMessage(text, systemPrompt: systemPrompt);
     return 'Generando respuesta...';
   }

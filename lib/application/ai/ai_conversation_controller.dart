@@ -123,6 +123,7 @@ class AiConversationController extends StateNotifier<AiConversationState> {
   final AiModelInfo? Function()? _modelSelection;
   final AiConversationHistoryStore? _historyStore;
   Completer<String>? _pendingResponse;
+  Future<void> _historyWrites = Future<void>.value();
 
   int _currentGenerationId = 0;
   StreamSubscription<AiRuntimeEvent>? _eventsSubscription;
@@ -208,6 +209,7 @@ class AiConversationController extends StateNotifier<AiConversationState> {
         final session = await client.createSession(
           title: 'GodSense Coach Chat',
         );
+        if (_disposed || generation != _currentGenerationId) return;
         sessionId = session.id;
         state = state.copyWith(sessionId: sessionId);
       }
@@ -267,27 +269,68 @@ class AiConversationController extends StateNotifier<AiConversationState> {
     }
   }
 
-  Future<String> sendAndWait(String promptText, {String? systemPrompt}) async {
+  Future<String> sendAndWait(
+    String promptText, {
+    String? systemPrompt,
+    Duration timeout = const Duration(seconds: 45),
+  }) async {
+    if (promptText.trim().isEmpty) {
+      throw ArgumentError('La pregunta no puede estar vacía.');
+    }
     if (state.isBusy) {
       throw StateError('El coach ya está preparando una respuesta.');
     }
     final completer = Completer<String>();
     _pendingResponse = completer;
-    await sendMessage(promptText, systemPrompt: systemPrompt);
-    if (state.status == AiConversationStatus.error && !completer.isCompleted) {
-      completer.completeError(
-        StateError(state.errorMessage ?? 'No se pudo generar la respuesta.'),
-      );
-    }
-    return completer.future.timeout(
-      const Duration(seconds: 45),
+    final result = completer.future.timeout(
+      timeout,
       onTimeout: () {
         if (identical(_pendingResponse, completer)) {
           _pendingResponse = null;
+          final sessionId = state.sessionId;
+          final client = _client;
+          _currentGenerationId++;
+          _turnFinished = true;
+          _stopStreaming();
+          state = state.copyWith(
+            status: AiConversationStatus.error,
+            streamedText: '',
+            errorMessage:
+                'El coach tardó demasiado en responder. Puedes reintentar.',
+          );
+          if (client != null && sessionId != null) {
+            unawaited(
+              client
+                  .abort(sessionId)
+                  .timeout(const Duration(seconds: 5))
+                  .catchError((Object _) {}),
+            );
+          }
         }
         throw TimeoutException('El coach tardó demasiado en responder.');
       },
     );
+    unawaited(
+      sendMessage(promptText, systemPrompt: systemPrompt).then(
+        (_) {
+          if (!_disposed &&
+              identical(_pendingResponse, completer) &&
+              state.status == AiConversationStatus.error) {
+            _completePendingError(
+              StateError(
+                state.errorMessage ?? 'No se pudo generar la respuesta.',
+              ),
+            );
+          }
+        },
+        onError: (Object error) {
+          if (identical(_pendingResponse, completer)) {
+            _completePendingError(error);
+          }
+        },
+      ),
+    );
+    return result;
   }
 
   void _listenEvents(
@@ -584,7 +627,9 @@ class AiConversationController extends StateNotifier<AiConversationState> {
       status: AiConversationStatus.idle,
     );
     _completePendingError(StateError('Conversación borrada.'));
-    await _historyStore?.clear();
+    await _queueHistoryWrite(() async {
+      await _historyStore?.clear();
+    });
 
     if (currentSession != null) {
       try {
@@ -598,21 +643,34 @@ class AiConversationController extends StateNotifier<AiConversationState> {
   }
 
   Future<void> _restoreHistory() async {
+    final generation = _currentGenerationId;
     try {
       final messages = await _historyStore!.load();
-      if (_disposed || state.messages.isNotEmpty || messages.isEmpty) return;
+      if (_disposed ||
+          generation != _currentGenerationId ||
+          state.messages.isNotEmpty ||
+          messages.isEmpty) {
+        return;
+      }
       state = state.copyWith(messages: _latestMessages(messages));
     } catch (_) {
       // A damaged local history must never prevent coaching.
     }
   }
 
-  Future<void> _persistHistory() async {
-    try {
-      await _historyStore?.save(_latestMessages(state.messages));
-    } catch (_) {
-      // Conversation remains usable when local persistence is unavailable.
-    }
+  Future<void> _persistHistory() {
+    final messages = _latestMessages(state.messages);
+    return _queueHistoryWrite(() async {
+      await _historyStore?.save(messages);
+    });
+  }
+
+  Future<void> _queueHistoryWrite(Future<void> Function() write) {
+    return _historyWrites = _historyWrites.then((_) => write()).catchError((
+      Object _,
+    ) {
+      // Local storage failure must not prevent coaching or block later writes.
+    });
   }
 
   static String? _extractAssistantTextAfter(
