@@ -2,8 +2,9 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:godsense/application/cv_corpus_comparator.dart';
 import 'package:opencv_dart/opencv.dart' as cv;
+
+import 'support/cv_corpus_comparator.dart';
 
 void main() {
   final appData = Platform.environment['APPDATA'];

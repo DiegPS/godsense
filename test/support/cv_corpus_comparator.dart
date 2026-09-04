@@ -5,7 +5,7 @@ import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../infrastructure/native_vision/dartcv_minimap_tracker.dart';
+import 'package:godsense/infrastructure/native_vision/dartcv_minimap_tracker.dart';
 
 class CvCorpusComparisonState {
   const CvCorpusComparisonState({
@@ -53,11 +53,6 @@ class CvCorpusComparisonState {
   double get identityAgreement =>
       matchedBoxes == 0 ? 0 : matchedIdentities / matchedBoxes;
 }
-
-final cvCorpusComparatorProvider =
-    StateNotifierProvider<CvCorpusComparator, CvCorpusComparisonState>(
-      (_) => CvCorpusComparator(),
-    );
 
 class CvCorpusComparator extends StateNotifier<CvCorpusComparisonState> {
   CvCorpusComparator() : super(const CvCorpusComparisonState());
