@@ -75,23 +75,20 @@ class GameContextPromptBuilder {
     buffer.writeln('- Diferencia de oro del equipo: $goldSign de oro');
 
     // Datos del jugador local activo
-    final active = liveGame['active_player'] is Map
-        ? liveGame['active_player'] as Map<String, dynamic>
-        : null;
-    if (active != null) {
-      final champ =
-          active['championName'] ?? active['champion'] ?? 'Desconocido';
+    final active = _map(liveGame['active_player']);
+    if (active.isNotEmpty) {
+      final champ = _champion(active);
       final level = active['level'] ?? 1;
-      final scores = active['scores'] is Map ? active['scores'] as Map : {};
-      final k = scores['kills'] ?? 0;
-      final d = scores['deaths'] ?? 0;
-      final a = scores['assists'] ?? 0;
-      final cs = scores['creepScore'] ?? 0;
-      final currentGold = active['currentGold'] ?? 0;
+      final kda = _kda(active);
+      final cs = _cs(active);
+      final currentGold = active['gold_current'] ?? active['currentGold'] ?? 0;
 
       buffer.writeln('- Tu campeón: $champ (Nivel $level)');
       buffer.writeln(
-        '- Tu rendimiento actual: $k/$d/$a (K/D/A) | Súbditos (CS): $cs | Oro disponible en bolsillo: $currentGold',
+        '- Tu rendimiento actual: ${kda.join('/')} (K/D/A) | Súbditos (CS): $cs | Oro disponible en bolsillo: $currentGold',
+      );
+      buffer.writeln(
+        '- Tu estado: ${_lifeState(active)} | Rol: ${active['role'] ?? 'desconocido'}',
       );
 
       // Objetos del jugador local
@@ -113,43 +110,18 @@ class GameContextPromptBuilder {
     }
 
     // Equipo aliado
-    final allies =
-        (liveGame['allies'] as List?)
-            ?.whereType<Map<String, dynamic>>()
-            .toList() ??
-        [];
+    final allies = _mapList(liveGame['allies']);
     if (allies.isNotEmpty) {
       final allyList = allies
-          .map((p) {
-            final champ = p['championName'] ?? p['champion'] ?? 'Desconocido';
-            final scores = p['scores'] is Map ? p['scores'] as Map : {};
-            final k = scores['kills'] ?? 0;
-            final d = scores['deaths'] ?? 0;
-            final a = scores['assists'] ?? 0;
-            final isLocal = p['is_local'] == true;
-            return '$champ ($k/$d/$a)${isLocal ? ' [TÚ]' : ''}';
-          })
+          .map((player) => _describePlayer(player, active: active))
           .join('; ');
       buffer.writeln('- Equipo Aliado: $allyList');
     }
 
     // Equipo enemigo
-    final enemies =
-        (liveGame['enemies'] as List?)
-            ?.whereType<Map<String, dynamic>>()
-            .toList() ??
-        [];
+    final enemies = _mapList(liveGame['enemies']);
     if (enemies.isNotEmpty) {
-      final enemyList = enemies
-          .map((p) {
-            final champ = p['championName'] ?? p['champion'] ?? 'Desconocido';
-            final scores = p['scores'] is Map ? p['scores'] as Map : {};
-            final k = scores['kills'] ?? 0;
-            final d = scores['deaths'] ?? 0;
-            final a = scores['assists'] ?? 0;
-            return '$champ ($k/$d/$a)';
-          })
-          .join('; ');
+      final enemyList = enemies.map(_describePlayer).join('; ');
       buffer.writeln('- Equipo Rival: $enemyList');
     }
 
@@ -238,4 +210,62 @@ class GameContextPromptBuilder {
       buffer.writeln('- Última partida completada: ${session.phase.name}');
     }
   }
+}
+
+Map<String, dynamic> _map(Object? value) => value is Map
+    ? value.map((key, item) => MapEntry(key.toString(), item))
+    : const {};
+
+List<Map<String, dynamic>> _mapList(Object? value) => value is List
+    ? value.whereType<Map>().map(_map).toList(growable: false)
+    : const [];
+
+String _champion(Map<String, dynamic> player) =>
+    player['champion_name']?.toString().trim().isNotEmpty == true
+    ? player['champion_name'].toString()
+    : player['championName']?.toString().trim().isNotEmpty == true
+    ? player['championName'].toString()
+    : player['champion']?.toString().trim().isNotEmpty == true
+    ? player['champion'].toString()
+    : 'Desconocido';
+
+List<int> _kda(Map<String, dynamic> player) {
+  final normalized = player['kda'];
+  if (normalized is List && normalized.length >= 3) {
+    return normalized
+        .take(3)
+        .map((value) => (value as num?)?.toInt() ?? 0)
+        .toList(growable: false);
+  }
+  final scores = _map(player['scores']);
+  return [
+    (scores['kills'] as num?)?.toInt() ?? 0,
+    (scores['deaths'] as num?)?.toInt() ?? 0,
+    (scores['assists'] as num?)?.toInt() ?? 0,
+  ];
+}
+
+int _cs(Map<String, dynamic> player) =>
+    (player['cs'] as num?)?.toInt() ??
+    (_map(player['scores'])['creepScore'] as num?)?.toInt() ??
+    0;
+
+String _lifeState(Map<String, dynamic> player) {
+  if (player['is_dead'] != true) return 'vivo';
+  final seconds = (player['respawn_timer'] as num?)?.round() ?? 0;
+  return seconds > 0 ? 'muerto, reaparece en $seconds s' : 'muerto';
+}
+
+String _describePlayer(
+  Map<String, dynamic> player, {
+  Map<String, dynamic> active = const {},
+}) {
+  final kda = _kda(player).join('/');
+  final isLocal =
+      player['is_local'] == true ||
+      (active.isNotEmpty &&
+          player['summoner_name'] == active['summoner_name'] &&
+          player['tag_line'] == active['tag_line']);
+  return '${_champion(player)} ($kda, ${_lifeState(player)})'
+      '${isLocal ? ' [TÚ]' : ''}';
 }
