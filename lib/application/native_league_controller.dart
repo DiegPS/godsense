@@ -1,4 +1,7 @@
 import 'dart:async';
+import 'dart:convert';
+
+import '../domain/league/scout_models.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -275,6 +278,7 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
   String? _lastObservedPhase;
   String? _rankedRosterCompleteKey;
   bool _draftPoolLoaded = false;
+  final Map<int, Set<String>> _draftChampionPositions = {};
   bool _forceAccountSync = false;
   bool _forceCapabilityProbe = false;
   DateTime? _lastPollStarted;
@@ -770,6 +774,12 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
         excludedIds: excluded,
         championNames: _championNames,
         allies: normalizedMyTeam,
+        enemies: normalizedTheirTeam,
+        assignedPosition: normalizedMyTeam
+            .where((p) => p['is_local'] == true)
+            .firstOrNull?['position']
+            ?.toString(),
+        championPositions: _draftChampionPositions,
         championProfiles: _championProfiles,
       ),
       'comp_analysis': null,
@@ -900,6 +910,8 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
     if (puuid == null || puuid.isEmpty) return;
     if (_draftAccountKey != puuid) {
       _draftAccountKey = puuid;
+      _draftPoolLoaded = false;
+      _draftChampionPositions.clear();
       _draftMastery = const [];
       _draftPickableIds = const {};
       _lastDraftPoolAttempt = null;
@@ -923,6 +935,38 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
           '/lol-champ-select/v1/pickable-champion-ids',
         );
         await loadChampionNames();
+        final matches = await loadLocalMatches(Puuid(puuid), limit: 100);
+        if (_draftAccountKey != puuid) return;
+        for (final match in matches) {
+          try {
+            final payload = _stringMap(jsonDecode(match.summaryJson));
+            final identity = _mapList(payload['participantIdentities'])
+                .where((p) => _stringMap(p['player'])['puuid'] == puuid)
+                .firstOrNull;
+            final player = _mapList(payload['participants'])
+                .where(
+                  (p) =>
+                      p['puuid'] == puuid ||
+                      (identity != null &&
+                          p['participantId'] == identity['participantId']),
+                )
+                .firstOrNull;
+            if (player == null) continue;
+            final id = (player['championId'] as num?)?.toInt();
+            final timeline = _stringMap(player['timeline']);
+            final role = ScoutRole.parse(
+              timeline['lane']?.toString(),
+              timeline['role']?.toString(),
+            );
+            if (id != null && role != ScoutRole.unknown) {
+              _draftChampionPositions
+                  .putIfAbsent(id, () => {})
+                  .add(role.rawLane);
+            }
+          } on FormatException {
+            continue;
+          }
+        }
         if (mastery is List && pickable is List) {
           final pickableIds = pickable
               .whereType<num>()

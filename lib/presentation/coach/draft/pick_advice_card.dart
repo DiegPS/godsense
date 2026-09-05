@@ -15,7 +15,7 @@ class PickAdviceCard extends StatelessWidget {
       icon: Icons.recommend_outlined,
       child: advice.isEmpty
           ? const CoachEmptyState(
-              message: 'Esperando tus campeones disponibles y su maestría.',
+              message: 'Aún no hay sugerencias con experiencia registrada en tu posición. Juega y sincroniza partidas para ampliar tu selección.',
             )
           : Column(
               children: [
