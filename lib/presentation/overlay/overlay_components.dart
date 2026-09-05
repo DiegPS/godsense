@@ -99,14 +99,11 @@ class _OverlayGlassCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: backgroundColor ?? const Color(0xCC090D16),
+      color: backgroundColor ?? GsColors.surface.withValues(alpha: .94),
       clipBehavior: Clip.antiAlias,
       shape: RoundedRectangleBorder(
-        borderRadius: borderRadius ?? BorderRadius.circular(8),
-        side: BorderSide(
-          color: borderColor ?? const Color(0x3338BDF8),
-          width: 1,
-        ),
+        borderRadius: borderRadius ?? BorderRadius.circular(GsSizes.radius),
+        side: BorderSide(color: borderColor ?? GsColors.border, width: 1),
       ),
       child: Padding(padding: padding ?? EdgeInsets.zero, child: child),
     );
@@ -134,7 +131,7 @@ class _OverlayInfoCard extends StatelessWidget {
     return SizedBox(
       width: width,
       child: _OverlayGlassCard(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        padding: const EdgeInsets.all(12),
         borderColor: accent.withValues(alpha: 0.35),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -146,18 +143,20 @@ class _OverlayInfoCard extends StatelessWidget {
                   Icon(icon, size: 12, color: accent),
                   const SizedBox(width: 5),
                 ],
-                Text(
-                  title.toUpperCase(),
-                  style: TextStyle(
-                    color: accent,
-                    fontSize: 8.5,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.5,
+                Flexible(
+                  child: Text(
+                    title.toUpperCase(),
+                    style: TextStyle(
+                      color: accent,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.5,
+                    ),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 5),
+            const SizedBox(height: 8),
             child,
           ],
         ),

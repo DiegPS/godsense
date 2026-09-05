@@ -25,7 +25,8 @@ class ThreatAndSightingsCard extends StatelessWidget {
               children: [
                 for (var i = 0; i < threats.take(6).length; i++) ...[
                   _ThreatRow(threat: threats[i]),
-                  if (i != threats.take(6).length - 1) const SizedBox(height: 8),
+                  if (i != threats.take(6).length - 1)
+                    const SizedBox(height: 8),
                 ],
               ],
             ),
@@ -41,7 +42,9 @@ class _ThreatRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isFresh = DateTime.now().difference(threat.observedAt).inSeconds < 12;
-    final accent = threat.isGank ? const Color(0xFFF43F5E) : const Color(0xFF38BDF8);
+    final accent = threat.isGank
+        ? const Color(0xFFF43F5E)
+        : const Color(0xFF38BDF8);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
@@ -49,7 +52,9 @@ class _ThreatRow extends StatelessWidget {
         color: const Color(0xFF0C1017),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: threat.isGank ? const Color(0x33F43F5E) : const Color(0x1AFFFFFF),
+          color: threat.isGank
+              ? const Color(0x33F43F5E)
+              : const Color(0x1AFFFFFF),
         ),
       ),
       child: Row(
@@ -90,7 +95,10 @@ class _ThreatRow extends StatelessWidget {
                     ),
                     const SizedBox(width: 6),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 5,
+                        vertical: 1.5,
+                      ),
                       decoration: BoxDecoration(
                         color: accent.withValues(alpha: .12),
                         borderRadius: BorderRadius.circular(4),

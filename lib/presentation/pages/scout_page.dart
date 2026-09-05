@@ -42,9 +42,16 @@ class _ScoutPageState extends ConsumerState<ScoutPage> {
         final isWide = constraints.maxWidth >= 1020;
 
         return ListView(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          padding: GsSizes.pageInsets(context),
           children: [
             // 1. Search Console Bar
+            const GsSectionHeading(
+              page: true,
+              title: 'Scout',
+              subtitle:
+                  'Conoce a cada jugador. Encuentra patrones en sus partidas.',
+            ),
+            const SizedBox(height: GsSizes.sectionGap),
             _buildSearchConsole(state),
             const SizedBox(height: 14),
 

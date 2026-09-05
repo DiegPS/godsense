@@ -28,18 +28,24 @@ class ItemBundlesView extends StatelessWidget {
         child: OutlinedButton.icon(
           onPressed: groups.isEmpty || importing ? null : onImport,
           style: OutlinedButton.styleFrom(
-            minimumSize: const Size(32, 30),
+            minimumSize: const Size(40, 40),
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             side: const BorderSide(color: Color(0x3338BDF8)),
             backgroundColor: const Color(0x1438BDF8),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(6),
+            ),
           ),
           icon: importing
               ? const SizedBox.square(
                   dimension: 12,
                   child: CircularProgressIndicator(strokeWidth: 1.5),
                 )
-              : const Icon(Icons.download_outlined, size: 14, color: Color(0xFF38BDF8)),
+              : const Icon(
+                  Icons.download_outlined,
+                  size: 14,
+                  color: Color(0xFF38BDF8),
+                ),
           label: const Text(
             'Importar',
             style: TextStyle(

@@ -29,9 +29,13 @@ import '../presentation/coach/shared/ai_provider_connections.dart';
 import '../presentation/shared/live_rank_badge.dart';
 import '../presentation/shared/getting_started_guide.dart';
 import '../presentation/shared/resilient_network_image.dart';
+import '../presentation/shared/godsense_ui_components.dart';
+import 'godsense_theme.dart';
+
+export '../presentation/shared/godsense_ui_components.dart';
+export 'godsense_theme.dart';
 
 part '../presentation/shell/godsense_shell.dart';
-part 'godsense_theme.dart';
 part '../presentation/pages/overview_page.dart';
 part '../presentation/pages/live_page.dart';
 part '../presentation/pages/scout_page.dart';
@@ -41,7 +45,6 @@ part '../presentation/overlay/godsense_overlay.dart';
 part '../presentation/overlay/overlay_components.dart';
 part '../presentation/window/overlay_window_manager.dart';
 part '../presentation/shared/presentation_shared.dart';
-part '../presentation/shared/godsense_ui_components.dart';
 
 final selectedPageProvider = StateProvider<int>((ref) => 0);
 final overlayEnabledProvider = StateProvider<bool>((ref) => true);

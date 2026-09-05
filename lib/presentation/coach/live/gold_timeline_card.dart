@@ -18,11 +18,14 @@ class GoldTimelineCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final favorable = differential >= 0;
-    final accentColor = favorable ? const Color(0xFF10B981) : const Color(0xFFF43F5E);
+    final accentColor = favorable
+        ? const Color(0xFF10B981)
+        : const Color(0xFFF43F5E);
 
     return CoachSurface(
       title: 'Evolución económica',
-      subtitle: 'Diferencial de oro neto entre aliados y rivales en la partida.',
+      subtitle:
+          'Diferencial de oro neto entre aliados y rivales en la partida.',
       icon: Icons.show_chart_rounded,
       action: Semantics(
         label:
@@ -38,7 +41,9 @@ class GoldTimelineCard extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(
-                favorable ? Icons.trending_up_rounded : Icons.trending_down_rounded,
+                favorable
+                    ? Icons.trending_up_rounded
+                    : Icons.trending_down_rounded,
                 size: 16,
                 color: accentColor,
               ),
@@ -94,10 +99,7 @@ class GoldTimelineCard extends StatelessWidget {
                     ),
                     const Text(
                       'Línea base (0)',
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: Color(0xFF475569),
-                      ),
+                      style: TextStyle(fontSize: 10, color: Color(0xFF475569)),
                     ),
                     Text(
                       _formatGameTime(points.last.gameTime),
@@ -198,11 +200,7 @@ class _GoldPainter extends CustomPainter {
         6,
         Paint()..color = accentColor.withValues(alpha: .35),
       );
-      canvas.drawCircle(
-        lastPoint,
-        3.5,
-        Paint()..color = Colors.white,
-      );
+      canvas.drawCircle(lastPoint, 3.5, Paint()..color = Colors.white);
     }
   }
 

@@ -32,29 +32,13 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       'voice_ask': 'Voz',
     };
     return ListView(
-      padding: const EdgeInsets.all(24),
+      padding: GsSizes.pageInsets(context),
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Ajustes',
-                    style: Theme.of(context).textTheme.headlineMedium,
-                  ),
-                  const Text(
-                    'Personaliza cómo GodSense te acompaña dentro y fuera de partida.',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: GsColors.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+        GsSectionHeading(
+          page: true,
+          title: 'Ajustes',
+          subtitle: 'Personaliza cómo GodSense te acompaña dentro y fuera de partida.',
+          action: null,
         ),
         const SizedBox(height: 16),
         Align(
@@ -839,7 +823,7 @@ class _SettingsSectionSwitch extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 38,
+      constraints: BoxConstraints(minHeight: GsSizes.control(context) + 8),
       padding: const EdgeInsets.all(3),
       decoration: BoxDecoration(
         color: const Color(0xFF0C1017),
@@ -875,56 +859,20 @@ class _SectionTab extends StatelessWidget {
     required this.isSelected,
     required this.onTap,
   });
-
   final String label;
   final IconData icon;
   final bool isSelected;
   final VoidCallback onTap;
-
   @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(6),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: isSelected ? const Color(0xFF1E293B) : Colors.transparent,
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(
-              color: isSelected ? const Color(0x3338BDF8) : Colors.transparent,
-              width: 1,
-            ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                icon,
-                size: 15,
-                color: isSelected
-                    ? const Color(0xFF38BDF8)
-                    : const Color(0xFF64748B),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                  color: isSelected ? Colors.white : const Color(0xFF94A3B8),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => Semantics(
+    selected: isSelected,
+    child: GsButton(
+      label: label,
+      icon: icon,
+      onPressed: onTap,
+      variant: isSelected ? GsButtonVariant.secondary : GsButtonVariant.ghost,
+    ),
+  );
 }
 
 class _SettingsSelectRow extends StatelessWidget {
@@ -941,40 +889,13 @@ class _SettingsSelectRow extends StatelessWidget {
   final Widget control;
 
   @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      child: Row(
-        children: [
-          Icon(icon, size: 18, color: GsColors.cyan),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: GsColors.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  subtitle,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: GsColors.textSecondary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          control,
-        ],
-      ),
-    );
-  }
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+    child: GsSectionHeading(
+      title: title,
+      subtitle: subtitle,
+      icon: icon,
+      action: control,
+    ),
+  );
 }

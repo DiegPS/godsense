@@ -1,17 +1,19 @@
 import 'package:flutter/material.dart';
 
+import '../../shared/godsense_ui_components.dart';
+
 abstract final class CoachColors {
-  static const canvas = Color(0xFF080B10);
-  static const surface = Color(0xFF0F141D);
-  static const elevated = Color(0xFF151C28);
-  static const border = Color(0xFF1E293B);
-  static const cyan = Color(0xFF38BDF8);
-  static const emerald = Color(0xFF10B981);
-  static const crimson = Color(0xFFEF4444);
-  static const amber = Color(0xFFF59E0B);
-  static const primaryText = Color(0xFFF8FAFC);
-  static const secondaryText = Color(0xFF94A3B8);
-  static const mutedText = Color(0xFF64748B);
+  static const canvas = GsColors.canvas;
+  static const surface = GsColors.surface;
+  static const elevated = GsColors.surfaceElevated;
+  static const border = GsColors.border;
+  static const cyan = GsColors.cyan;
+  static const emerald = GsColors.emerald;
+  static const crimson = GsColors.crimson;
+  static const amber = GsColors.amber;
+  static const primaryText = GsColors.textPrimary;
+  static const secondaryText = GsColors.textSecondary;
+  static const mutedText = GsColors.textMuted;
 }
 
 class CoachSurface extends StatelessWidget {
@@ -32,61 +34,12 @@ class CoachSurface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: CoachColors.surface,
-      clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: const BorderSide(color: CoachColors.border),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (title != null || action != null) ...[
-              Row(
-                children: [
-                  if (icon != null) ...[
-                    ExcludeSemantics(
-                      child: Icon(icon, size: 18, color: CoachColors.cyan),
-                    ),
-                    const SizedBox(width: 8),
-                  ],
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (title != null)
-                          Text(
-                            title!,
-                            style: const TextStyle(
-                              color: CoachColors.primaryText,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        if (subtitle != null)
-                          Text(
-                            subtitle!,
-                            style: const TextStyle(
-                              color: CoachColors.secondaryText,
-                              fontSize: 12,
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                  ?action,
-                ],
-              ),
-              const SizedBox(height: 14),
-            ],
-            child,
-          ],
-        ),
-      ),
+    return GsCard(
+      title: title,
+      subtitle: subtitle,
+      icon: icon,
+      action: action,
+      child: child,
     );
   }
 }

@@ -118,7 +118,7 @@ void main() {
     final controller = _controller(_inactiveInputs());
     await tester.pumpWidget(_app(controller));
 
-    final liveButton = find.widgetWithText(OutlinedButton, 'En partida');
+    final liveButton = find.widgetWithText(TextButton, 'En partida');
     expect(liveButton, findsOneWidget);
     await tester.tap(liveButton);
     await tester.pump();

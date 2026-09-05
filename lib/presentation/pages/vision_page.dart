@@ -13,35 +13,18 @@ class VisionPage extends ConsumerWidget {
         game?.enemies.where((enemy) => enemy['position'] is Map).length ?? 0;
 
     return ListView(
-      padding: const EdgeInsets.all(24),
+      padding: GsSizes.pageInsets(context),
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Mapa y alertas',
-                    style: Theme.of(context).textTheme.headlineMedium,
-                  ),
-                  const Text(
-                    'Comprueba el minimapa y revisa los últimos avistamientos enemigos.',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: GsColors.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            GsBadge(
-              label: native.recognitionStatus,
-              variant: native.recognitionReady
-                  ? GsBadgeVariant.success
-                  : GsBadgeVariant.neutral,
-            ),
-          ],
+        GsSectionHeading(
+          page: true,
+          title: 'Mapa y alertas',
+          subtitle: 'Comprueba el minimapa y revisa los últimos avistamientos enemigos.',
+          action: GsBadge(
+            label: native.recognitionStatus,
+            variant: native.recognitionReady
+                ? GsBadgeVariant.success
+                : GsBadgeVariant.neutral,
+          ),
         ),
         const SizedBox(height: 20),
 

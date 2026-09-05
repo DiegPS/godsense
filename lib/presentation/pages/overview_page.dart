@@ -19,39 +19,23 @@ class OverviewPage extends ConsumerWidget {
     final readyToPlay = isLeagueActive && calibration != null;
 
     return ListView(
-      padding: const EdgeInsets.all(24),
+      padding: GsSizes.pageInsets(context),
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Inicio',
-                    style: Theme.of(context).textTheme.headlineMedium,
-                  ),
-                  const Text(
-                    'Tu cuenta, la partida actual y todo lo que requiere atención.',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: GsColors.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            GsBadge(
-              label: readyToPlay
-                  ? 'LISTO PARA JUGAR'
-                  : isLeagueActive
-                  ? 'FALTA CONFIGURACIÓN'
-                  : 'ABRE LEAGUE PARA COMENZAR',
-              variant: readyToPlay
-                  ? GsBadgeVariant.success
-                  : GsBadgeVariant.neutral,
-            ),
-          ],
+        GsSectionHeading(
+          page: true,
+          title: 'Inicio',
+          subtitle:
+              'Tu cuenta, la partida actual y todo lo que requiere atención.',
+          action: GsBadge(
+            label: readyToPlay
+                ? 'Listo para jugar'
+                : isLeagueActive
+                ? 'Falta configuración'
+                : 'Abre League para comenzar',
+            variant: readyToPlay
+                ? GsBadgeVariant.success
+                : GsBadgeVariant.neutral,
+          ),
         ),
         const SizedBox(height: 20),
 

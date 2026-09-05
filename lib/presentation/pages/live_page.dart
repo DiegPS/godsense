@@ -28,34 +28,21 @@ class LivePage extends ConsumerWidget {
               .firstOrNull;
 
     return ListView(
-      padding: const EdgeInsets.all(24),
+      padding: GsSizes.pageInsets(context),
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Partida en vivo',
-                    style: Theme.of(context).textTheme.headlineMedium,
-                  ),
-                  const Text(
-                    'Estado de la partida, objetivos y enfrentamiento de línea.',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: GsColors.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            if (game != null)
-              GsBadge(
-                label: isEnded ? 'FINALIZADA' : _gamePhaseLabel(game.phase),
-                variant: isEnded ? GsBadgeVariant.neutral : GsBadgeVariant.info,
-              ),
-          ],
+        GsSectionHeading(
+          page: true,
+          title: 'Partida en vivo',
+          subtitle:
+              'Estado de la partida, objetivos y enfrentamiento de línea.',
+          action: game == null
+              ? null
+              : GsBadge(
+                  label: isEnded ? 'Finalizada' : _gamePhaseLabel(game.phase),
+                  variant: isEnded
+                      ? GsBadgeVariant.neutral
+                      : GsBadgeVariant.info,
+                ),
         ),
         const SizedBox(height: 16),
         if (game == null)

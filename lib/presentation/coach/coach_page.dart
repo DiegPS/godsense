@@ -19,6 +19,7 @@ import 'setup/riot_jungle_route_view.dart';
 import 'setup/rune_tree_view.dart';
 import 'shared/coach_section_header.dart';
 import 'shared/coach_surface.dart';
+import '../shared/gs_tokens.dart';
 
 class CoachPage extends ConsumerWidget {
   const CoachPage({super.key});
@@ -32,7 +33,7 @@ class CoachPage extends ConsumerWidget {
     return ColoredBox(
       color: CoachColors.canvas,
       child: ListView(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+        padding: GsSizes.pageInsets(context),
         children: [
           CoachSectionHeader(
             phase: state.phase,

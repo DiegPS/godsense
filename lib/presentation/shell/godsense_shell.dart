@@ -9,8 +9,6 @@ class GodSenseApp extends ConsumerWidget {
       title: 'GodSense',
       debugShowCheckedModeBanner: false,
       theme: godsenseTheme(),
-      builder: (context, child) =>
-          ExcludeSemantics(child: child ?? const SizedBox.shrink()),
       home: GettingStartedGate(
         onDestination: (destination) =>
             ref.read(selectedPageProvider.notifier).state = destination,
@@ -150,7 +148,7 @@ class _GodSenseHomeState extends ConsumerState<GodSenseHome> {
     };
 
     return Scaffold(
-      backgroundColor: const Color(0xFF07090E),
+      backgroundColor: GsColors.canvas,
       body: Stack(
         children: [
           Column(
@@ -177,7 +175,16 @@ class _GodSenseHomeState extends ConsumerState<GodSenseHome> {
                     companion.connection == CompanionConnection.online ||
                     nativeLeague.liveGame != null,
               ),
-              Expanded(child: content),
+              Expanded(
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(
+                      maxWidth: GsSizes.maxPageWidth,
+                    ),
+                    child: SizedBox.expand(child: content),
+                  ),
+                ),
+              ),
             ],
           ),
           const _FramelessWindowResizeBorder(),
@@ -198,7 +205,6 @@ class _GodSenseCustomTitleBar extends StatelessWidget {
     required this.sessionLabel,
     required this.isOnline,
   });
-
   final int selectedPage;
   final ValueChanged<int> onSelectPage;
   final bool overlayEditing;
@@ -207,7 +213,6 @@ class _GodSenseCustomTitleBar extends StatelessWidget {
   final VoidCallback onHelp;
   final String sessionLabel;
   final bool isOnline;
-
   static const _navItems = [
     (icon: Icons.grid_view_rounded, label: 'Inicio'),
     (icon: Icons.sensors_rounded, label: 'En vivo'),
@@ -218,360 +223,135 @@ class _GodSenseCustomTitleBar extends StatelessWidget {
   ];
 
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 42,
-      decoration: const BoxDecoration(
-        color: Color(0xFF080B10),
-        border: Border(bottom: BorderSide(color: Color(0x14FFFFFF), width: 1)),
-      ),
-      child: ClipRect(
-        child: Row(
-          children: [
-            // 1. Clean Professional Brand (Draggable)
-            DragToMoveArea(
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const SizedBox(width: 14),
-                  const Text(
-                    'GodSense',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.5,
-                      color: Color(0xFF38BDF8),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  const SizedBox(
-                    height: 16,
-                    child: VerticalDivider(width: 1, color: Color(0x1AFFFFFF)),
-                  ),
-                  const SizedBox(width: 8),
-                ],
-              ),
-            ),
-
-            // 2. Top Navigation Tabs Bar
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: List.generate(_navItems.length, (index) {
-                final item = _navItems[index];
-                final isSelected = selectedPage == index;
-                return Padding(
-                  padding: const EdgeInsets.only(right: 2),
-                  child: _TopNavTabButton(
-                    icon: item.icon,
-                    label: item.label,
-                    isSelected: isSelected,
-                    onTap: () => onSelectPage(index),
-                  ),
-                );
-              }),
-            ),
-
-            const SizedBox(width: 6),
-
-            // 3. Center Status Capsule (Draggable)
-            Expanded(
-              child: DragToMoveArea(
-                child: Row(
-                  children: [
-                    const Spacer(),
-                    Flexible(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 3,
+  Widget build(BuildContext context) => Material(
+    color: GsColors.canvas,
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(
+          height: GsSizes.control(context) + 12,
+          child: Row(
+            children: [
+              Expanded(
+                child: DragToMoveArea(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.radar_rounded,
+                          color: GsColors.cyan,
+                          size: 24,
                         ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF0D131C),
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(
-                            color: isOnline
-                                ? const Color(0x3310B981)
-                                : const Color(0x1AFFFFFF),
-                            width: 1,
+                        const SizedBox(width: 10),
+                        const Text(
+                          'GodSense',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Container(
-                              width: 6,
-                              height: 6,
-                              decoration: BoxDecoration(
+                        if (MediaQuery.sizeOf(context).width >= 1000) ...[
+                          const SizedBox(width: 24),
+                          Flexible(
+                            child: Text(
+                              sessionLabel,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 12,
                                 color: isOnline
-                                    ? const Color(0xFF10B981)
-                                    : const Color(0xFF64748B),
-                                shape: BoxShape.circle,
-                                boxShadow: isOnline
-                                    ? const [
-                                        BoxShadow(
-                                          color: Color(0x8010B981),
-                                          blurRadius: 4,
-                                        ),
-                                      ]
-                                    : null,
+                                    ? GsColors.emerald
+                                    : GsColors.textMuted,
                               ),
                             ),
-                            const SizedBox(width: 6),
-                            Flexible(
-                              child: Text(
-                                sessionLabel,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w500,
-                                  color: isOnline
-                                      ? const Color(0xFFE2E8F0)
-                                      : const Color(0xFF94A3B8),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                          ),
+                        ],
+                      ],
                     ),
-                    const SizedBox(width: 6),
-                  ],
+                  ),
                 ),
               ),
-            ),
-
-            // 4. Action Controls
-            if (overlayEditing) ...[
-              _TitleBarIconButton(
-                icon: Icons.restart_alt_rounded,
-                tooltip: 'Restablecer HUD',
-                onPressed: onResetPanels,
+              if (overlayEditing)
+                GsIconButton(
+                  icon: Icons.restart_alt_rounded,
+                  tooltip: 'Restablecer HUD',
+                  onPressed: onResetPanels,
+                  variant: GsButtonVariant.ghost,
+                ),
+              GsButton(
+                label: overlayEditing ? 'Guardar HUD' : 'Editar HUD',
+                icon: overlayEditing
+                    ? Icons.check_rounded
+                    : Icons.dashboard_customize_outlined,
+                variant: overlayEditing
+                    ? GsButtonVariant.primary
+                    : GsButtonVariant.secondary,
+                onPressed: onToggleEditing,
+                compact: true,
               ),
-              const SizedBox(width: 2),
+              const SizedBox(width: 8),
+              if (MediaQuery.sizeOf(context).width >= 640)
+                GsIconButton(
+                  icon: Icons.help_outline_rounded,
+                  tooltip: 'Guía y atajos',
+                  onPressed: onHelp,
+                  variant: GsButtonVariant.ghost,
+                ),
+              const SizedBox(width: 8),
+              const _CustomWindowControlButtons(),
             ],
-            _TitleBarActionChip(
-              icon: overlayEditing
-                  ? Icons.check_rounded
-                  : Icons.dashboard_customize_outlined,
-              label: overlayEditing ? 'Guardar HUD' : 'Editar HUD',
-              active: overlayEditing,
-              onPressed: onToggleEditing,
-            ),
-            const SizedBox(width: 2),
-            _TitleBarIconButton(
-              icon: Icons.help_outline_rounded,
-              tooltip: 'Guía y atajos',
-              onPressed: onHelp,
-            ),
-            const SizedBox(width: 6),
-            const SizedBox(
-              height: 16,
-              child: VerticalDivider(width: 1, color: Color(0x1AFFFFFF)),
-            ),
-            const SizedBox(width: 2),
-
-            // 5. Clean Window Controls (Minimize, Maximize, Close)
-            const _CustomWindowControlButtons(),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _TopNavTabButton extends StatelessWidget {
-  const _TopNavTabButton({
-    required this.icon,
-    required this.label,
-    required this.isSelected,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String label;
-  final bool isSelected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(6),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
-        decoration: BoxDecoration(
-          color: isSelected ? const Color(0x1F38BDF8) : Colors.transparent,
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(
-            color: isSelected ? const Color(0x4D38BDF8) : Colors.transparent,
-            width: 1,
           ),
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              size: 13,
-              color: isSelected
-                  ? const Color(0xFF38BDF8)
-                  : const Color(0xFF94A3B8),
-            ),
-            const SizedBox(width: 5),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w500,
-                color: isSelected
-                    ? const Color(0xFF38BDF8)
-                    : const Color(0xFF94A3B8),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _TitleBarActionChip extends StatefulWidget {
-  const _TitleBarActionChip({
-    required this.icon,
-    required this.label,
-    required this.active,
-    required this.onPressed,
-  });
-
-  final IconData icon;
-  final String label;
-  final bool active;
-  final VoidCallback onPressed;
-
-  @override
-  State<_TitleBarActionChip> createState() => _TitleBarActionChipState();
-}
-
-class _TitleBarActionChipState extends State<_TitleBarActionChip> {
-  bool _hovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        onTap: widget.onPressed,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-          decoration: BoxDecoration(
-            color: widget.active
-                ? const Color(0x330284C7)
-                : _hovered
-                ? const Color(0x1F38BDF8)
-                : const Color(0x0DFFFFFF),
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(
-              color: widget.active
-                  ? const Color(0x8038BDF8)
-                  : _hovered
-                  ? const Color(0x4D38BDF8)
-                  : Colors.transparent,
-              width: 1,
-            ),
-          ),
+        const Divider(height: 1),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: Row(
-            mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
-                widget.icon,
-                size: 14,
-                color: widget.active
-                    ? const Color(0xFF38BDF8)
-                    : const Color(0xFFCBD5E1),
-              ),
-              const SizedBox(width: 6),
-              Text(
-                widget.label,
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.5,
-                  color: widget.active
-                      ? const Color(0xFF38BDF8)
-                      : const Color(0xFFCBD5E1),
+              Expanded(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      for (var index = 0; index < _navItems.length; index++)
+                        Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: Semantics(
+                            selected: selectedPage == index,
+                            child: TextButton.icon(
+                              onPressed: () => onSelectPage(index),
+                              style:
+                                  gsButtonStyle(
+                                    context,
+                                    variant: GsButtonVariant.ghost,
+                                  ).copyWith(
+                                    backgroundColor: WidgetStatePropertyAll(
+                                      selectedPage == index
+                                          ? GsColors.cyanGlow
+                                          : Colors.transparent,
+                                    ),
+                                    foregroundColor: WidgetStatePropertyAll(
+                                      selectedPage == index
+                                          ? GsColors.cyan
+                                          : GsColors.textSecondary,
+                                    ),
+                                  ),
+                              icon: Icon(_navItems[index].icon, size: 18),
+                              label: Text(_navItems[index].label),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
               ),
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _TitleBarIconButton extends StatefulWidget {
-  const _TitleBarIconButton({
-    required this.icon,
-    required this.tooltip,
-    this.onPressed,
-  });
-
-  final IconData icon;
-  final String tooltip;
-  final VoidCallback? onPressed;
-
-  @override
-  State<_TitleBarIconButton> createState() => _TitleBarIconButtonState();
-}
-
-class _TitleBarIconButtonState extends State<_TitleBarIconButton> {
-  bool _hovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final enabled = widget.onPressed != null;
-    return Tooltip(
-      message: widget.tooltip,
-      child: MouseRegion(
-        onEnter: (_) => setState(() => _hovered = true),
-        onExit: (_) => setState(() => _hovered = false),
-        child: GestureDetector(
-          onTap: widget.onPressed,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: _hovered && enabled
-                  ? const Color(0x1F38BDF8)
-                  : Colors.transparent,
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(
-                color: _hovered && enabled
-                    ? const Color(0x3338BDF8)
-                    : Colors.transparent,
-                width: 1,
-              ),
-            ),
-            child: Center(
-              child: Icon(
-                widget.icon,
-                size: 16,
-                color: enabled
-                    ? _hovered
-                          ? const Color(0xFF38BDF8)
-                          : const Color(0xFF94A3B8)
-                    : const Color(0xFF475569),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+        const Divider(height: 1),
+      ],
+    ),
+  );
 }
 
 class _CustomWindowControlButtons extends StatefulWidget {
@@ -647,7 +427,7 @@ class _CustomWindowControlButtonsState
   }
 }
 
-class _WindowBtn extends StatefulWidget {
+class _WindowBtn extends StatelessWidget {
   const _WindowBtn({
     required this.icon,
     required this.tooltip,
@@ -655,54 +435,19 @@ class _WindowBtn extends StatefulWidget {
     this.iconSize = 14,
     this.isClose = false,
   });
-
   final IconData icon;
   final String tooltip;
   final VoidCallback onTap;
   final double iconSize;
   final bool isClose;
-
   @override
-  State<_WindowBtn> createState() => _WindowBtnState();
-}
-
-class _WindowBtnState extends State<_WindowBtn> {
-  bool _hovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return Tooltip(
-      message: widget.tooltip,
-      child: MouseRegion(
-        onEnter: (_) => setState(() => _hovered = true),
-        onExit: (_) => setState(() => _hovered = false),
-        child: GestureDetector(
-          onTap: widget.onTap,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 100),
-            width: 44,
-            height: 42,
-            color: _hovered
-                ? (widget.isClose
-                      ? const Color(0xFFE11D48)
-                      : const Color(0x1FFFFFFF))
-                : Colors.transparent,
-            child: Center(
-              child: Icon(
-                widget.icon,
-                size: widget.iconSize,
-                color: _hovered && widget.isClose
-                    ? Colors.white
-                    : _hovered
-                    ? Colors.white
-                    : const Color(0xFF94A3B8),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => GsIconButton(
+    icon: icon,
+    tooltip: tooltip,
+    iconSize: iconSize,
+    onPressed: onTap,
+    variant: isClose ? GsButtonVariant.danger : GsButtonVariant.ghost,
+  );
 }
 
 class _FramelessWindowResizeBorder extends StatelessWidget {

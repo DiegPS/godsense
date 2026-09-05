@@ -89,7 +89,7 @@ class NativeSpeechSettingsCard extends ConsumerWidget {
                         color: GsColors.textSecondary,
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 8),
                     GsPillToggle(
                       label: 'Reducir ruido de fondo',
                       icon: Icons.graphic_eq_rounded,
@@ -137,41 +137,44 @@ class NativeSpeechSettingsCard extends ConsumerWidget {
           ),
           if (state.speech.phase == LiveCaptionsPhase.downloading)
             if (state.speech.progress case final progress?) ...[
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'Descargando modelo de reconocimiento…',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: GsColors.textSecondary,
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 6,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Descargando modelo de reconocimiento…',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: GsColors.textSecondary,
+                          ),
                         ),
-                      ),
-                      Text(
-                        '${(progress * 100).toInt()}%',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: GsColors.cyan,
+                        Text(
+                          '${(progress * 100).toInt()}%',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: GsColors.cyan,
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  LinearProgressIndicator(
-                    value: progress,
-                    backgroundColor: GsColors.surfaceElevated,
-                    color: GsColors.cyan,
-                  ),
-                ],
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    LinearProgressIndicator(
+                      value: progress,
+                      backgroundColor: GsColors.surfaceElevated,
+                      color: GsColors.cyan,
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
           if (state.transcript.isNotEmpty) ...[
             Container(
               margin: const EdgeInsets.fromLTRB(14, 6, 14, 10),
@@ -415,43 +418,46 @@ class NativeSpeechSettingsCard extends ConsumerWidget {
           ),
           if (state.tts.isLoading)
             if (state.tts.progress case final progress?) ...[
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        state.tts.phase == TtsLoadPhase.downloading
-                            ? 'Descargando modelo de voz…'
-                            : 'Preparando voz…',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: GsColors.textSecondary,
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 6,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          state.tts.phase == TtsLoadPhase.downloading
+                              ? 'Descargando modelo de voz…'
+                              : 'Preparando voz…',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: GsColors.textSecondary,
+                          ),
                         ),
-                      ),
-                      Text(
-                        '${(progress * 100).toInt()}%',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: GsColors.cyan,
+                        Text(
+                          '${(progress * 100).toInt()}%',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: GsColors.cyan,
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  LinearProgressIndicator(
-                    value: progress,
-                    backgroundColor: GsColors.surfaceElevated,
-                    color: GsColors.cyan,
-                  ),
-                ],
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    LinearProgressIndicator(
+                      value: progress,
+                      backgroundColor: GsColors.surfaceElevated,
+                      color: GsColors.cyan,
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
           if (state.error != null) ...[
             Container(
               margin: const EdgeInsets.fromLTRB(14, 0, 14, 12),
