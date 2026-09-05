@@ -329,7 +329,7 @@ class _AiCoachChatCardState extends ConsumerState<AiCoachChatCard> {
                       horizontal: 8,
                       vertical: 2,
                     ),
-                    minimumSize: Size.zero,
+                    minimumSize: const Size(40, 40),
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   ),
                 ),
