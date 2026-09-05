@@ -8,6 +8,83 @@ void main() {
 
   setUp(() => engine = NativeTacticalEngine(now: () => observedAt));
 
+  test('manual voice deadlines alert once and reset between games', () {
+    final game = <String, dynamic>{'session_id': 'one', 'game_time': 1000};
+    expect(
+      engine.answer(question: 'Flash Viktor 18:20', game: game).id,
+      'voice_timer_recorded',
+    );
+    expect(engine.takeTimerReminders({...game, 'game_time': 1069}), isEmpty);
+    expect(engine.takeTimerReminders({...game, 'game_time': 1070}), [
+      contains('30 segundos'),
+    ]);
+    expect(engine.takeTimerReminders({...game, 'game_time': 1071}), isEmpty);
+    engine.answer(question: 'Flash Viktor 19:20', game: game);
+    expect(
+      engine.takeTimerReminders({'session_id': 'two', 'game_time': 1140}),
+      isEmpty,
+    );
+    expect(
+      engine.answer(question: 'mid sin flash', game: game).id,
+      'voice_timer_needs_deadline',
+    );
+  });
+
+  test(
+    'retreat overrides imminent objectives and detects single-player deficits',
+    () {
+      final advice = engine.directives(
+        _game(
+          allies: List.generate(5, (i) => {'is_dead': i == 0}),
+          enemies: List.generate(5, (_) => {'is_dead': false}),
+          objectives: {
+            'dragon': {'status': 'respawning', 'respawn_in': 60},
+          },
+        ),
+      );
+      expect(advice.single.id, 'avoid_outnumbered_fight');
+    },
+  );
+
+  test('five versus four considers soul before Baron', () {
+    final advice = engine.directives(
+      _game(
+        gameTime: 1500,
+        allies: List.generate(
+          5,
+          (i) => {'is_dead': false, 'role': i == 0 ? 'JUNGLE' : 'TOP'},
+        ),
+        enemies: List.generate(
+          5,
+          (i) => {'is_dead': i == 0, 'respawn_timer': 30},
+        ),
+        objectives: {
+          'baron': {'status': 'alive'},
+          'dragon': {'status': 'alive', 'soul_point': true},
+        },
+      ),
+    );
+    expect(advice.single.hints.first, contains('dragón'));
+  });
+
+  test('routes objective slang through the offline handler', () {
+    for (final word in ['larvas', 'grubs', 'nash', 'drake']) {
+      expect(engine.supportsQuestion('Cuánto falta para $word'), isTrue);
+      final answer = engine.answer(
+        question: 'Cuánto falta para $word',
+        game: _game(
+          objectives: {
+            'void_grubs': {'status': 'respawning', 'respawn_in': 40},
+            'baron': {'status': 'respawning', 'respawn_in': 50},
+            'dragon': {'status': 'respawning', 'respawn_in': 60},
+          },
+        ),
+      );
+      expect(answer.id, startsWith('voice_'));
+      expect(answer.id, endsWith('_timer'));
+    }
+  });
+
   test('retains live matchup and build after champion select disappears', () {
     const local = {
       'champion_name': 'Ahri',

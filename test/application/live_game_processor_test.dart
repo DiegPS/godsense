@@ -7,6 +7,41 @@ void main() {
 
     setUp(() => processor = LiveGameProcessor());
 
+    test(
+      'soul switches dragon timer to Elder without counting Elder as a drake',
+      () {
+        final result = processor.process(
+          _snapshot(
+            gameTime: 2050,
+            events: [
+              for (var i = 0; i < 4; i++)
+                {
+                  'EventID': i,
+                  'EventName': 'DragonKill',
+                  'EventTime': 400 + i * 300,
+                  'KillerName': 'Local',
+                  'DragonType': 'Infernal',
+                },
+              {
+                'EventID': 5,
+                'EventName': 'DragonKill',
+                'EventTime': 2000,
+                'KillerName': 'Local',
+                'DragonType': 'Elder',
+              },
+            ],
+          ),
+          itemCatalog: _items,
+          gameId: 'elder-game',
+        );
+        final derived = result.snapshot['derived'] as Map;
+        final dragon = (derived['objectives'] as Map)['dragon'] as Map;
+        expect((derived['dragon_kills'] as Map)['ally'], 4);
+        expect(dragon['elder_expected'], isTrue);
+        expect(dragon['respawn_in'], 310);
+      },
+    );
+
     test('builds enriched game state, timeline, and objective timers', () {
       final result = processor.process(
         _snapshot(gameTime: 400),

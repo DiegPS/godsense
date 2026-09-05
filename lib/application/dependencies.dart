@@ -131,6 +131,11 @@ final nativeVoiceCoachProvider =
     ) {
       final speech = ref.watch(nativeSpeechProvider.notifier);
       final engine = ref.watch(nativeTacticalEngineProvider);
+      ref.listen(nativeLeagueProvider, (_, league) {
+        for (final reminder in engine.takeTimerReminders(league.liveGame)) {
+          speech.speak(reminder);
+        }
+      });
       return NativeVoiceCoachController(
         questions: speech.transcripts,
         answer: (question) async {

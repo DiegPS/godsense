@@ -337,7 +337,8 @@ class LiveGameProcessor {
       final actor = event['KillerName']?.toString().toLowerCase() ?? '';
       final ally = allyNames.contains(actor);
       final enemy = enemyNames.contains(actor);
-      if (name == 'DragonKill') {
+      if (name == 'DragonKill' &&
+          event['DragonType']?.toString().toLowerCase() != 'elder') {
         if (ally) dragonKills['ally'] = dragonKills['ally']! + 1;
         if (enemy) dragonKills['enemy'] = dragonKills['enemy']! + 1;
       }
@@ -362,13 +363,21 @@ class LiveGameProcessor {
     }
     return {
       'objectives': {
-        'dragon': _objectiveState(
-          gameTime,
-          events,
-          eventNames: const {'DragonKill'},
-          initialSpawn: 300,
-          respawnSeconds: 300,
-        ),
+        'dragon': {
+          ..._objectiveState(
+            gameTime,
+            events,
+            eventNames: const {'DragonKill'},
+            initialSpawn: 300,
+            respawnSeconds:
+                dragonKills['ally']! >= 4 || dragonKills['enemy']! >= 4
+                ? 360
+                : 300,
+          ),
+          'soul_point': dragonKills['ally'] == 3 || dragonKills['enemy'] == 3,
+          'elder_expected':
+              dragonKills['ally']! >= 4 || dragonKills['enemy']! >= 4,
+        },
         'baron': _objectiveState(
           gameTime,
           events,

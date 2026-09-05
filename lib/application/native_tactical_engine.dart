@@ -5,6 +5,42 @@ class NativeTacticalEngine {
   NativeTacticalEngine({DateTime Function()? now}) : _now = now ?? DateTime.now;
 
   final DateTime Function() _now;
+  final Map<String, ({double deadline, String label})> _voiceTimers = {};
+  String? _timerSession;
+  double? _timerGameTime;
+
+  void _synchronizeTimerSession(Map<String, dynamic>? game) {
+    final time = (game?['game_time'] as num?)?.toDouble();
+    final session = game?['session_id']?.toString();
+    if (game == null ||
+        game['_game_ended'] == true ||
+        session != _timerSession ||
+        (time != null && _timerGameTime != null && time < _timerGameTime!)) {
+      _voiceTimers.clear();
+    }
+    _timerSession = session;
+    _timerGameTime = time;
+  }
+
+  List<String> takeTimerReminders(Map<String, dynamic>? game) {
+    _synchronizeTimerSession(game);
+    final time = _timerGameTime;
+    if (time == null) return const [];
+    final due = _voiceTimers.entries
+        .where((e) => e.value.deadline - time <= 30)
+        .toList();
+    final reminders = <String>[];
+    for (final entry in due) {
+      _voiceTimers.remove(entry.key);
+      final remaining = (entry.value.deadline - time).round();
+      if (remaining >= 0) {
+        reminders.add(
+          '${entry.value.label}: $remaining segundos, según tu marca.',
+        );
+      }
+    }
+    return reminders;
+  }
 
   /// Whether this engine can answer the question from verified local data.
   /// Unknown intents can be delegated to the configured AI coach, while known
@@ -53,6 +89,10 @@ class NativeTacticalEngine {
       'destello',
       'hechizo de invocador',
       'hechizos de invocador',
+      'larva',
+      'vacio',
+      'teleport',
+      'smite',
     ]);
   }
 
@@ -66,6 +106,62 @@ class NativeTacticalEngine {
     final normalized = _normalize(question);
     final context = _coachingContext(lobby, game);
     final gameTime = (game?['game_time'] as num?)?.toDouble();
+    if (_containsAny(normalized, const [
+      'flash',
+      'destello',
+      'teleport',
+      'smite',
+    ])) {
+      final timestamp = RegExp(r'\b(\d{1,3}):([0-5]\d)\b').firstMatch(question);
+      if (timestamp != null &&
+          gameTime != null &&
+          game?['_game_ended'] != true) {
+        final deadline =
+            int.parse(timestamp[1]!) * 60 + int.parse(timestamp[2]!);
+        final label = question
+            .substring(0, timestamp.start)
+            .replaceAll(RegExp(r'[¿?]'), '')
+            .trim();
+        if (label.isNotEmpty && deadline > gameTime) {
+          _synchronizeTimerSession(game);
+          _voiceTimers[_normalize(label)] = (
+            deadline: deadline.toDouble(),
+            label: label,
+          );
+          return TacticalAdvice(
+            id: 'voice_timer_recorded',
+            title: 'Temporizador registrado',
+            hints: ['Aviso hasta 30 segundos antes de ${timestamp[0]}.'],
+            rationale:
+                'Hora indicada por el usuario; no verificada por Live Client.',
+            ttsText: '$label registrado para ${timestamp[0]}.',
+            priority: 70,
+            evidence: [
+              _evidence(
+                'user_cooldown_deadline',
+                FactSource.user,
+                now,
+                gameTime,
+              ),
+            ],
+          );
+        }
+      }
+      if (normalized.contains('sin flash') ||
+          normalized.contains('sin destello')) {
+        return TacticalAdvice(
+          id: 'voice_timer_needs_deadline',
+          title: 'Indica cuándo vuelve',
+          hints: const ['Ejemplo: Flash Viktor 18:20.'],
+          rationale: 'Los modificadores de enfriamiento no están confirmados.',
+          ttsText: 'Indica la hora: Flash Viktor, dieciocho veinte.',
+          priority: 60,
+          evidence: [
+            _evidence('voice_question', FactSource.user, now, gameTime),
+          ],
+        );
+      }
+    }
     final userEvidence = _evidence(
       'voice_question',
       FactSource.user,
@@ -180,6 +276,8 @@ class NativeTacticalEngine {
       'baron',
       'heraldo',
       'objetivo',
+      'larva',
+      'vacio',
     ])) {
       return _objectiveAnswer(normalized, game, userEvidence, now, gameTime);
     }
@@ -189,8 +287,16 @@ class NativeTacticalEngine {
       'destello',
       'hechizo de invocador',
       'hechizos de invocador',
+      'teleport',
+      'smite',
     ])) {
-      return _summonerSpellAnswer(game, userEvidence, now, gameTime);
+      return _summonerSpellAnswer(
+        game,
+        userEvidence,
+        now,
+        gameTime,
+        normalized,
+      );
     }
 
     final current = directives(game);
@@ -288,9 +394,53 @@ class NativeTacticalEngine {
         ),
       ];
     }
-    if (objectiveAdvice != null) return [objectiveAdvice];
-
     final numericalAdvice = _numericalAdvantageDirective(game, now, gameTime);
+    if (numericalAdvice?.id == 'avoid_outnumbered_fight') {
+      return [numericalAdvice!];
+    }
+    final health = (active['health_ratio'] as num?)?.toDouble();
+    if (health != null && health <= .2) {
+      return [
+        TacticalAdvice(
+          id: 'recover_health',
+          title: 'Recupera vida antes de pelear',
+          hints: const [
+            'Busca una retirada segura antes de disputar objetivos.',
+          ],
+          rationale: 'Vida local observada por debajo del 20%.',
+          ttsText: 'Vida crítica. Retírate y recupera.',
+          priority: 96,
+          evidence: [
+            _evidence('local_health', FactSource.liveClient, now, gameTime),
+          ],
+        ),
+      ];
+    }
+    final cash = (active['gold_current'] as num?)?.toInt() ?? 0;
+    if (cash >= 1500 && objectiveAdvice != null) {
+      return [
+        TacticalAdvice(
+          id: 'spend_before_objective',
+          title: 'Convierte tu oro antes del objetivo',
+          hints: const [
+            'Compra si puedes regresar a tiempo; evita un regreso a base tardío.',
+          ],
+          rationale:
+              'Tienes $cash de oro disponible. No conocemos el bolsillo del equipo.',
+          ttsText: 'Tienes oro sin gastar. Compra si llegas a tiempo.',
+          priority: 91,
+          evidence: [
+            _evidence(
+              'local_current_gold',
+              FactSource.liveClient,
+              now,
+              gameTime,
+            ),
+          ],
+        ),
+      ];
+    }
+    if (objectiveAdvice != null) return [objectiveAdvice];
     if (numericalAdvice != null) return [numericalAdvice];
 
     final gold = (game['team_gold_diff'] as num?)?.toInt() ?? 0;
@@ -725,8 +875,7 @@ class NativeTacticalEngine {
           'Controla visión de los accesos y la entrada del jungla rival.',
         ],
         rationale: '$label está vivo según el estado derivado de Live Client.',
-        ttsText:
-            '$label está disponible ahora. Comprueba prioridad y posiciones antes de iniciarlo.',
+      ttsText: '$label disponible ahora. Comprueba prioridad.',
         priority: 90,
         evidence: [
           question,
@@ -745,8 +894,7 @@ class NativeTacticalEngine {
             'Aún hay tiempo para recoger recursos sin abandonar el plan.',
         ],
         rationale: '$label estará disponible en $seconds segundos.',
-        ttsText:
-            '$label estará disponible en $seconds segundos.${seconds <= 75 ? ' Empuja y prepara visión.' : ''}',
+        ttsText: '$label estará disponible en $seconds segundos.',
         priority: seconds <= 75 ? 90 : 60,
         evidence: [
           question,
@@ -773,6 +921,7 @@ class NativeTacticalEngine {
     TacticalEvidence question,
     DateTime now,
     double? gameTime,
+    String questionText,
   ) {
     if (game == null || game['_game_ended'] == true) {
       return TacticalAdvice(
@@ -785,6 +934,16 @@ class NativeTacticalEngine {
         evidence: [question],
       );
     }
+    final spellLabel = questionText.contains('teleport')
+        ? 'Teleportación'
+        : questionText.contains('smite')
+        ? 'Aplastar'
+        : 'Destello';
+    final terms = questionText.contains('teleport')
+        ? const ['teleport', 'teleportacion']
+        : questionText.contains('smite')
+        ? const ['smite', 'aplastar']
+        : const ['flash', 'destello'];
     final enemies = _mapList(game['enemies']);
     final withFlash = enemies
         .where((player) {
@@ -793,9 +952,7 @@ class NativeTacticalEngine {
                 (spell) => _normalize(spell.toString()),
               ) ??
               const Iterable<String>.empty();
-          return spells.any(
-            (spell) => spell.contains('flash') || spell.contains('destello'),
-          );
+          return spells.any((spell) => terms.any(spell.contains));
         })
         .toList(growable: false);
     final champions = withFlash
@@ -803,8 +960,8 @@ class NativeTacticalEngine {
         .where((name) => name.isNotEmpty)
         .toList(growable: false);
     final summary = champions.isEmpty
-        ? 'No veo Destello entre los hechizos enemigos cargados.'
-        : 'Llevan Destello: ${_joinNames(champions)}.';
+        ? 'No veo $spellLabel entre los hechizos enemigos cargados.'
+        : 'Llevan $spellLabel: ${_joinNames(champions)}.';
     return TacticalAdvice(
       id: 'voice_summoner_spells',
       title: 'Hechizos enemigos observados',
@@ -839,7 +996,7 @@ class NativeTacticalEngine {
     final alliesAlive = allies.where((player) => player['is_dead'] != true);
     final enemiesAlive = enemies.where((player) => player['is_dead'] != true);
     final difference = alliesAlive.length - enemiesAlive.length;
-    if (difference.abs() < 2) return null;
+    if (difference == 0) return null;
 
     final deadEnemies = enemies.where((player) => player['is_dead'] == true);
     final deadAllies = allies.where((player) => player['is_dead'] == true);
@@ -880,7 +1037,7 @@ class NativeTacticalEngine {
         : null;
     final action = target == null
         ? 'Empuja una línea y convierte la ventaja en estructura o visión profunda.'
-        : 'Asegura ${_objectiveLabel(target)} con prioridad y control de accesos.';
+        : 'Evalúa ${_objectiveLabel(target)} con prioridad, recursos y control de accesos.';
     return TacticalAdvice(
       id: 'convert_number_advantage',
       title:
@@ -1019,6 +1176,11 @@ String? _availablePowerPlayObjective(
   double gameTime,
 ) {
   bool alive(String key) => _map(objectives[key])['status'] == 'alive';
+  final dragon = _map(objectives['dragon']);
+  if (alive('dragon') &&
+      (dragon['soul_point'] == true || dragon['elder_expected'] == true)) {
+    return 'dragon';
+  }
   if (gameTime >= 1200 && alive('baron')) return 'baron';
   if (alive('dragon')) return 'dragon';
   if (alive('herald')) return 'herald';
@@ -1051,6 +1213,10 @@ String _normalize(String value) => value
     .replaceAll(RegExp('[óòöô]'), 'o')
     .replaceAll(RegExp('[úùüû]'), 'u')
     .replaceAll(RegExp(r'[^a-z0-9ñ]+'), ' ')
+    .replaceAll(RegExp(r'\b(nash|nashor)\b'), 'baron')
+    .replaceAll(RegExp(r'\b(drake|draco)\b'), 'dragon')
+    .replaceAll(RegExp(r'\bgrubs\b'), 'larvas')
+    .replaceAll(RegExp(r'\btp\b'), 'teleport')
     .trim()
     .replaceAll(RegExp(r'\s+'), ' ');
 
