@@ -54,6 +54,11 @@ class ScoutKpis {
     this.avgGoldPerMin,
     this.avgCsPerMin,
     this.avgVisionPerMin,
+    this.damagePerMinute,
+    this.objectiveDamagePerMinute,
+    this.damageShare,
+    this.goldShare,
+    this.damageEfficiency,
   });
 
   final int sampleSize;
@@ -67,6 +72,11 @@ class ScoutKpis {
   final double? avgGoldPerMin;
   final double? avgCsPerMin;
   final double? avgVisionPerMin;
+  final double? damagePerMinute;
+  final double? objectiveDamagePerMinute;
+  final double? damageShare;
+  final double? goldShare;
+  final double? damageEfficiency;
 }
 
 /// Statistics for a specific champion played by the scouted summoner.

@@ -620,9 +620,9 @@ class _ScoutPageState extends ConsumerState<ScoutPage> {
                 GsColors.cyan,
               ),
               _buildKpiTile(
-                'DAÑO PROMEDIO',
-                _formatK(kpis.avgDamage),
-                'A campeones',
+                'DAÑO POR MINUTO',
+                kpis.damagePerMinute?.toStringAsFixed(0) ?? 'Sin datos',
+                'A campeones · ${_formatK(kpis.avgDamage)} por partida',
                 GsColors.textPrimary,
               ),
               _buildKpiTile(
@@ -634,9 +634,10 @@ class _ScoutPageState extends ConsumerState<ScoutPage> {
                 GsColors.textPrimary,
               ),
               _buildKpiTile(
-                'DAÑO A OBJETIVOS',
-                _formatK(kpis.avgObjectiveDamage),
-                'Daño medio/partida',
+                'OBJETIVOS POR MINUTO',
+                kpis.objectiveDamagePerMinute?.toStringAsFixed(0) ??
+                    'Sin datos',
+                '${_formatK(kpis.avgObjectiveDamage)} por partida',
                 GsColors.textPrimary,
               ),
               _buildKpiTile(
@@ -655,6 +656,28 @@ class _ScoutPageState extends ConsumerState<ScoutPage> {
                 'VISIÓN POR MINUTO',
                 kpis.avgVisionPerMin?.toStringAsFixed(2) ?? 'Sin datos',
                 'Puntos de visión',
+                GsColors.textPrimary,
+              ),
+              _buildKpiTile(
+                'DAÑO DEL EQUIPO',
+                kpis.damageShare == null
+                    ? 'Sin datos'
+                    : '${kpis.damageShare!.toStringAsFixed(1)}%',
+                'Solo partidas con equipo completo',
+                GsColors.textPrimary,
+              ),
+              _buildKpiTile(
+                'ORO DEL EQUIPO',
+                kpis.goldShare == null
+                    ? 'Sin datos'
+                    : '${kpis.goldShare!.toStringAsFixed(1)}%',
+                'Proporción de recursos ganados',
+                GsColors.textPrimary,
+              ),
+              _buildKpiTile(
+                'EFICIENCIA DE DAÑO',
+                kpis.damageEfficiency?.toStringAsFixed(2) ?? 'Sin datos',
+                'Proporción de daño / proporción de oro',
                 GsColors.textPrimary,
               ),
             ],

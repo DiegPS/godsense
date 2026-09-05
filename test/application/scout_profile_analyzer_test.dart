@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:godsense/application/scout_profile_analyzer.dart';
 import 'package:godsense/domain/identity/league_identity.dart';
@@ -6,6 +8,46 @@ import 'package:godsense/domain/league/local_scout.dart';
 void main() {
   const analyzer = ScoutProfileAnalyzer();
   final puuid = Puuid('player');
+
+  test('team ratios require all teammates and DPM uses match duration', () {
+    final record = _match(100, championId: 22, won: true, kills: 5, deaths: 2);
+    final incomplete = analyzer.analyze(
+      [record],
+      puuid: puuid,
+      championNames: {},
+    );
+    expect(incomplete.kpis.damageShare, isNull);
+    expect(incomplete.kpis.goldShare, isNull);
+    expect(incomplete.kpis.damageEfficiency, isNull);
+    expect(incomplete.kpis.damagePerMinute, closeTo(22000 / 30, .01));
+    final summary = jsonDecode(record.summaryJson) as Map<String, dynamic>;
+    (summary['participants'] as List).addAll(
+      List.generate(
+        4,
+        (i) => {
+          'participantId': i + 2,
+          'teamId': 100,
+          'championId': i + 1,
+          'stats': {'totalDamageDealtToChampions': 5500, 'goldEarned': 12500},
+        },
+      ),
+    );
+    final complete = analyzer.analyze(
+      [
+        LocalMatchRecord(
+          match: record.match,
+          puuid: puuid,
+          summaryJson: jsonEncode(summary),
+          syncedAt: record.syncedAt,
+        ),
+      ],
+      puuid: puuid,
+      championNames: {},
+    );
+    expect(complete.kpis.damageShare, closeTo(50, .001));
+    expect(complete.kpis.goldShare, closeTo(20, .001));
+    expect(complete.kpis.damageEfficiency, closeTo(2.5, .001));
+  });
 
   test('computes factual playstyle metrics and signature champions', () {
     final result = analyzer.analyze(

@@ -50,14 +50,14 @@ class ScoutProfileAnalyzer {
     final totalKills = _sum(samples, (s) => s.kills);
     final totalDeaths = _sum(samples, (s) => s.deaths);
     final totalAssists = _sum(samples, (s) => s.assists);
-    final totalCs = _sum(samples, (s) => s.cs);
-    final totalVision = _sum(samples, (s) => s.visionScore);
+    final totalCs = _sum(validDurationSamples, (s) => s.cs);
+    final totalVision = _sum(validDurationSamples, (s) => s.visionScore);
     final totalObjectiveDmg = _sum(samples, (s) => s.objectiveDamage);
     final totalChampionDmg = _sum(
       samples,
       (s) => s.totalDamageDealtToChampions,
     );
-    final totalGold = _sum(samples, (s) => s.goldEarned);
+    final totalGold = _sum(validDurationSamples, (s) => s.goldEarned);
 
     // 1. Mathematically Defined KPIs
     final avgKda = totalDeaths == 0
@@ -92,6 +92,16 @@ class ScoutProfileAnalyzer {
           );
 
     final kpis = ScoutKpis(
+      damagePerMinute: totalMinutes > 0
+          ? _sum(validDurationSamples, (s) => s.totalDamageDealtToChampions) /
+                totalMinutes
+          : null,
+      objectiveDamagePerMinute: totalMinutes > 0
+          ? _sum(validDurationSamples, (s) => s.objectiveDamage) / totalMinutes
+          : null,
+      damageShare: _teamShare(samples, damage: true),
+      goldShare: _teamShare(samples, damage: false),
+      damageEfficiency: _damageEfficiency(samples),
       sampleSize: games,
       wins: wins,
       losses: losses,
@@ -632,6 +642,9 @@ class _ScoutSample {
     required this.visionScore,
     required this.objectiveDamage,
     required this.teamKills,
+    required this.teamDamage,
+    required this.teamGold,
+    required this.completeTeam,
   });
 
   final int championId;
@@ -648,6 +661,9 @@ class _ScoutSample {
   final int visionScore;
   final int objectiveDamage;
   final int teamKills;
+  final int teamDamage;
+  final int teamGold;
+  final bool completeTeam;
 }
 
 _ScoutSample? _sample(
@@ -670,10 +686,22 @@ _ScoutSample? _sample(
   final teamId = (participant['teamId'] as num?)?.toInt();
   final allParticipants = _mapList(summary['participants']);
   int teamKills = 0;
+  int teamDamage = 0;
+  int teamGold = 0;
+  int teamCount = 0;
+  bool hasTeamMetrics = true;
   if (teamId != null) {
     for (final p in allParticipants) {
       if ((p['teamId'] as num?)?.toInt() == teamId) {
         final pStats = _map(p['stats']);
+        teamCount++;
+        hasTeamMetrics =
+            hasTeamMetrics &&
+            pStats['totalDamageDealtToChampions'] is num &&
+            pStats['goldEarned'] is num;
+        teamDamage +=
+            (pStats['totalDamageDealtToChampions'] as num?)?.toInt() ?? 0;
+        teamGold += (pStats['goldEarned'] as num?)?.toInt() ?? 0;
         teamKills += (pStats['kills'] as num?)?.toInt() ?? 0;
       }
     }
@@ -700,6 +728,9 @@ _ScoutSample? _sample(
     visionScore: (stats['visionScore'] as num?)?.toInt() ?? 0,
     objectiveDamage: (stats['damageDealtToObjectives'] as num?)?.toInt() ?? 0,
     teamKills: teamKills,
+    teamDamage: teamDamage,
+    teamGold: teamGold,
+    completeTeam: teamCount == 5 && hasTeamMetrics,
   );
 }
 
@@ -716,6 +747,27 @@ num _ratio(num numerator, num denominator) =>
     denominator == 0 ? 0 : _oneDecimal(numerator / denominator);
 
 num _oneDecimal(num value) => (value * 10).round() / 10;
+
+double? _teamShare(List<_ScoutSample> samples, {required bool damage}) {
+  final complete = samples.where((s) => s.completeTeam).toList();
+  final denominator = _sum(complete, (s) => damage ? s.teamDamage : s.teamGold);
+  if (denominator <= 0) return null;
+  return _sum(
+        complete,
+        (s) => damage ? s.totalDamageDealtToChampions : s.goldEarned,
+      ) /
+      denominator *
+      100;
+}
+
+double? _damageEfficiency(List<_ScoutSample> samples) {
+  final complete = samples
+      .where((s) => s.completeTeam && s.teamGold > 0 && s.teamDamage > 0)
+      .toList();
+  final damage = _teamShare(complete, damage: true);
+  final gold = _teamShare(complete, damage: false);
+  return damage == null || gold == null || gold <= 0 ? null : damage / gold;
+}
 
 String _championIcon(int championId) =>
     'https://raw.communitydragon.org/latest/plugins/'
