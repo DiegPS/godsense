@@ -12,46 +12,76 @@ abstract final class AppLogger {
 
   static String? get logFilePath => _file?.path;
 
-  static Future<void> initialize({
+  static Future<bool> initialize({
     Directory? directory,
     int maxBytes = 512 * 1024,
     int backupCount = 3,
   }) async {
-    final root = directory ?? await getApplicationSupportDirectory();
-    final logDirectory = Directory(p.join(root.path, 'logs'));
-    await logDirectory.create(recursive: true);
     _maxBytes = maxBytes;
     _backupCount = backupCount;
-    _file = File(p.join(logDirectory.path, 'godsense.log'));
-    await deleteExpired(const Duration(days: 7));
-    info('Local diagnostic logging initialized.', category: 'diagnostics');
+    _file = null;
+    try {
+      final root = directory ?? await getApplicationSupportDirectory();
+      final logDirectory = Directory(p.join(root.path, 'logs'));
+      await logDirectory.create(recursive: true);
+      _file = File(p.join(logDirectory.path, 'godsense.log'));
+      await deleteExpired(const Duration(days: 7));
+      info('Local diagnostic logging initialized.', category: 'diagnostics');
+      return true;
+    } catch (error, stackTrace) {
+      _file = null;
+      if (kDebugMode) {
+        debugPrint(
+          'GodSense diagnostic logging is unavailable: ${redact(error)}\n'
+          '${redact(stackTrace)}',
+        );
+      }
+      return false;
+    }
   }
 
   static Future<List<Map<String, Object?>>> exportEntries() async {
-    final entries = <Map<String, Object?>>[];
+    return exportEntriesStream().toList();
+  }
+
+  static Stream<Map<String, Object?>> exportEntriesStream() async* {
     for (final file in _existingFiles()) {
-      for (final line in await file.readAsLines()) {
+      final lines = file
+          .openRead()
+          .transform(utf8.decoder)
+          .transform(const LineSplitter());
+      await for (final line in lines) {
         if (line.trim().isEmpty) continue;
         try {
           final decoded = jsonDecode(line);
           if (decoded is Map) {
-            entries.add(decoded.cast<String, Object?>());
+            yield decoded.cast<String, Object?>();
           }
         } catch (_) {
-          entries.add({'message': redact(line), 'malformed': true});
+          yield {'message': redact(line), 'malformed': true};
         }
       }
     }
-    return entries;
   }
 
   static Future<int> deleteExpired(Duration maxAge, {DateTime? now}) async {
     final cutoff = (now ?? DateTime.now()).toUtc().subtract(maxAge);
     var deleted = 0;
     for (final file in _existingFiles()) {
-      if ((await file.lastModified()).toUtc().isBefore(cutoff)) {
-        await file.delete();
+      final fallbackTimestamp = file.lastModifiedSync().toUtc();
+      final lines = file.readAsLinesSync();
+      final retained = <String>[];
+      for (final line in lines) {
+        if (line.trim().isEmpty) continue;
+        final timestamp = _entryTimestamp(line) ?? fallbackTimestamp;
+        if (!timestamp.isBefore(cutoff)) retained.add(line);
+      }
+      if (retained.isEmpty) {
+        file.deleteSync();
         deleted++;
+      } else if (retained.length !=
+          lines.where((line) => line.trim().isNotEmpty).length) {
+        file.writeAsStringSync('${retained.join('\n')}\n', flush: true);
       }
     }
     return deleted;
@@ -87,8 +117,19 @@ abstract final class AppLogger {
       (match) => '${match.group(1)}[REDACTED]',
     );
     text = text.replaceAllMapped(
-      RegExp(r'https?://([^/@\s:]+):([^/@\s]+)@', caseSensitive: false),
-      (match) => 'https://${match.group(1)}:[REDACTED]@',
+      RegExp(r'(https?://)([^/@\s:]+):([^/@\s]+)@', caseSensitive: false),
+      (match) => '${match.group(1)}${match.group(2)}:[REDACTED]@',
+    );
+    text = text.replaceAllMapped(
+      RegExp(
+        r'([?&](?:gameName|tagLine|puuid|name)=)[^&\s]+',
+        caseSensitive: false,
+      ),
+      (match) => '${match.group(1)}[REDACTED]',
+    );
+    text = text.replaceAllMapped(
+      RegExp(r'(/(?:ranked-stats|summoners?)/)[^/?\s]+', caseSensitive: false),
+      (match) => '${match.group(1)}[REDACTED]',
     );
     text = text.replaceAll(
       RegExp(r'\b[A-Z]:\\Users\\[^\\\s]+', caseSensitive: false),
@@ -184,5 +225,15 @@ abstract final class AppLogger {
           return name == baseName || name.startsWith('$baseName.');
         })
         .toList(growable: false);
+  }
+
+  static DateTime? _entryTimestamp(String line) {
+    try {
+      final decoded = jsonDecode(line);
+      if (decoded is! Map) return null;
+      return DateTime.tryParse(decoded['timestamp']?.toString() ?? '')?.toUtc();
+    } catch (_) {
+      return null;
+    }
   }
 }

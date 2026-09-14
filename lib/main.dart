@@ -6,9 +6,11 @@ import 'infrastructure/diagnostics/app_logger.dart';
 
 export 'app/godsense_app.dart';
 
-Future<void> main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  await AppLogger.initialize();
   AppErrorBoundary.install();
-  AppErrorBoundary.run(runGodSense);
+  AppErrorBoundary.run(() async {
+    await AppLogger.initialize();
+    runGodSense();
+  });
 }

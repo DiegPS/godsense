@@ -222,9 +222,11 @@ class DartCvMinimapTracker {
     // Python OpenCV uses morphologyDefaultBorderValue(). The distinction is
     // observable for closing operations that touch an image boundary.
     final morphologyBorder = cv.morphologyDefaultBorderValue();
+    final morphologyAnchor = cv.Point(-1, -1);
     final dilated = cv.dilate(
       redMask,
       _kernel!,
+      anchor: morphologyAnchor,
       iterations: 1,
       borderValue: morphologyBorder,
     );
@@ -232,6 +234,7 @@ class DartCvMinimapTracker {
       dilated,
       cv.MORPH_CLOSE,
       _kernel!,
+      anchor: morphologyAnchor,
       borderValue: morphologyBorder,
     );
     mark('mask');
@@ -252,6 +255,8 @@ class DartCvMinimapTracker {
     );
     final zero = cv.Scalar(0);
     final white = cv.Scalar(255);
+    final drawHierarchy = cv.VecVec4i();
+    final drawOffset = cv.Point(0, 0);
     for (var index = 0; index < contours.length; index++) {
       final contour = contours[index];
       if (cv.contourArea(contour) <= 15) continue;
@@ -283,6 +288,8 @@ class DartCvMinimapTracker {
             -1,
             white,
             thickness: cv.FILLED,
+            hierarchy: drawHierarchy,
+            offset: drawOffset,
           );
         } finally {
           singleContour.dispose();
@@ -303,10 +310,16 @@ class DartCvMinimapTracker {
     }
     final ringTemplate = cv.Mat.zeros(iconSize, iconSize, cv.MatType.CV_8UC1);
     final ringCenter = cv.Point(iconSize ~/ 2, iconSize ~/ 2);
+    final templateMask = cv.Mat.empty();
     cv.circle(ringTemplate, ringCenter, iconSize ~/ 2 - 1, white, thickness: 2);
-    final match = cv.matchTemplate(filtered, ringTemplate, cv.TM_CCOEFF_NORMED);
-    final matchValues = match.dataPtr.cast<ffi.Float>().asTypedList(
-      match.rows * match.cols,
+    final match = cv.matchTemplate(
+      filtered,
+      ringTemplate,
+      cv.TM_CCOEFF_NORMED,
+      mask: templateMask,
+    );
+    final matchValues = Float32List.fromList(
+      match.dataPtr.cast<ffi.Float>().asTypedList(match.rows * match.cols),
     );
     final hits = <({int x, int y})>[];
     for (var y = 0; y < match.rows; y++) {
@@ -358,8 +371,12 @@ class DartCvMinimapTracker {
             face,
             variant.faceTemplate,
             cv.TM_CCOEFF_NORMED,
+            mask: templateMask,
           );
-          final (_, tm, minLoc, maxLoc) = cv.minMaxLoc(result);
+          final (_, tm, minLoc, maxLoc) = cv.minMaxLoc(
+            result,
+            mask: templateMask,
+          );
           minLoc.dispose();
           maxLoc.dispose();
           result.dispose();
@@ -475,6 +492,7 @@ class DartCvMinimapTracker {
         rect.dispose();
       }
       match.dispose();
+      templateMask.dispose();
       ringCenter.dispose();
       ringTemplate.dispose();
       annotated.dispose();
@@ -484,6 +502,9 @@ class DartCvMinimapTracker {
       closed.dispose();
       dilated.dispose();
       morphologyBorder.dispose();
+      morphologyAnchor.dispose();
+      drawOffset.dispose();
+      drawHierarchy.dispose();
       redMask.dispose();
       highRed.dispose();
       lowRed.dispose();

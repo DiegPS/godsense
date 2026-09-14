@@ -46,7 +46,12 @@ class OverlayWindowManager extends WindowObserver {
   Future<void> _enqueue(Future<void> Function() operation) {
     final next = _transition.then((_) => operation());
     _transition = next.onError((error, stackTrace) {
-      debugPrint('GodSense overlay transition failed: $error');
+      AppLogger.warning(
+        'Overlay transition failed.',
+        category: 'overlay',
+        error: error,
+        stackTrace: stackTrace,
+      );
     });
     return next;
   }
@@ -88,8 +93,13 @@ class OverlayWindowManager extends WindowObserver {
       await window.hideCurrentAppTabFromTaskbar(true);
       container.read(overlayOpenProvider.notifier).state = false;
       return id;
-    } catch (error) {
-      debugPrint('GodSense overlay could not be created: $error');
+    } catch (error, stackTrace) {
+      AppLogger.warning(
+        'Overlay window could not be created.',
+        category: 'overlay',
+        error: error,
+        stackTrace: stackTrace,
+      );
       return null;
     } finally {
       _opening = null;

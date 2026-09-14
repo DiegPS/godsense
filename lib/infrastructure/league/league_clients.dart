@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -19,15 +20,21 @@ class LcuCredentials {
 }
 
 class LcuClient implements LcuReadTransport {
-  LcuClient({HttpClient? httpClient, this.credentialsProvider})
-    : _httpClient =
-          httpClient ??
-          (HttpClient()
-            ..badCertificateCallback = ((_, _, _) => true)
-            ..connectionTimeout = const Duration(seconds: 2));
+  LcuClient({
+    HttpClient? httpClient,
+    this.credentialsProvider,
+    this.requestTimeout = const Duration(seconds: 4),
+    this.maxResponseBytes = 16 * 1024 * 1024,
+  }) : _httpClient =
+           httpClient ??
+           (HttpClient()
+             ..badCertificateCallback = ((_, _, _) => true)
+             ..connectionTimeout = const Duration(seconds: 2));
 
   final HttpClient _httpClient;
   final LcuCredentials? Function()? credentialsProvider;
+  final Duration requestTimeout;
+  final int maxResponseBytes;
   LcuCredentials? _credentials;
   String? _activeDirectory;
   DateTime? _lastDiscovery;
@@ -109,55 +116,69 @@ class LcuClient implements LcuReadTransport {
         error: 'LCU lockfile was not found.',
       );
     }
+    HttpClientRequest? activeRequest;
     try {
-      final uri = Uri.parse(
-        '${credentials.protocol}://127.0.0.1:${credentials.port}$path',
-      );
-      final request = await _httpClient.openUrl(method, uri);
-      request.headers
-        ..set(
-          HttpHeaders.authorizationHeader,
-          'Basic ${base64Encode(utf8.encode('riot:${credentials.password}'))}',
-        )
-        ..set(HttpHeaders.acceptHeader, 'application/json');
-      if (body != null) {
-        request.headers.contentType = ContentType.json;
-        request.write(jsonEncode(body));
-      }
-      final response = await request.close();
-      final text = utf8.decode(
-        await response.fold<List<int>>(
-          [],
-          (bytes, chunk) => bytes..addAll(chunk),
-        ),
-        allowMalformed: true,
-      );
-      Object? decoded;
-      if (text.isNotEmpty) {
-        try {
-          decoded = jsonDecode(text);
-        } on FormatException {
-          decoded = text;
-        }
-      } else {
-        decoded = const <String, dynamic>{};
-      }
-      if (response.statusCode >= 200 && response.statusCode < 300) {
-        return LcuProbeResponse.success(
-          body: decoded,
-          statusCode: response.statusCode,
+      return await (() async {
+        final uri = Uri.parse(
+          '${credentials.protocol}://127.0.0.1:${credentials.port}$path',
         );
-      }
-      final kind = switch (response.statusCode) {
-        401 || 403 => LcuProbeFailureKind.unauthorized,
-        >= 500 => LcuProbeFailureKind.serverError,
-        _ => LcuProbeFailureKind.clientError,
-      };
+        final request = activeRequest = await _httpClient.openUrl(method, uri);
+        request.headers
+          ..set(
+            HttpHeaders.authorizationHeader,
+            'Basic ${base64Encode(utf8.encode('riot:${credentials.password}'))}',
+          )
+          ..set(HttpHeaders.acceptHeader, 'application/json');
+        if (body != null) {
+          request.headers.contentType = ContentType.json;
+          request.write(jsonEncode(body));
+        }
+        final response = await request.close();
+        final text = utf8.decode(
+          await _readBounded(response, maxResponseBytes),
+          allowMalformed: true,
+        );
+        Object? decoded;
+        if (text.isNotEmpty) {
+          try {
+            decoded = jsonDecode(text);
+          } on FormatException {
+            decoded = text;
+          }
+        } else {
+          decoded = const <String, dynamic>{};
+        }
+        if (response.statusCode >= 200 && response.statusCode < 300) {
+          return LcuProbeResponse.success(
+            body: decoded,
+            statusCode: response.statusCode,
+          );
+        }
+        final kind = switch (response.statusCode) {
+          401 || 403 => LcuProbeFailureKind.unauthorized,
+          >= 500 => LcuProbeFailureKind.serverError,
+          _ => LcuProbeFailureKind.clientError,
+        };
+        return LcuProbeResponse.failure(
+          failureKind: kind,
+          statusCode: response.statusCode,
+          body: decoded,
+          error: text,
+        );
+      })().timeout(
+        requestTimeout,
+        onTimeout: () {
+          activeRequest?.abort(
+            TimeoutException('LCU request exceeded $requestTimeout.'),
+          );
+          throw TimeoutException('LCU request exceeded $requestTimeout.');
+        },
+      );
+    } on TimeoutException catch (error) {
+      _credentials = null;
       return LcuProbeResponse.failure(
-        failureKind: kind,
-        statusCode: response.statusCode,
-        body: decoded,
-        error: text,
+        failureKind: LcuProbeFailureKind.disconnected,
+        error: error.message ?? 'LCU request timed out.',
       );
     } on SocketException catch (error) {
       _credentials = null;
@@ -183,40 +204,69 @@ class LcuClient implements LcuReadTransport {
 }
 
 class LiveClientApi {
-  LiveClientApi({HttpClient? httpClient})
-    : _httpClient =
-          httpClient ??
-          (HttpClient()
-            ..badCertificateCallback = ((_, _, _) => true)
-            ..connectionTimeout = const Duration(milliseconds: 700));
+  LiveClientApi({
+    HttpClient? httpClient,
+    this.requestTimeout = const Duration(seconds: 2),
+    this.maxResponseBytes = 16 * 1024 * 1024,
+  }) : _httpClient =
+           httpClient ??
+           (HttpClient()
+             ..badCertificateCallback = ((_, _, _) => true)
+             ..connectionTimeout = const Duration(milliseconds: 700));
 
   final HttpClient _httpClient;
+  final Duration requestTimeout;
+  final int maxResponseBytes;
 
   Future<Map<String, dynamic>?> allGameData() async {
+    HttpClientRequest? activeRequest;
     try {
-      final request = await _httpClient.getUrl(
-        Uri.parse('https://127.0.0.1:2999/liveclientdata/allgamedata'),
+      return await (() async {
+        final request = activeRequest = await _httpClient.getUrl(
+          Uri.parse('https://127.0.0.1:2999/liveclientdata/allgamedata'),
+        );
+        final response = await request.close();
+        if (response.statusCode != 200) {
+          await response.drain<void>();
+          return null;
+        }
+        final text = utf8.decode(
+          await _readBounded(response, maxResponseBytes),
+          allowMalformed: true,
+        );
+        final decoded = jsonDecode(text);
+        return decoded is Map
+            ? decoded.map((key, value) => MapEntry(key.toString(), value))
+            : null;
+      })().timeout(
+        requestTimeout,
+        onTimeout: () {
+          activeRequest?.abort(
+            TimeoutException('Live Client request exceeded $requestTimeout.'),
+          );
+          return null;
+        },
       );
-      final response = await request.close();
-      if (response.statusCode != 200) {
-        await response.drain<void>();
-        return null;
-      }
-      final text = utf8.decode(
-        await response.fold<List<int>>(
-          [],
-          (bytes, chunk) => bytes..addAll(chunk),
-        ),
-        allowMalformed: true,
-      );
-      final decoded = jsonDecode(text);
-      return decoded is Map
-          ? decoded.map((key, value) => MapEntry(key.toString(), value))
-          : null;
     } catch (_) {
       return null;
     }
   }
 
   void dispose() => _httpClient.close(force: true);
+}
+
+Future<List<int>> _readBounded(
+  HttpClientResponse response,
+  int maxResponseBytes,
+) async {
+  final bytes = <int>[];
+  await for (final chunk in response) {
+    if (bytes.length + chunk.length > maxResponseBytes) {
+      throw HttpException(
+        'Response exceeded the $maxResponseBytes byte safety limit.',
+      );
+    }
+    bytes.addAll(chunk);
+  }
+  return bytes;
 }

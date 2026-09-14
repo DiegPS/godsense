@@ -1,3 +1,6 @@
+@Tags(['native-cv'])
+library;
+
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';

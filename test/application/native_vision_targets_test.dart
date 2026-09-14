@@ -1,3 +1,6 @@
+@Tags(['native-cv'])
+library;
+
 import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';

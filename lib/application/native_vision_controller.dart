@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../domain/summoners_rift_map.dart';
+import '../infrastructure/diagnostics/app_logger.dart';
 import '../infrastructure/native_vision/dartcv_minimap_tracker.dart';
 import '../infrastructure/native_vision/native_minimap_calibrator.dart';
 import '../infrastructure/native_vision/desktop_screen_capture.dart';
@@ -671,7 +672,12 @@ class NativeVisionController extends StateNotifier<NativeVisionState> {
       if (_lastErrorMessage != message ||
           _lastErrorLoggedAt == null ||
           now.difference(_lastErrorLoggedAt!).inSeconds >= 5) {
-        debugPrint('[TRACKER][NATIVE][ERROR] $error\n$stackTrace');
+        AppLogger.error(
+          'Native vision frame processing failed.',
+          category: 'vision',
+          error: error,
+          stackTrace: stackTrace,
+        );
         _lastErrorMessage = message;
         _lastErrorLoggedAt = now;
       }
@@ -817,7 +823,7 @@ class NativeVisionController extends StateNotifier<NativeVisionState> {
       final logs = [entry, ...state.logs].take(15).toList();
       state = state.copyWith(logs: logs);
     }
-    debugPrint('[TRACKER][VISION] ${entry.event}: ${entry.message}');
+    AppLogger.debug('${entry.event}: ${entry.message}', category: 'vision');
   }
 
   @override

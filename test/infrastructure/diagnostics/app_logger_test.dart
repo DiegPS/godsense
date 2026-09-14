@@ -38,6 +38,37 @@ void main() {
     expect(redacted, isNot(contains(r'C:\Users\diego')));
   });
 
+  test('redacts identity in LCU paths and query parameters', () {
+    final redacted = AppLogger.redact(
+      '/lol-ranked/v1/ranked-stats/private-puuid?gameName=Diego&tagLine=LAN '
+      '/lol-summoner/v1/summoners/another-private-id',
+    );
+
+    expect(redacted, isNot(contains('private-puuid')));
+    expect(redacted, isNot(contains('Diego')));
+    expect(redacted, isNot(contains('LAN')));
+    expect(redacted, isNot(contains('another-private-id')));
+  });
+
+  test(
+    'initialization fails open when the log directory is unavailable',
+    () async {
+      final blocker = File('${temporaryDirectory.path}\\not-a-directory');
+      await blocker.writeAsString('occupied');
+
+      final initialized = await AppLogger.initialize(
+        directory: Directory(blocker.path),
+      );
+
+      expect(initialized, isFalse);
+      expect(AppLogger.logFilePath, isNull);
+      expect(
+        () => AppLogger.error('The application must keep running.'),
+        returnsNormally,
+      );
+    },
+  );
+
   test('writes JSON lines and rotates bounded local files', () {
     for (var index = 0; index < 20; index++) {
       AppLogger.error(
@@ -58,8 +89,11 @@ void main() {
   });
 
   test('exports entries and deletes expired diagnostic files', () async {
-    AppLogger.warning('token=private-value', category: 'test');
     final file = File(AppLogger.logFilePath!);
+    await file.writeAsString(
+      '${_entry(DateTime.utc(2026, 1, 1), 'token=[REDACTED]')}\n',
+      flush: true,
+    );
     await file.setLastModified(DateTime.utc(2026, 1, 1));
 
     final entries = await AppLogger.exportEntries();
@@ -74,4 +108,24 @@ void main() {
     );
     expect(file.existsSync(), isFalse);
   });
+
+  test('removes expired entries without deleting recent entries', () async {
+    final file = File(AppLogger.logFilePath!);
+    await file.writeAsString(
+      '${_entry(DateTime.utc(2026, 1, 1), 'expired')}\n'
+      '${_entry(DateTime.utc(2026, 2, 27), 'recent')}\n',
+      flush: true,
+    );
+
+    await AppLogger.deleteExpired(
+      const Duration(days: 7),
+      now: DateTime.utc(2026, 3, 1),
+    );
+
+    final entries = await AppLogger.exportEntries();
+    expect(entries.map((entry) => entry['message']), ['recent']);
+  });
 }
+
+String _entry(DateTime timestamp, String message) =>
+    '{"timestamp":"${timestamp.toIso8601String()}","message":"$message"}';

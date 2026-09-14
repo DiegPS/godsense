@@ -152,51 +152,194 @@ class LocalDataManager {
   }
 
   Future<File> exportTo(File destination) async {
-    final payload = await database.transaction(() async {
-      return <String, Object?>{
-        'format': 'godsense-local-data',
-        'schema_version': 1,
-        'exported_at': DateTime.now().toUtc().toIso8601String(),
-        'retention_policy': policy.toJson(),
-        'accounts': _jsonRows(await database.select(database.accounts).get()),
-        'account_context_states': _jsonRows(
-          await database.select(database.accountContextStates).get(),
-        ),
-        'matches': _jsonRows(await database.select(database.matches).get()),
-        'account_matches': _jsonRows(
-          await database.select(database.accountMatches).get(),
-        ),
-        'match_documents': _jsonRows(
-          await database.select(database.matchDocuments).get(),
-        ),
-        'ranked_snapshots': _jsonRows(
-          await database.select(database.rankedSnapshots).get(),
-        ),
-        'capture_epochs': _jsonRows(
-          await database.select(database.captureEpochs).get(),
-        ),
-        'source_records': _jsonRows(
-          await database.select(database.sourceRecords).get(),
-        ),
-        'domain_entries': _jsonRows(
-          await database.select(database.domainEntries).get(),
-        ),
-        'lineage_edges': _jsonRows(
-          await database.select(database.lineageEdges).get(),
-        ),
-        'snapshot_cursors': _jsonRows(
-          await database.select(database.snapshotCursors).get(),
-        ),
-        'local_preferences': await _exportablePreferences(),
-      };
-    });
-    payload['diagnostic_logs'] = await AppLogger.exportEntries();
     await destination.parent.create(recursive: true);
-    await destination.writeAsString(
-      const JsonEncoder.withIndent('  ').convert(payload),
-      flush: true,
-    );
-    return destination;
+    final suffix = '$pid-${DateTime.now().microsecondsSinceEpoch}';
+    final temporary = File('${destination.path}.partial-$suffix');
+    final sink = temporary.openWrite();
+    var sinkClosed = false;
+    try {
+      sink.write('{');
+      _writeProperty(sink, 'format', 'godsense-local-data');
+      _writeProperty(sink, 'schema_version', 1, leadingComma: true);
+      _writeProperty(
+        sink,
+        'exported_at',
+        DateTime.now().toUtc().toIso8601String(),
+        leadingComma: true,
+      );
+      _writeProperty(
+        sink,
+        'retention_policy',
+        policy.toJson(),
+        leadingComma: true,
+      );
+      await database.transaction(() async {
+        await _writePagedTable(
+          sink,
+          'accounts',
+          (limit, offset) => (database.select(
+            database.accounts,
+          )..limit(limit, offset: offset)).get(),
+        );
+        await _writePagedTable(
+          sink,
+          'account_context_states',
+          (limit, offset) => (database.select(
+            database.accountContextStates,
+          )..limit(limit, offset: offset)).get(),
+        );
+        await _writePagedTable(
+          sink,
+          'matches',
+          (limit, offset) => (database.select(
+            database.matches,
+          )..limit(limit, offset: offset)).get(),
+        );
+        await _writePagedTable(
+          sink,
+          'account_matches',
+          (limit, offset) => (database.select(
+            database.accountMatches,
+          )..limit(limit, offset: offset)).get(),
+        );
+        await _writePagedTable(
+          sink,
+          'match_documents',
+          (limit, offset) => (database.select(
+            database.matchDocuments,
+          )..limit(limit, offset: offset)).get(),
+        );
+        await _writePagedTable(
+          sink,
+          'ranked_snapshots',
+          (limit, offset) => (database.select(
+            database.rankedSnapshots,
+          )..limit(limit, offset: offset)).get(),
+        );
+        await _writePagedTable(
+          sink,
+          'capture_epochs',
+          (limit, offset) => (database.select(
+            database.captureEpochs,
+          )..limit(limit, offset: offset)).get(),
+        );
+        await _writePagedTable(
+          sink,
+          'source_records',
+          (limit, offset) => (database.select(
+            database.sourceRecords,
+          )..limit(limit, offset: offset)).get(),
+        );
+        await _writePagedTable(
+          sink,
+          'domain_entries',
+          (limit, offset) => (database.select(
+            database.domainEntries,
+          )..limit(limit, offset: offset)).get(),
+        );
+        await _writePagedTable(
+          sink,
+          'lineage_edges',
+          (limit, offset) => (database.select(
+            database.lineageEdges,
+          )..limit(limit, offset: offset)).get(),
+        );
+        await _writePagedTable(
+          sink,
+          'snapshot_cursors',
+          (limit, offset) => (database.select(
+            database.snapshotCursors,
+          )..limit(limit, offset: offset)).get(),
+        );
+      });
+      _writeProperty(
+        sink,
+        'local_preferences',
+        await _exportablePreferences(),
+        leadingComma: true,
+      );
+      await _writeStreamedTable(
+        sink,
+        'diagnostic_logs',
+        AppLogger.exportEntriesStream(),
+      );
+      sink.write('}');
+      await sink.flush();
+      await sink.close();
+      sinkClosed = true;
+      await _replaceDestination(temporary, destination, suffix);
+      return destination;
+    } catch (_) {
+      if (!sinkClosed) {
+        try {
+          await sink.close();
+        } catch (_) {}
+      }
+      if (await temporary.exists()) await temporary.delete();
+      rethrow;
+    }
+  }
+
+  Future<void> _writePagedTable<T extends DataClass>(
+    IOSink sink,
+    String name,
+    Future<List<T>> Function(int limit, int offset) loadPage,
+  ) async {
+    const pageSize = 100;
+    sink.write(',${jsonEncode(name)}:[');
+    var first = true;
+    for (var offset = 0; ; offset += pageSize) {
+      final rows = await loadPage(pageSize, offset);
+      for (final row in rows) {
+        if (!first) sink.write(',');
+        sink.write(jsonEncode(_jsonValue(row.toJson())));
+        first = false;
+      }
+      await sink.flush();
+      if (rows.length < pageSize) break;
+    }
+    sink.write(']');
+  }
+
+  Future<void> _writeStreamedTable(
+    IOSink sink,
+    String name,
+    Stream<Map<String, Object?>> entries,
+  ) async {
+    sink.write(',${jsonEncode(name)}:[');
+    var first = true;
+    await for (final entry in entries) {
+      if (!first) sink.write(',');
+      sink.write(jsonEncode(_jsonValue(entry)));
+      first = false;
+    }
+    sink.write(']');
+  }
+
+  void _writeProperty(
+    IOSink sink,
+    String name,
+    Object? value, {
+    bool leadingComma = false,
+  }) {
+    if (leadingComma) sink.write(',');
+    sink.write('${jsonEncode(name)}:${jsonEncode(_jsonValue(value))}');
+  }
+
+  Future<void> _replaceDestination(
+    File temporary,
+    File destination,
+    String suffix,
+  ) async {
+    final backup = File('${destination.path}.previous-$suffix');
+    if (await destination.exists()) await destination.rename(backup.path);
+    try {
+      await temporary.rename(destination.path);
+    } catch (_) {
+      if (await backup.exists()) await backup.rename(destination.path);
+      rethrow;
+    }
+    if (await backup.exists()) await backup.delete();
   }
 
   Future<void> deleteAllUserData() async {
@@ -271,10 +414,6 @@ class LocalDataManager {
 bool _isUserDataPreference(String key) =>
     key == 'coach.conversation.history.v1' ||
     key.startsWith('coach.postgame.v1.');
-
-List<Map<String, Object?>> _jsonRows(List<DataClass> rows) => rows
-    .map((row) => _jsonValue(row.toJson()) as Map<String, Object?>)
-    .toList(growable: false);
 
 Object? _jsonValue(Object? value) {
   if (value is Uint8List) {

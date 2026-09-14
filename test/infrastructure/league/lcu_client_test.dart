@@ -71,6 +71,29 @@ void main() {
     expect(() => client.get('/broken'), throwsA(isA<HttpException>()));
     await response;
   });
+
+  test('a stalled response times out without freezing the caller', () async {
+    client.dispose();
+    client = LcuClient(
+      credentialsProvider: () => LcuCredentials(
+        port: server.port,
+        password: 'test-password',
+        protocol: 'http',
+        lockfilePath: 'test-lockfile',
+      ),
+      requestTimeout: const Duration(milliseconds: 100),
+    );
+    final received = server.first;
+    final stopwatch = Stopwatch()..start();
+
+    final result = await client.getDetailed('/never-finishes');
+
+    stopwatch.stop();
+    expect(result.failureKind, LcuProbeFailureKind.disconnected);
+    expect(result.error, contains('exceeded'));
+    expect(stopwatch.elapsed, lessThan(const Duration(seconds: 1)));
+    expect((await received).uri.path, '/never-finishes');
+  });
 }
 
 Future<HttpRequest> _respondOnce(

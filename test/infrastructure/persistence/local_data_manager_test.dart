@@ -55,12 +55,22 @@ void main() {
     );
     addTearDown(() => directory.delete(recursive: true));
     final destination = File('${directory.path}\\export.json');
+    await destination.writeAsString('previous export');
+    for (var index = 0; index < 205; index++) {
+      final seen = now.microsecondsSinceEpoch + index;
+      await database.customStatement('''
+        INSERT INTO accounts (
+          puuid, platform_id, first_seen_at_us, last_seen_at_us,
+          record_schema_version
+        ) VALUES ('player-$index', 'LA1', $seen, $seen, 1)
+      ''');
+    }
 
     await manager.exportTo(destination);
     final decoded = jsonDecode(await destination.readAsString()) as Map;
 
     expect(decoded['format'], 'godsense-local-data');
-    expect(decoded['accounts'], hasLength(1));
+    expect(decoded['accounts'], hasLength(206));
     expect(decoded['source_records'], hasLength(2));
     expect(
       decoded['local_preferences']['coach.conversation.history.v1'],
@@ -71,6 +81,16 @@ void main() {
     expect(
       decoded['diagnostic_logs'].toString(),
       isNot(contains('private-diagnostic')),
+    );
+    expect(
+      directory
+          .listSync()
+          .whereType<File>()
+          .map((file) => file.path)
+          .where(
+            (path) => path.contains('.partial-') || path.contains('.previous-'),
+          ),
+      isEmpty,
     );
   });
 

@@ -1,3 +1,6 @@
+@Tags(['native-cv'])
+library;
+
 import 'dart:convert';
 import 'dart:io';
 
