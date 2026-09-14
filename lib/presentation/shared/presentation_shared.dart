@@ -1,13 +1,18 @@
 part of '../../app/godsense_app.dart';
 
-String _sessionLabel(CompanionState state, NativeLeagueState native) {
-  if (native.inGame) return 'Partida en curso';
-  if (native.lcuConnected) return 'League conectado';
-  if (state.connection != CompanionConnection.online) {
+String _sessionLabel({
+  required CompanionConnection connection,
+  required LobbyState? companionLobby,
+  required bool nativeInGame,
+  required bool nativeLcuConnected,
+}) {
+  if (nativeInGame) return 'Partida en curso';
+  if (nativeLcuConnected) return 'League conectado';
+  if (connection != CompanionConnection.online) {
     return 'Abre League para comenzar';
   }
-  if (state.lobby?.lcuConnected == true) {
-    return '${state.lobby!.phase} · datos parciales';
+  if (companionLobby?.lcuConnected == true) {
+    return '${companionLobby!.phase} · datos parciales';
   }
   return 'Waiting for League';
 }

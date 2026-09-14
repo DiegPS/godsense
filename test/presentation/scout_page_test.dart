@@ -21,6 +21,19 @@ void main() {
     expect(find.text('Mi Cuenta'), findsOneWidget);
   });
 
+  testWidgets('shows background refresh without replacing cached UI', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _scoutApp(const LocalScoutState(refreshing: true)),
+    );
+
+    expect(find.text('Actualizando en segundo plano'), findsOneWidget);
+    expect(find.byType(LinearProgressIndicator), findsNothing);
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.text('Nombre de Riot'), findsOneWidget);
+  });
+
   testWidgets('renders cached rank and match data with modern esports card', (
     tester,
   ) async {
@@ -185,6 +198,68 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Tu Equipo · VICTORIA'), findsOneWidget);
+  });
+
+  testWidgets('renders match history in small pages', (tester) async {
+    tester.view.physicalSize = const Size(1280, 4000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final matches = List.generate(
+      10,
+      (index) => ScoutMatchSummary(
+        matchId: index,
+        queueId: 420,
+        queueLabel: 'Clasificatoria Solo/Dúo',
+        durationMinutes: 25,
+        isWin: true,
+        championId: 22,
+        championName: 'Ashe',
+        role: ScoutRole.bottom,
+        kills: 5,
+        deaths: 1,
+        assists: 7,
+        kdaRatio: 12,
+        cs: 200,
+        csm: 8,
+        items: const [0, 0, 0, 0, 0, 0, 0],
+        hasFullDetails: true,
+      ),
+    );
+
+    await tester.pumpWidget(
+      _scoutApp(
+        LocalScoutState(
+          subjectAccount: LeagueAccountProfile(
+            puuid: Puuid('player'),
+            platformId: PlatformId('LA1'),
+            firstSeenAt: DateTime.utc(2026),
+            lastSeenAt: DateTime.utc(2026),
+            riotId: const RiotId(gameName: 'Diego', tagLine: 'LAN'),
+            summonerId: 1,
+          ),
+          typedMatches: matches,
+        ),
+      ),
+    );
+
+    expect(find.text('VICTORIA'), findsNWidgets(3));
+    expect(find.text('Mostrar 3 partidas más'), findsOneWidget);
+
+    await tester.tap(find.text('Mostrar 3 partidas más'));
+    await tester.pump();
+    expect(find.text('VICTORIA'), findsNWidgets(6));
+
+    await tester.tap(find.text('Mostrar 3 partidas más'));
+    await tester.pump();
+    expect(find.text('VICTORIA'), findsNWidgets(9));
+
+    await tester.tap(find.text('Mostrar 1 partida más'));
+    await tester.pump();
+
+    expect(find.text('VICTORIA'), findsNWidgets(10));
+    expect(find.textContaining('Mostrar '), findsNothing);
   });
 
   testWidgets('renders properly across wide (1280) and compact (800) widths', (

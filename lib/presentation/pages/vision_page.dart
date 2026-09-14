@@ -15,19 +15,6 @@ class VisionPage extends ConsumerWidget {
     return ListView(
       padding: GsSizes.pageInsets(context),
       children: [
-        GsSectionHeading(
-          page: true,
-          title: 'Mapa y alertas',
-          subtitle: 'Comprueba el minimapa y revisa los últimos avistamientos enemigos.',
-          action: GsBadge(
-            label: native.recognitionStatus,
-            variant: native.recognitionReady
-                ? GsBadgeVariant.success
-                : GsBadgeVariant.neutral,
-          ),
-        ),
-        const SizedBox(height: 20),
-
         // 1. Player-facing status
         GsCard(
           title: 'Estado de las alertas',

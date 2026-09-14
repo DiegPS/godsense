@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:dart_ai_runtime/dart_ai_runtime.dart'
+    show HttpArtifactDownloader;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:godsense/application/ai/ai_conversation_controller.dart';
 import 'package:godsense/application/ai/ai_runtime_supervisor.dart';
@@ -13,7 +15,11 @@ import 'package:godsense/infrastructure/ai/open_code_compatible_runtime_client.d
 import 'package:godsense/infrastructure/ai/pinned_ai_runtime_installer.dart';
 
 class StreamingOnlyClient extends OpenCodeCompatibleRuntimeClient {
-  StreamingOnlyClient({required super.endpoint, required super.directory});
+  StreamingOnlyClient({
+    required super.endpoint,
+    required super.workspaceDirectory,
+    required super.systemPromptService,
+  });
 
   int reads = 0;
   final seenTypes = <String>{};
@@ -47,14 +53,21 @@ void main() {
     'real Kilo shows multiple partial responses without polling',
     () async {
       final root = await Directory.systemTemp.createTemp('godsense-streaming-');
-      final paths = AiRuntimePaths(root);
+      final storage = AiRuntimeStorage(
+        sharedStoreRoot: Directory('${root.path}\\shared'),
+        applicationDataRoot: Directory('${root.path}\\private'),
+        applicationId: 'godsense-test',
+      );
+      final downloader = HttpArtifactDownloader();
       final health = AiRuntimeHealthClient();
+      final processes = LocalAiRuntimeProcessService(storage);
       final supervisor = AiRuntimeSupervisor(
         installer: PinnedAiRuntimeInstaller(
-          paths: paths,
-          devExecutablePaths: {AiRuntimeKind.kilo: executable},
+          storage: storage,
+          downloader: downloader,
+          developmentExecutables: {AiRuntimeKind.kilo: executable},
         ),
-        processes: LocalAiRuntimeProcessService(paths),
+        processes: processes,
         health: health,
         allowDownloads: false,
       );
@@ -63,7 +76,8 @@ void main() {
         await supervisor.start(AiRuntimeKind.kilo);
         final client = StreamingOnlyClient(
           endpoint: supervisor.state.endpoint!,
-          directory: root.path,
+          workspaceDirectory: storage.workspace(AiRuntimeKind.kilo).path,
+          systemPromptService: processes.systemPromptService,
         );
         controller = AiConversationController(
           supervisor: supervisor,
@@ -103,6 +117,7 @@ void main() {
         controller?.dispose();
         await supervisor.dispose();
         health.dispose();
+        downloader.dispose();
         await root.delete(recursive: true);
       }
     },

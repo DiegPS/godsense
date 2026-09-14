@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'package:dart_ai_runtime/dart_ai_runtime.dart'
+    show HttpArtifactDownloader;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:godsense/application/ai/ai_conversation_controller.dart';
 import 'package:godsense/application/ai/ai_runtime_supervisor.dart';
@@ -18,19 +20,21 @@ void main() {
   test(
     'GodSense con Kilo real (7.5.9): streaming progresivo, preguntas repetidas, cancelación y reinicio en caliente',
     () async {
-      final root = await Directory.systemTemp.createTemp(
-        'godsense-kilo-e2e-',
-      );
+      final root = await Directory.systemTemp.createTemp('godsense-kilo-e2e-');
       final health = AiRuntimeHealthClient();
-      final paths = AiRuntimePaths(root);
+      final storage = AiRuntimeStorage(
+        sharedStoreRoot: Directory('${root.path}\\shared'),
+        applicationDataRoot: Directory('${root.path}\\private'),
+        applicationId: 'godsense-test',
+      );
+      final downloader = HttpArtifactDownloader();
 
       final installer = PinnedAiRuntimeInstaller(
-        paths: paths,
-        devExecutablePaths: {
-          AiRuntimeKind.kilo: kiloExecutablePath,
-        },
+        storage: storage,
+        downloader: downloader,
+        developmentExecutables: {AiRuntimeKind.kilo: kiloExecutablePath},
       );
-      final processes = LocalAiRuntimeProcessService(paths);
+      final processes = LocalAiRuntimeProcessService(storage);
 
       final supervisor = AiRuntimeSupervisor(
         installer: installer,
@@ -48,7 +52,8 @@ void main() {
           supervisor: supervisor,
           clientFactory: () => OpenCodeCompatibleRuntimeClient(
             endpoint: supervisor.state.endpoint!,
-            directory: paths.root.path,
+            workspaceDirectory: storage.workspace(AiRuntimeKind.kilo).path,
+            systemPromptService: processes.systemPromptService,
           ),
         );
 
@@ -63,8 +68,10 @@ void main() {
         // PASO 1: Enviar una pregunta y confirmar texto progresivo
         // -------------------------------------------------------------
         streamedSnapshots.clear();
-        final send1 = controller.sendMessage('¿Cuál es el rol de Ahri en League of Legends? Responde brevemente.');
-        
+        final send1 = controller.sendMessage(
+          '¿Cuál es el rol de Ahri en League of Legends? Responde brevemente.',
+        );
+
         final deadline1 = DateTime.now().add(const Duration(seconds: 90));
         while (controller.state.isBusy && DateTime.now().isBefore(deadline1)) {
           await Future<void>.delayed(const Duration(milliseconds: 300));
@@ -72,22 +79,33 @@ void main() {
         await send1;
 
         // ignore: avoid_print
-        print('STEP 1 FINISHED: status=${controller.state.status}, error=${controller.state.errorMessage}, msgs=${controller.state.messages.length}');
+        print(
+          'STEP 1 FINISHED: status=${controller.state.status}, error=${controller.state.errorMessage}, msgs=${controller.state.messages.length}',
+        );
         expect(controller.state.status, AiConversationStatus.idle);
         expect(controller.state.messages, hasLength(2));
         final response1 = controller.state.messages.last.content;
         expect(response1, isNotEmpty);
-        expect(streamedSnapshots, isNotEmpty, reason: 'El texto debe haber aparecido progresivamente');
+        expect(
+          streamedSnapshots,
+          isNotEmpty,
+          reason: 'El texto debe haber aparecido progresivamente',
+        );
         if (streamedSnapshots.length > 1) {
-          expect(streamedSnapshots.last.length, greaterThanOrEqualTo(streamedSnapshots.first.length));
+          expect(
+            streamedSnapshots.last.length,
+            greaterThanOrEqualTo(streamedSnapshots.first.length),
+          );
         }
 
         // -------------------------------------------------------------
         // PASO 2: Repetir exactamente la misma pregunta
         // -------------------------------------------------------------
         streamedSnapshots.clear();
-        final send2 = controller.sendMessage('¿Cuál es el rol de Ahri en League of Legends? Responde brevemente.');
-        
+        final send2 = controller.sendMessage(
+          '¿Cuál es el rol de Ahri en League of Legends? Responde brevemente.',
+        );
+
         final deadline2 = DateTime.now().add(const Duration(seconds: 90));
         while (controller.state.isBusy && DateTime.now().isBefore(deadline2)) {
           await Future<void>.delayed(const Duration(milliseconds: 300));
@@ -103,8 +121,10 @@ void main() {
         // PASO 3: Cancelar una respuesta en curso y volver a preguntar
         // -------------------------------------------------------------
         streamedSnapshots.clear();
-        final send3 = controller.sendMessage('Escribe una guía de 1000 palabras sobre macrogame en League of Legends.');
-        
+        final send3 = controller.sendMessage(
+          'Escribe una guía de 1000 palabras sobre macrogame en League of Legends.',
+        );
+
         // Esperar brevemente a que esté en vuelo (sending o streaming)
         await Future<void>.delayed(const Duration(milliseconds: 300));
         while (!controller.state.isBusy) {
@@ -118,13 +138,18 @@ void main() {
         expect(controller.state.status, AiConversationStatus.idle);
         // Si había texto parcial, incluye [Cancelado]; si se abortó antes de recibir tokens, se mantiene limpio
         if (controller.state.messages.length == 6) {
-          expect(controller.state.messages.last.content, contains('[Cancelado]'));
+          expect(
+            controller.state.messages.last.content,
+            contains('[Cancelado]'),
+          );
         }
 
         // Volver a preguntar de inmediato tras cancelar
         streamedSnapshots.clear();
-        final send4 = controller.sendMessage('Dime el nombre de un campeón de League of Legends que use arco. Responde solo con su nombre.');
-        
+        final send4 = controller.sendMessage(
+          'Dime el nombre de un campeón de League of Legends que use arco. Responde solo con su nombre.',
+        );
+
         final deadline4 = DateTime.now().add(const Duration(seconds: 90));
         while (controller.state.isBusy && DateTime.now().isBefore(deadline4)) {
           await Future<void>.delayed(const Duration(milliseconds: 300));
@@ -152,7 +177,9 @@ void main() {
 
         // Enviar pregunta al proceso recién reiniciado
         streamedSnapshots.clear();
-        final send5 = controller.sendMessage('¿Sigues disponible tras reiniciar? Responde con la palabra "afirmativo".');
+        final send5 = controller.sendMessage(
+          '¿Sigues disponible tras reiniciar? Responde con la palabra "afirmativo".',
+        );
 
         final deadline5 = DateTime.now().add(const Duration(seconds: 90));
         while (controller.state.isBusy && DateTime.now().isBefore(deadline5)) {
@@ -173,6 +200,7 @@ void main() {
       } finally {
         supervisor.dispose();
         health.dispose();
+        downloader.dispose();
         if (await root.exists()) {
           try {
             await root.delete(recursive: true);

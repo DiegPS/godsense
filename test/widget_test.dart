@@ -26,29 +26,82 @@ void main() {
       find.textContaining(RegExp('GodSense', caseSensitive: false)),
       findsAtLeastNWidgets(1),
     );
-    expect(find.text('League client'), findsOneWidget);
-    expect(find.text('Vision tracker'), findsOneWidget);
+    expect(find.text('Cliente de League'), findsOneWidget);
+    expect(find.text('Alertas del minimapa'), findsOneWidget);
   });
 
-  testWidgets('uses Flutter native navigation with labeled destinations', (
+  testWidgets('keeps navigation and window controls in one top bar', (
     tester,
   ) async {
-    tester.view.physicalSize = const Size(1280, 800);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
-    await tester.pumpWidget(_testApp());
-
-    for (final label in [
-      'Overview',
-      'Live',
-      'Vision',
-      'Coach',
-      'Scout',
-      'Settings',
-    ]) {
-      expect(find.text(label), findsAtLeastNWidgets(1));
+    for (final width in [1280.0, 900.0]) {
+      tester.view.physicalSize = Size(width, 800);
+      await tester.pumpWidget(_testApp());
+      await tester.pump();
+      final brandY = tester.getCenter(find.text('GodSense')).dy;
+      for (final label in [
+        'Inicio',
+        'En vivo',
+        'Mapa',
+        'Coach',
+        'Scout',
+        'Ajustes',
+      ]) {
+        final tab = find.byTooltip(label);
+        expect(tab, findsOneWidget);
+        expect(tester.getCenter(tab).dy, closeTo(brandY, 1));
+      }
+      expect(tester.getCenter(find.text('Editar HUD')).dy, closeTo(brandY, 1));
+      expect(tester.getCenter(find.byTooltip('Cerrar')).dy, closeTo(brandY, 1));
+      final startButton = tester.widget<TextButton>(
+        find.descendant(
+          of: find.byTooltip('Inicio'),
+          matching: find.byType(TextButton),
+        ),
+      );
+      expect(
+        startButton.style?.backgroundColor?.resolve(const {}),
+        Colors.transparent,
+      );
+      expect(
+        startButton.style?.backgroundColor?.resolve({WidgetState.hovered}),
+        GsColors.cyanGlow,
+      );
+      final closeButton = tester.widget<IconButton>(
+        find.ancestor(
+          of: find.byTooltip('Cerrar'),
+          matching: find.byType(IconButton),
+        ),
+      );
+      expect(
+        closeButton.style?.backgroundColor?.resolve(const {}),
+        Colors.transparent,
+      );
+      expect(
+        closeButton.style?.backgroundColor?.resolve({WidgetState.hovered}),
+        GsColors.crimson,
+      );
+      final titleBarDragSurface = find.ancestor(
+        of: find.byTooltip('Scout'),
+        matching: find.byWidgetPredicate(
+          (widget) => widget is GestureDetector && widget.onPanStart != null,
+        ),
+      );
+      expect(titleBarDragSurface, findsOneWidget);
+      expect(
+        find.text(
+          'Tu cuenta, la partida actual y todo lo que requiere atención.',
+        ),
+        findsNothing,
+      );
     }
+    await tester.tap(find.byTooltip('Mapa'));
+    await tester.pump();
+    expect(find.text('Estado de las alertas'), findsOneWidget);
+    expect(find.text('Mapa y alertas'), findsNothing);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('uses only the native DartCV vision runtime', (tester) async {
@@ -58,9 +111,9 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
     await tester.pumpWidget(_testApp());
 
-    await tester.tap(find.text('Vision'));
-    await tester.pumpAndSettle();
-    expect(find.text('DartCV tracker nativo'), findsOneWidget);
+    await tester.tap(find.byTooltip('Mapa'));
+    await tester.pump();
+    expect(find.text('Estado de las alertas'), findsOneWidget);
     expect(find.text('Python backend'), findsNothing);
   });
 
@@ -73,17 +126,17 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
     await tester.pumpWidget(_testApp());
 
-    await tester.tap(find.text('Settings'));
-    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Ajustes'));
+    await tester.pump();
     await tester.scrollUntilVisible(
-      find.text('Voz local · Sherpa-ONNX'),
+      find.text('Voz y atajo para hablar'),
       400,
       scrollable: find.byType(Scrollable).last,
     );
 
-    expect(find.text('Voz local · Sherpa-ONNX'), findsOneWidget);
-    expect(find.text('Push-to-Talk local'), findsOneWidget);
-    expect(find.text('Modelo TTS'), findsOneWidget);
+    expect(find.text('Voz y atajo para hablar'), findsOneWidget);
+    expect(find.text('Hablar con el coach'), findsOneWidget);
+    expect(find.text('Tipo de voz'), findsOneWidget);
   });
 }
 

@@ -9,34 +9,44 @@ class CompanionController extends StateNotifier<CompanionState> {
   CompanionController(this.client) : super(const CompanionState());
 
   final CompanionGateway client;
-  final List<Timer> _timers = [];
   StreamSubscription<Map<String, dynamic>>? _alertsSubscription;
   Timer? _reconnectTimer;
   bool _started = false;
   bool _fastPolling = false;
   bool _mediumPolling = false;
   bool _slowPolling = false;
+  bool _sourceRefreshPending = false;
+  bool _sourceRefreshing = false;
 
   Future<void> start() async {
     if (_started) return;
     _started = true;
-    try {
-      final health = CompanionHealth.fromJson(await client.health());
-      state = state.copyWith(
-        connection: CompanionConnection.online,
-        health: health,
-        clearError: true,
-      );
-    } catch (_) {}
-    unawaited(_pollFast());
-    unawaited(_pollMedium());
-    unawaited(_pollSlow());
+    unawaited(_loadSettings());
+    refreshFromSource();
     _connectAlerts();
-    _timers.addAll([
-      Timer.periodic(const Duration(seconds: 1), (_) => _pollFast()),
-      Timer.periodic(const Duration(seconds: 5), (_) => _pollMedium()),
-      Timer.periodic(const Duration(seconds: 10), (_) => _pollSlow()),
-    ]);
+  }
+
+  /// Refreshes the local projections after the native League source changes.
+  ///
+  /// Calls are coalesced so a burst of native events produces at most one
+  /// additional refresh instead of overlapping requests and UI publications.
+  void refreshFromSource() {
+    if (!_started) return;
+    _sourceRefreshPending = true;
+    if (_sourceRefreshing) return;
+    unawaited(_drainSourceRefreshes());
+  }
+
+  Future<void> _drainSourceRefreshes() async {
+    _sourceRefreshing = true;
+    try {
+      while (_started && _sourceRefreshPending) {
+        _sourceRefreshPending = false;
+        await Future.wait<void>([_pollFast(), _pollMedium(), _pollSlow()]);
+      }
+    } finally {
+      _sourceRefreshing = false;
+    }
   }
 
   Future<void> _pollFast() async {
@@ -70,19 +80,21 @@ class CompanionController extends StateNotifier<CompanionState> {
     _mediumPolling = true;
     try {
       final coaching = await _optional(client.coaching);
-      final settings = await _optional(client.settings);
       state = state.copyWith(
         connection: CompanionConnection.online,
         coaching: coaching ?? state.coaching,
-        settings: settings == null
-            ? state.settings
-            : CompanionSettings.fromJson(settings),
       );
     } catch (error) {
       state = state.copyWith(lastError: error.toString());
     } finally {
       _mediumPolling = false;
     }
+  }
+
+  Future<void> _loadSettings() async {
+    final settings = await _optional(client.settings);
+    if (settings == null || !_started) return;
+    state = state.copyWith(settings: CompanionSettings.fromJson(settings));
   }
 
   Future<Map<String, dynamic>?> _optional(
@@ -180,9 +192,7 @@ class CompanionController extends StateNotifier<CompanionState> {
   @override
   void dispose() {
     _started = false;
-    for (final timer in _timers) {
-      timer.cancel();
-    }
+    _sourceRefreshPending = false;
     _reconnectTimer?.cancel();
     unawaited(_alertsSubscription?.cancel() ?? Future<void>.value());
     unawaited(client.closeAlerts());

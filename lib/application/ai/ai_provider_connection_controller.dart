@@ -1,7 +1,8 @@
-// ignore_for_file: prefer_initializing_formals
+import 'dart:async';
+
+import 'package:dart_ai_runtime/dart_ai_runtime.dart' as runtime;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../domain/ai/ai_runtime_api_models.dart';
 import 'ai_runtime_services.dart';
 
 class AiProviderConnectionState {
@@ -16,175 +17,92 @@ class AiProviderConnectionState {
     this.connected = const {},
     this.error,
   });
-  final List<AiAuthMethod> methods;
+
+  final List<runtime.AiAuthMethod> methods;
   final bool loading;
   final String? operatingProvider;
   final String? instructions;
   final Uri? authorizationUrl;
   final String? authorizationMethod;
-  final AiAuthMethod? pendingMethod;
+  final runtime.AiAuthMethod? pendingMethod;
   final Set<String> connected;
   final String? error;
 }
 
+/// Riverpod/UI adapter over dart_ai_runtime's authentication controller.
 class AiProviderConnectionController
     extends StateNotifier<AiProviderConnectionState> {
   AiProviderConnectionController({required AiProviderAuthClient? client})
-    : _client = client,
-      super(const AiProviderConnectionState());
-  final AiProviderAuthClient? _client;
-  int _revision = 0;
+    : _core = client == null
+          ? null
+          : runtime.AiProviderConnectionController(client: client),
+      super(const AiProviderConnectionState()) {
+    _subscription = _core?.states.listen(_apply);
+  }
+
+  final runtime.AiProviderConnectionController? _core;
+  StreamSubscription<runtime.AiProviderConnectionState>? _subscription;
+  bool _disposed = false;
 
   Future<void> refresh() async {
-    if (!mounted || _client == null || state.operatingProvider != null) return;
-    final revision = ++_revision;
-    state = AiProviderConnectionState(
-      methods: state.methods,
-      connected: state.connected,
-      loading: true,
-    );
-    try {
-      final methods = await _client.authMethods();
-      final connected = await _connected();
-      if (!mounted || revision != _revision) return;
-      state = AiProviderConnectionState(methods: methods, connected: connected);
-    } catch (_) {
-      if (mounted && revision == _revision) {
-        state = AiProviderConnectionState(
-          methods: state.methods,
-          error: 'No se pudo consultar la conexión. Vuelve a intentarlo.',
-        );
-      }
-    }
+    final core = _core;
+    if (core == null || _disposed) return;
+    await core.refresh();
+    _sync();
   }
 
-  Future<Set<String>> _connected() async => (await _client!.providers())
-      .where((provider) => provider.connected)
-      .map((provider) => provider.id)
-      .toSet();
-
-  Future<void> connectApiKey(String providerId, String apiKey) => _operate(
-    providerId,
-    () => _client!.setApiKey(providerId, apiKey),
-    shouldConnect: true,
-  );
+  Future<void> connectApiKey(String providerId, String apiKey) =>
+      _operate(() => _core?.connectApiKey(providerId, apiKey));
 
   Future<void> beginOAuth(
-    AiAuthMethod method, {
+    runtime.AiAuthMethod method, {
     Map<String, String> inputs = const {},
-  }) async {
-    if (!mounted || _client == null || state.operatingProvider != null) return;
-    final revision = ++_revision;
-    state = AiProviderConnectionState(
-      methods: state.methods,
-      connected: state.connected,
-      operatingProvider: method.providerId,
-    );
+  }) => _operate(() => _core?.beginOAuth(method, inputs: inputs));
+
+  Future<void> completeOAuth({String? code}) =>
+      _operate(() => _core?.completeOAuth(code: code));
+
+  Future<void> disconnect(String providerId) =>
+      _operate(() => _core?.disconnect(providerId));
+
+  Future<void> _operate(Future<Object?>? Function() operation) async {
+    if (_core == null || _disposed) return;
     try {
-      final authorization = await _client
-          .beginOAuth(
-            method.providerId,
-            methodIndex: method.index,
-            inputs: inputs,
-          )
-          .timeout(const Duration(seconds: 30));
-      if (!mounted || revision != _revision) return;
-      final url = authorization.url;
-      if (url == null ||
-          !['https', 'http'].contains(url.scheme) ||
-          url.host.isEmpty) {
-        throw const FormatException('Invalid authorization URL');
-      }
-      if (!['auto', 'code'].contains(authorization.method)) {
-        throw const FormatException('Unsupported authorization method');
-      }
-      state = AiProviderConnectionState(
-        methods: state.methods,
-        connected: state.connected,
-        pendingMethod: method,
-        authorizationMethod: authorization.method,
-        authorizationUrl: url,
-        instructions:
-            authorization.instructions ??
-            'Completa el inicio de sesión en tu navegador.',
-      );
+      await operation();
     } catch (_) {
-      if (mounted && revision == _revision) {
-        state = AiProviderConnectionState(
-          methods: state.methods,
-          connected: state.connected,
-          error: 'No se pudo iniciar el acceso. Revisa los campos y vuelve a intentarlo.',
-        );
-      }
+      if (_disposed) return;
     }
+    _sync();
   }
 
-  Future<void> completeOAuth({String? code}) async {
-    final method = state.pendingMethod;
-    if (method == null) return;
-    if (state.authorizationMethod == 'code' && (code?.trim().isEmpty ?? true)) {
-      return;
-    }
-    await _operate(method.providerId, () async {
-      // Some runtimes complete device login themselves. Do not replay it.
-      if (!(await _connected()).contains(method.providerId)) {
-        await _client!.completeOAuth(
-          method.providerId,
-          methodIndex: method.index,
-          code: code,
-        );
-      }
-    }, shouldConnect: true);
+  void _sync() {
+    final core = _core;
+    if (core != null && !_disposed) _apply(core.state);
   }
 
-  Future<void> disconnect(String providerId) => _operate(
-    providerId,
-    () => _client!.disconnectProvider(providerId),
-    shouldConnect: false,
-  );
-
-  Future<void> _operate(
-    String providerId,
-    Future<void> Function() operation, {
-    required bool shouldConnect,
-  }) async {
-    if (!mounted || _client == null || state.operatingProvider != null) return;
-    final previous = state;
-    final revision = ++_revision;
+  void _apply(runtime.AiProviderConnectionState value) {
+    if (_disposed || !mounted) return;
+    final authorization = value.authorization;
     state = AiProviderConnectionState(
-      methods: previous.methods,
-      connected: previous.connected,
-      operatingProvider: providerId,
+      methods: value.methods,
+      loading: value.loading,
+      operatingProvider: value.operatingProviderId,
+      instructions: authorization?.instructions,
+      authorizationUrl: authorization?.url,
+      authorizationMethod: authorization?.method,
+      pendingMethod: value.pendingMethod,
+      connected: value.connectedProviderIds,
+      error: value.error?.toString(),
     );
-    try {
-      await operation().timeout(const Duration(seconds: 90));
-      final connected = await _connected();
-      if (!mounted || revision != _revision) return;
-      if (connected.contains(providerId) != shouldConnect) {
-        throw StateError('Connection not confirmed');
-      }
-      state = AiProviderConnectionState(
-        methods: previous.methods,
-        connected: connected,
-      );
-    } catch (_) {
-      if (!mounted || revision != _revision) return;
-      state = AiProviderConnectionState(
-        methods: previous.methods,
-        connected: previous.connected,
-        pendingMethod: previous.pendingMethod,
-        authorizationUrl: previous.authorizationUrl,
-        authorizationMethod: previous.authorizationMethod,
-        instructions: previous.instructions,
-        error: 'El motor no confirmó el cambio. Completa el acceso o vuelve a intentarlo.',
-      );
-    }
   }
 
   @override
   void dispose() {
-    _revision++;
-    _client?.dispose();
+    if (_disposed) return;
+    _disposed = true;
+    unawaited(_subscription?.cancel());
+    final core = _core;
+    if (core != null) unawaited(core.dispose(disposeClient: true));
     super.dispose();
   }
 }

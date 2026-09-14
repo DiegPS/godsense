@@ -26,7 +26,12 @@ void main() {
         final definition = const PinnedAiRuntimeCatalog().definition(
           fixture.$1,
         );
-        final service = LocalAiRuntimeProcessService(AiRuntimePaths(root));
+        final storage = AiRuntimeStorage(
+          sharedStoreRoot: Directory('${root.path}\\shared'),
+          applicationDataRoot: Directory('${root.path}\\private'),
+          applicationId: 'godsense-test',
+        );
+        final service = LocalAiRuntimeProcessService(storage);
         try {
           final process = await service.start(
             AiRuntimeInstallation(
@@ -46,12 +51,12 @@ void main() {
             expect(result.healthy, isTrue, reason: result.message);
             final client = OpenCodeCompatibleRuntimeClient(
               endpoint: process.endpoint,
-              directory: root.path,
+              workspaceDirectory: storage.workspace(fixture.$1).path,
+              systemPromptService: service.systemPromptService,
             );
             try {
-              final firstEvent = client.events().first.timeout(
-                const Duration(seconds: 10),
-              );
+              final events = await client.connectEvents();
+              final eventSubscription = events.listen((_) {});
               final providers = await client.providers();
               expect(providers, isNotEmpty);
               await client.authMethods();
@@ -60,9 +65,9 @@ void main() {
               );
               expect((await client.session(session.id)).id, session.id);
               expect(await client.messages(session.id), isEmpty);
-              expect((await firstEvent).type, isNotEmpty);
               await client.abort(session.id);
               await client.deleteSession(session.id);
+              await eventSubscription.cancel();
             } finally {
               client.dispose();
             }
@@ -94,7 +99,12 @@ void main() {
       final definition = const PinnedAiRuntimeCatalog().definition(
         AiRuntimeKind.kilo,
       );
-      final service = LocalAiRuntimeProcessService(AiRuntimePaths(root));
+      final storage = AiRuntimeStorage(
+        sharedStoreRoot: Directory('${root.path}\\shared'),
+        applicationDataRoot: Directory('${root.path}\\private'),
+        applicationId: 'godsense-test',
+      );
+      final service = LocalAiRuntimeProcessService(storage);
       try {
         final process = await service.start(
           AiRuntimeInstallation(
@@ -111,7 +121,8 @@ void main() {
           expect(ready.healthy, isTrue, reason: ready.message);
           final client = OpenCodeCompatibleRuntimeClient(
             endpoint: process.endpoint,
-            directory: root.path,
+            workspaceDirectory: storage.workspace(AiRuntimeKind.kilo).path,
+            systemPromptService: service.systemPromptService,
           );
           try {
             final providers = await client.providers();

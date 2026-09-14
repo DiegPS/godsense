@@ -6,8 +6,43 @@ import 'app_shell/app_shell_registry.dart';
 import 'app_shell/app_shell_snapshot.dart';
 import 'app_shell/app_entry_kind.dart';
 import 'app_shell/view_shell_overrides.dart';
+
 /// Finds `MaterialApp` / `CupertinoApp` / `WidgetsApp` in the main view tree.
 abstract final class AppEntryPointFinder {
+  static Element? findShallowestElementInSubtree(Element root) {
+    Element? material;
+    Element? cupertino;
+    Element? widgets;
+    var materialDepth = 1 << 30;
+    var cupertinoDepth = 1 << 30;
+    var widgetsDepth = 1 << 30;
+
+    void visit(Element element, int depth) {
+      final widget = element.widget;
+      if (widget is MaterialApp && depth < materialDepth) {
+        material = element;
+        materialDepth = depth;
+      } else if (widget is CupertinoApp && depth < cupertinoDepth) {
+        cupertino = element;
+        cupertinoDepth = depth;
+      } else if (widget is WidgetsApp && depth < widgetsDepth) {
+        widgets = element;
+        widgetsDepth = depth;
+      }
+      element.visitChildren((Element child) => visit(child, depth + 1));
+    }
+
+    root.visitChildren((Element child) => visit(child, 0));
+    return material ?? cupertino ?? widgets;
+  }
+
+  static AppShellSnapshot? snapshotOf(Widget widget) => switch (widget) {
+    MaterialApp app => AppShellSnapshot.fromMaterialApp(app),
+    CupertinoApp app => AppShellSnapshot.fromCupertinoApp(app),
+    WidgetsApp app => AppShellSnapshot.fromWidgetsApp(app),
+    _ => null,
+  };
+
   /// Walks **up** from `context` and keeps the outermost recognized entry widget.
   static AppShellSnapshot? findOutermostUpstream(BuildContext context) {
     AppShellSnapshot? material;
@@ -58,9 +93,13 @@ abstract final class AppEntryPointFinder {
   }
 }
 
-/// Captures the main entry widget into `registry` after each frame.
+/// Captures the main entry widget into `registry` and keeps it synchronized.
 class MainAppShellCapture extends StatefulWidget {
-  const MainAppShellCapture({super.key, required this.registry, required this.child});
+  const MainAppShellCapture({
+    super.key,
+    required this.registry,
+    required this.child,
+  });
 
   final AppShellRegistry registry;
   final Widget child;
@@ -71,6 +110,8 @@ class MainAppShellCapture extends StatefulWidget {
 
 class _MainAppShellCaptureState extends State<MainAppShellCapture> {
   bool _captureLoopScheduled = false;
+  Element? _entryElement;
+  Widget? _lastEntryWidget;
 
   @override
   void initState() {
@@ -84,11 +125,13 @@ class _MainAppShellCaptureState extends State<MainAppShellCapture> {
     super.dispose();
   }
 
-  /// Re-syncs after every frame while mounted.
+  /// Checks the cached entry widget after every frame while mounted.
   ///
   /// `homeBuilder` may return a `StatefulWidget` (e.g. `MainWindowRoot`) whose
   /// inner `MaterialApp` rebuilds without updating this capture widget. A
   /// one-shot capture on `didUpdateWidget` misses runtime theme/locale changes.
+  /// The entry element is located once, so stable frames do not walk the
+  /// complete widget tree.
   void _scheduleCaptureLoop() {
     if (_captureLoopScheduled || !mounted) return;
     _captureLoopScheduled = true;
@@ -103,8 +146,19 @@ class _MainAppShellCaptureState extends State<MainAppShellCapture> {
   }
 
   void _captureFromSubtree() {
-    final snapshot = AppEntryPointFinder.findShallowestInSubtree(context as Element);
-    widget.registry.replace(snapshot);
+    var entry = _entryElement;
+    if (entry == null || !entry.mounted) {
+      entry = AppEntryPointFinder.findShallowestElementInSubtree(
+        context as Element,
+      );
+      _entryElement = entry;
+    }
+    final entryWidget = entry?.widget;
+    if (identical(entryWidget, _lastEntryWidget)) return;
+    _lastEntryWidget = entryWidget;
+    widget.registry.replace(
+      entryWidget == null ? null : AppEntryPointFinder.snapshotOf(entryWidget),
+    );
   }
 
   void _captureFromUpstream(BuildContext context) {
@@ -137,7 +191,10 @@ class _MainAppShellCaptureState extends State<MainAppShellCapture> {
 }
 
 class _AppShellUpstreamProbe extends StatefulWidget {
-  const _AppShellUpstreamProbe({required this.onUpstreamContext, required this.child});
+  const _AppShellUpstreamProbe({
+    required this.onUpstreamContext,
+    required this.child,
+  });
 
   final void Function(BuildContext context) onUpstreamContext;
   final Widget child;
@@ -172,7 +229,10 @@ class _AppShellUpstreamProbeState extends State<_AppShellUpstreamProbe> {
 }
 
 class _MaterialAppWithUpstreamProbe extends StatelessWidget {
-  const _MaterialAppWithUpstreamProbe({required this.app, required this.onUpstreamContext});
+  const _MaterialAppWithUpstreamProbe({
+    required this.app,
+    required this.onUpstreamContext,
+  });
 
   final MaterialApp app;
   final void Function(BuildContext context) onUpstreamContext;
@@ -224,7 +284,10 @@ class _MaterialAppWithUpstreamProbe extends StatelessWidget {
       scaffoldMessengerKey: app.scaffoldMessengerKey,
       home: app.home == null
           ? null
-          : _AppShellUpstreamProbe(onUpstreamContext: onUpstreamContext, child: app.home!),
+          : _AppShellUpstreamProbe(
+              onUpstreamContext: onUpstreamContext,
+              child: app.home!,
+            ),
       routes: app.routes ?? const <String, WidgetBuilder>{},
       initialRoute: app.initialRoute,
       onGenerateRoute: app.onGenerateRoute,
@@ -264,7 +327,10 @@ class _MaterialAppWithUpstreamProbe extends StatelessWidget {
 }
 
 class _CupertinoAppWithUpstreamProbe extends StatelessWidget {
-  const _CupertinoAppWithUpstreamProbe({required this.app, required this.onUpstreamContext});
+  const _CupertinoAppWithUpstreamProbe({
+    required this.app,
+    required this.onUpstreamContext,
+  });
 
   final CupertinoApp app;
   final void Function(BuildContext context) onUpstreamContext;
@@ -306,7 +372,10 @@ class _CupertinoAppWithUpstreamProbe extends StatelessWidget {
       navigatorKey: app.navigatorKey,
       home: app.home == null
           ? null
-          : _AppShellUpstreamProbe(onUpstreamContext: onUpstreamContext, child: app.home!),
+          : _AppShellUpstreamProbe(
+              onUpstreamContext: onUpstreamContext,
+              child: app.home!,
+            ),
       theme: app.theme,
       routes: app.routes ?? const <String, WidgetBuilder>{},
       initialRoute: app.initialRoute,
@@ -338,7 +407,10 @@ class _CupertinoAppWithUpstreamProbe extends StatelessWidget {
 }
 
 class _WidgetsAppWithUpstreamProbe extends StatelessWidget {
-  const _WidgetsAppWithUpstreamProbe({required this.app, required this.onUpstreamContext});
+  const _WidgetsAppWithUpstreamProbe({
+    required this.app,
+    required this.onUpstreamContext,
+  });
 
   final WidgetsApp app;
   final void Function(BuildContext context) onUpstreamContext;
@@ -370,7 +442,8 @@ class _WidgetsAppWithUpstreamProbe extends StatelessWidget {
         debugShowWidgetInspector: app.debugShowWidgetInspector,
         debugShowCheckedModeBanner: app.debugShowCheckedModeBanner,
         exitWidgetSelectionButtonBuilder: app.exitWidgetSelectionButtonBuilder,
-        moveExitWidgetSelectionButtonBuilder: app.moveExitWidgetSelectionButtonBuilder,
+        moveExitWidgetSelectionButtonBuilder:
+            app.moveExitWidgetSelectionButtonBuilder,
         tapBehaviorButtonBuilder: app.tapBehaviorButtonBuilder,
         shortcuts: app.shortcuts,
         actions: app.actions,
@@ -390,7 +463,10 @@ class _WidgetsAppWithUpstreamProbe extends StatelessWidget {
       pageRouteBuilder: app.pageRouteBuilder,
       home: app.home == null
           ? null
-          : _AppShellUpstreamProbe(onUpstreamContext: onUpstreamContext, child: app.home!),
+          : _AppShellUpstreamProbe(
+              onUpstreamContext: onUpstreamContext,
+              child: app.home!,
+            ),
       routes: app.routes ?? const <String, WidgetBuilder>{},
       builder: _mergeBuilder(app.builder, onUpstreamContext),
       title: app.title,
@@ -407,7 +483,8 @@ class _WidgetsAppWithUpstreamProbe extends StatelessWidget {
       debugShowWidgetInspector: app.debugShowWidgetInspector,
       debugShowCheckedModeBanner: app.debugShowCheckedModeBanner,
       exitWidgetSelectionButtonBuilder: app.exitWidgetSelectionButtonBuilder,
-      moveExitWidgetSelectionButtonBuilder: app.moveExitWidgetSelectionButtonBuilder,
+      moveExitWidgetSelectionButtonBuilder:
+          app.moveExitWidgetSelectionButtonBuilder,
       tapBehaviorButtonBuilder: app.tapBehaviorButtonBuilder,
       shortcuts: app.shortcuts,
       actions: app.actions,
@@ -423,7 +500,9 @@ TransitionBuilder _mergeBuilder(
   return (BuildContext context, Widget? child) {
     return _AppShellUpstreamProbe(
       onUpstreamContext: onUpstreamContext,
-      child: original == null ? child ?? const SizedBox.shrink() : original(context, child),
+      child: original == null
+          ? child ?? const SizedBox.shrink()
+          : original(context, child),
     );
   };
 }
@@ -447,9 +526,13 @@ class SharedEntryApp extends StatelessWidget {
       animation: Listenable.merge([registry, viewShellOverrides]),
       builder: (BuildContext context, _) {
         final view = viewShellOverrides.value;
-        final shell = AppShellPatch.composeAppearance(registry.snapshot, view?.appearance);
+        final shell = AppShellPatch.composeAppearance(
+          registry.snapshot,
+          view?.appearance,
+        );
         if (shell == null && view == null) return child;
-        final effective = shell ?? const AppShellSnapshot(kind: AppEntryKind.material);
+        final effective =
+            shell ?? const AppShellSnapshot(kind: AppEntryKind.material);
         return switch (effective.kind) {
           AppEntryKind.material => _materialShell(effective, view, child),
           AppEntryKind.cupertino => _cupertinoShell(effective, view, child),
@@ -459,7 +542,11 @@ class SharedEntryApp extends StatelessWidget {
     );
   }
 
-  Widget _materialShell(AppShellSnapshot shell, ViewShellOverrides? nav, Widget child) {
+  Widget _materialShell(
+    AppShellSnapshot shell,
+    ViewShellOverrides? nav,
+    Widget child,
+  ) {
     if (nav?.usesRouter ?? false) {
       return MaterialApp.router(
         scaffoldMessengerKey: nav!.scaffoldMessengerKey,
@@ -505,7 +592,8 @@ class SharedEntryApp extends StatelessWidget {
       onGenerateInitialRoutes: nav?.onGenerateInitialRoutes,
       onUnknownRoute: nav?.onUnknownRoute,
       onNavigationNotification: nav?.onNavigationNotification,
-      navigatorObservers: nav?.navigatorObservers ?? const <NavigatorObserver>[],
+      navigatorObservers:
+          nav?.navigatorObservers ?? const <NavigatorObserver>[],
       builder: nav?.builder,
       title: nav?.title ?? '',
       onGenerateTitle: nav?.onGenerateTitle,
@@ -531,7 +619,11 @@ class SharedEntryApp extends StatelessWidget {
     );
   }
 
-  Widget _cupertinoShell(AppShellSnapshot shell, ViewShellOverrides? nav, Widget child) {
+  Widget _cupertinoShell(
+    AppShellSnapshot shell,
+    ViewShellOverrides? nav,
+    Widget child,
+  ) {
     if (nav?.usesRouter ?? false) {
       return CupertinoApp.router(
         routeInformationProvider: nav!.routeInformationProvider,
@@ -568,7 +660,8 @@ class SharedEntryApp extends StatelessWidget {
       onGenerateInitialRoutes: nav?.onGenerateInitialRoutes,
       onUnknownRoute: nav?.onUnknownRoute,
       onNavigationNotification: nav?.onNavigationNotification,
-      navigatorObservers: nav?.navigatorObservers ?? const <NavigatorObserver>[],
+      navigatorObservers:
+          nav?.navigatorObservers ?? const <NavigatorObserver>[],
       builder: nav?.builder,
       title: nav?.title,
       onGenerateTitle: nav?.onGenerateTitle,
@@ -587,7 +680,11 @@ class SharedEntryApp extends StatelessWidget {
     );
   }
 
-  Widget _widgetsShell(AppShellSnapshot shell, ViewShellOverrides? nav, Widget child) {
+  Widget _widgetsShell(
+    AppShellSnapshot shell,
+    ViewShellOverrides? nav,
+    Widget child,
+  ) {
     if (nav?.usesRouter ?? false) {
       return WidgetsApp.router(
         routeInformationProvider: nav!.routeInformationProvider,
@@ -620,7 +717,8 @@ class SharedEntryApp extends StatelessWidget {
       onGenerateInitialRoutes: nav?.onGenerateInitialRoutes,
       onUnknownRoute: nav?.onUnknownRoute,
       onNavigationNotification: nav?.onNavigationNotification,
-      navigatorObservers: nav?.navigatorObservers ?? const <NavigatorObserver>[],
+      navigatorObservers:
+          nav?.navigatorObservers ?? const <NavigatorObserver>[],
       initialRoute: nav?.initialRoute,
       pageRouteBuilder: nav?.pageRouteBuilder,
       home: home,

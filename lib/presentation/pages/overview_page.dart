@@ -5,40 +5,28 @@ class OverviewPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final companion = ref.watch(companionControllerProvider);
-    final game = ref.watch(effectiveGameProvider);
-    final lobby = ref.watch(effectiveLobbyProvider);
-    final calibration = ref.watch(nativeCalibrationProvider).calibration;
-    final overlayEnabled = ref.watch(overlayEnabledProvider);
-    final speech = ref.watch(nativeSpeechProvider);
-    final alerts = companion.alerts
+    final alerts = ref
+        .watch(companionControllerProvider.select((state) => state.alerts))
         .where((alert) => alert.isVisibleAlert)
         .take(5);
+    final lastError = ref.watch(
+      companionControllerProvider.select((state) => state.lastError),
+    );
+    final game = ref.watch(effectiveGameProvider);
+    final lobby = ref.watch(effectiveLobbyProvider);
+    final calibration = ref.watch(
+      nativeCalibrationProvider.select((state) => state.calibration),
+    );
+    final overlayEnabled = ref.watch(overlayEnabledProvider);
+    final speechSettings = ref.watch(
+      nativeSpeechProvider.select((state) => state.settings),
+    );
 
     final isLeagueActive = game != null || lobby?.lcuConnected == true;
-    final readyToPlay = isLeagueActive && calibration != null;
 
     return ListView(
       padding: GsSizes.pageInsets(context),
       children: [
-        GsSectionHeading(
-          page: true,
-          title: 'Inicio',
-          subtitle:
-              'Tu cuenta, la partida actual y todo lo que requiere atención.',
-          action: GsBadge(
-            label: readyToPlay
-                ? 'Listo para jugar'
-                : isLeagueActive
-                ? 'Falta configuración'
-                : 'Abre League para comenzar',
-            variant: readyToPlay
-                ? GsBadgeVariant.success
-                : GsBadgeVariant.neutral,
-          ),
-        ),
-        const SizedBox(height: 20),
-
         // 1. Player readiness
         Wrap(
           spacing: 12,
@@ -77,14 +65,14 @@ class OverviewPage extends ConsumerWidget {
             ),
             _OverviewServiceCard(
               title: 'Preguntas por voz',
-              status: speech.settings.pushToTalkEnabled
+              status: speechSettings.pushToTalkEnabled
                   ? 'Activadas'
                   : 'Desactivadas',
-              detail: speech.settings.pushToTalkEnabled
-                  ? 'Mantén ${speech.settings.pushToTalkKey.toUpperCase()} para hablar'
+              detail: speechSettings.pushToTalkEnabled
+                  ? 'Mantén ${speechSettings.pushToTalkKey.toUpperCase()} para hablar'
                   : 'Configúralas en Ajustes',
               icon: Icons.mic_none_rounded,
-              isOnline: speech.settings.pushToTalkEnabled,
+              isOnline: speechSettings.pushToTalkEnabled,
             ),
           ],
         ),
@@ -195,11 +183,13 @@ class OverviewPage extends ConsumerWidget {
                         color: GsColors.textMuted,
                       ),
                       SizedBox(width: 8),
-                      Text(
-                        'Sin alertas recientes. Las alertas de gank y visión aparecerán aquí en vivo.',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: GsColors.textSecondary,
+                      Expanded(
+                        child: Text(
+                          'Sin alertas recientes. Las alertas de gank y visión aparecerán aquí en vivo.',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: GsColors.textSecondary,
+                          ),
                         ),
                       ),
                     ],
@@ -260,7 +250,7 @@ class OverviewPage extends ConsumerWidget {
             ],
           ),
         ),
-        if (companion.lastError != null) ...[
+        if (lastError != null) ...[
           const SizedBox(height: 12),
           Container(
             padding: const EdgeInsets.all(12),

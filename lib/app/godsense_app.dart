@@ -1,15 +1,14 @@
 import 'dart:async';
 
+import 'package:dart_ai_runtime/dart_ai_runtime.dart' as ai_runtime;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:multiview_desktop/multiview_desktop.dart';
 
-import '../application/account_context_coordinator.dart';
 import '../application/coach_controller.dart';
 import '../application/dependencies.dart';
-import '../application/artifacts/artifact_downloader.dart';
 import '../application/native_calibration_controller.dart';
 import '../application/native_league_controller.dart';
 import '../application/native_speech_controller.dart';
@@ -18,9 +17,9 @@ import '../application/vision_session_coordinator.dart';
 import '../application/local_scout_controller.dart';
 import '../application/overlay_layout_controller.dart';
 import '../domain/ai/ai_runtime_models.dart';
-import '../domain/artifacts/artifact_spec.dart';
 import '../domain/companion_models.dart';
 import '../domain/identity/league_identity.dart';
+import '../domain/league/account_context.dart';
 import '../domain/vision/vision_observation.dart';
 import '../presentation/native_speech_settings_card.dart';
 import '../presentation/coach/coach_page.dart';
@@ -50,19 +49,51 @@ final selectedPageProvider = StateProvider<int>((ref) => 0);
 final overlayEnabledProvider = StateProvider<bool>((ref) => true);
 final overlayOpenProvider = StateProvider<bool>((ref) => false);
 
+final shellSessionStatusProvider = Provider<({String label, bool online})>((
+  ref,
+) {
+  final connection = ref.watch(
+    companionControllerProvider.select((state) => state.connection),
+  );
+  final companionLobby = ref.watch(
+    companionControllerProvider.select((state) => state.lobby),
+  );
+  final nativeLeague = ref.watch(
+    nativeLeagueProvider.select(
+      (state) => (
+        inGame: state.inGame,
+        lcuConnected: state.lcuConnected,
+        hasLiveGame: state.liveGame != null,
+      ),
+    ),
+  );
+  return (
+    label: _sessionLabel(
+      connection: connection,
+      companionLobby: companionLobby,
+      nativeInGame: nativeLeague.inGame,
+      nativeLcuConnected: nativeLeague.lcuConnected,
+    ),
+    online:
+        connection == CompanionConnection.online || nativeLeague.hasLiveGame,
+  );
+});
+
 final appProviderContainer = ProviderContainer();
 final overlayWindowManager = OverlayWindowManager(appProviderContainer);
 final effectiveGameProvider = Provider<GameSnapshot?>((ref) {
-  final native = ref.watch(nativeLeagueProvider);
-  return native.liveGame == null
-      ? null
-      : GameSnapshot.fromJson(native.liveGame!);
+  final liveGame = ref.watch(
+    nativeLeagueProvider.select((state) => state.liveGame),
+  );
+  return liveGame == null ? null : GameSnapshot.fromJson(liveGame);
 });
 
 final effectiveLobbyProvider = Provider<LobbyState?>((ref) {
-  final native = ref.watch(nativeLeagueProvider);
-  if (native.lobby.isNotEmpty) return LobbyState.fromJson(native.lobby);
-  return ref.watch(companionControllerProvider).lobby;
+  final nativeLobby = ref.watch(
+    nativeLeagueProvider.select((state) => state.lobby),
+  );
+  if (nativeLobby.isNotEmpty) return LobbyState.fromJson(nativeLobby);
+  return ref.watch(companionControllerProvider.select((state) => state.lobby));
 });
 
 final overlayWindowVisibleProvider = Provider<bool>((ref) {
@@ -85,7 +116,7 @@ void runGodSense() {
     ),
     config: MultiAppConfig(
       generalParams: const MultiPlatformParams(
-        closeMode: CloseMode.forceSecondary,
+        closeMode: CloseMode.destroy,
         enableDynamicAnchor: false,
       ),
       globalWindowOptions: const WindowOptions(

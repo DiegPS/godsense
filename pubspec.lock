@@ -209,6 +209,15 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.0.9"
+  dart_ai_runtime:
+    dependency: "direct main"
+    description:
+      path: "."
+      ref: "v0.3.0"
+      resolved-ref: "8a61f9d3efd0eb9c3cd6dd2f556a86c3e0c268b2"
+      url: "https://github.com/DiegPS/dart_ai_runtime.git"
+    source: git
+    version: "0.3.0"
   dart_style:
     dependency: transitive
     description:

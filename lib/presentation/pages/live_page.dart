@@ -30,21 +30,6 @@ class LivePage extends ConsumerWidget {
     return ListView(
       padding: GsSizes.pageInsets(context),
       children: [
-        GsSectionHeading(
-          page: true,
-          title: 'Partida en vivo',
-          subtitle:
-              'Estado de la partida, objetivos y enfrentamiento de línea.',
-          action: game == null
-              ? null
-              : GsBadge(
-                  label: isEnded ? 'Finalizada' : _gamePhaseLabel(game.phase),
-                  variant: isEnded
-                      ? GsBadgeVariant.neutral
-                      : GsBadgeVariant.info,
-                ),
-        ),
-        const SizedBox(height: 16),
         if (game == null)
           Container(
             padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 20),

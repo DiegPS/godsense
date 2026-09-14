@@ -1,13 +1,10 @@
-// ignore_for_file: prefer_initializing_formals
+import 'dart:async';
 
+import 'package:dart_ai_runtime/dart_ai_runtime.dart' as runtime;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../domain/ai/ai_runtime_api_models.dart';
-
-abstract interface class AiModelPreferences {
-  Future<String?> read(String runtimeId);
-  Future<void> write(String runtimeId, String modelKey);
-}
+abstract interface class AiModelPreferences
+    implements runtime.AiModelSelectionStore {}
 
 class AiModelSelectionState {
   const AiModelSelectionState({
@@ -18,109 +15,74 @@ class AiModelSelectionState {
     this.notice,
   });
 
-  final List<AiProviderInfo> providers;
-  final AiModelInfo? selected;
+  final List<runtime.AiProviderInfo> providers;
+  final runtime.AiModelInfo? selected;
   final bool loading;
   final String? error;
   final String? notice;
 }
 
+/// Riverpod presentation adapter over dart_ai_runtime's model policy.
 class AiModelSelectionController extends StateNotifier<AiModelSelectionState> {
   AiModelSelectionController({
-    required this.runtimeId,
-    required Future<List<AiProviderInfo>> Function() loadProviders,
+    required String runtimeId,
+    required Future<List<runtime.AiProviderInfo>> Function() loadProviders,
     required AiModelPreferences preferences,
-  }) : _loadProviders = loadProviders,
-       _preferences = preferences,
-       super(const AiModelSelectionState());
+  }) : _core = runtime.AiModelSelectionController(
+         runtimeId: runtimeId,
+         loadProviders: loadProviders,
+         store: preferences,
+       ),
+       super(const AiModelSelectionState()) {
+    _subscription = _core.states.listen(_apply);
+  }
 
-  final String runtimeId;
-  final Future<List<AiProviderInfo>> Function() _loadProviders;
-  final AiModelPreferences _preferences;
-  int _revision = 0;
-  Future<void> _saving = Future.value();
+  final runtime.AiModelSelectionController _core;
+  late final StreamSubscription<runtime.AiModelSelectionState> _subscription;
+
+  String get runtimeId => _core.runtimeId;
 
   Future<void> refresh() async {
-    final revision = ++_revision;
-    final previous = state.selected;
-    state = AiModelSelectionState(
-      loading: true,
-      providers: state.providers,
-      selected: previous,
-    );
-    try {
-      final catalog = await _loadProviders();
-      String? saved;
-      String? notice;
-      try {
-        await _saving;
-        saved = await _preferences.read(runtimeId);
-      } catch (_) {
-        notice = 'No se pudo leer la selección guardada.';
-      }
-      if (!mounted || revision != _revision) return;
-      final providers =
-          catalog
-              .where(
-                (provider) => provider.connected && provider.models.isNotEmpty,
-              )
-              .toList()
-            ..sort((a, b) => a.name.compareTo(b.name));
-      final models = providers.expand((provider) => provider.models).toList();
-      AiModelInfo? selected;
-      final preferredKey = previous?.key ?? saved;
-      for (final model in models) {
-        if (model.key == preferredKey) selected = model;
-      }
-      if (selected == null && preferredKey != null) {
-        notice = 'El modelo guardado ya no está disponible. Elige otro para continuar.';
-      } else if (selected == null) {
-        // Never silently move a first-time user to a paid model.
-        final free = models.where((model) => model.isFree).toList()
-          ..sort((a, b) {
-            if (a.key == b.key) return 0;
-            if (a.providerId == 'kilo' && a.id == 'kilo-auto/free') return -1;
-            if (b.providerId == 'kilo' && b.id == 'kilo-auto/free') return 1;
-            if (a.isDefault != b.isDefault) return a.isDefault ? -1 : 1;
-            return a.name.compareTo(b.name);
-          });
-        selected = free.firstOrNull;
-      }
-      state = AiModelSelectionState(
-        providers: providers,
-        selected: selected,
-        notice: notice,
-      );
-    } catch (error) {
-      if (mounted && revision == _revision) {
-        state = AiModelSelectionState(
-          error: 'No se pudieron cargar los modelos. $error',
-        );
-      }
-    }
+    await _core.refresh();
+    if (mounted) _apply(_core.state);
   }
 
   Future<void> select(String modelKey) async {
-    if (state.loading) return;
-    final model = state.providers
-        .expand((provider) => provider.models)
-        .where((model) => model.key == modelKey)
-        .firstOrNull;
-    if (model == null) return;
-    final revision = ++_revision;
-    state = AiModelSelectionState(providers: state.providers, selected: model);
-    final save = _saving.then((_) => _preferences.write(runtimeId, modelKey));
-    _saving = save.catchError((Object _) {});
     try {
-      await save;
-    } catch (_) {
-      if (mounted && revision == _revision) {
+      await _core.select(modelKey);
+    } on ArgumentError {
+      final model = state.providers
+          .expand((provider) => provider.models)
+          .where((candidate) => candidate.key == modelKey)
+          .firstOrNull;
+      if (model != null && mounted) {
         state = AiModelSelectionState(
           providers: state.providers,
           selected: model,
-          notice: 'Modelo seleccionado, pero no se pudo guardar para el próximo inicio.',
         );
       }
+      return;
     }
+    if (mounted) _apply(_core.state);
+  }
+
+  void _apply(runtime.AiModelSelectionState value) {
+    if (!mounted) return;
+    state = AiModelSelectionState(
+      providers: value.providers,
+      selected: value.selected,
+      loading: value.loading,
+      error: value.error?.toString(),
+      notice: value.notice == 'The saved model is no longer available.'
+          ? 'El modelo guardado ya no está disponible. Elige otro para continuar.'
+          : value.notice,
+    );
+  }
+
+  @override
+  void dispose() {
+    unawaited(_subscription.cancel());
+    unawaited(_core.dispose());
+    super.dispose();
   }
 }

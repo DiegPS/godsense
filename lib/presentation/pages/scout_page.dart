@@ -8,9 +8,13 @@ class ScoutPage extends ConsumerStatefulWidget {
 }
 
 class _ScoutPageState extends ConsumerState<ScoutPage> {
+  static const _matchPageSize = 3;
+
   final _gameName = TextEditingController();
   final _tagLine = TextEditingController(text: 'LAN');
   final Set<int> _expandedMatchIds = {};
+  int _visibleMatchCount = _matchPageSize;
+  String? _visibleSubjectKey;
 
   @override
   void dispose() {
@@ -35,7 +39,24 @@ class _ScoutPageState extends ConsumerState<ScoutPage> {
     final subject = state.subjectAccount;
     final analytics = state.analytics;
     final matches = state.typedMatches;
-    final activeContextState = ref.watch(nativeLeagueProvider).accountContext;
+    final subjectKey = subject == null
+        ? null
+        : '${subject.puuid.value}:${subject.platformId.value}';
+    if (_visibleSubjectKey != subjectKey) {
+      _visibleSubjectKey = subjectKey;
+      _visibleMatchCount = _matchPageSize;
+      _expandedMatchIds.clear();
+    }
+    final activeAccount = ref.watch(
+      nativeLeagueProvider.select(
+        (league) => league.accountContext?.context?.account,
+      ),
+    );
+    final leagueConnected = ref.watch(
+      nativeLeagueProvider.select(
+        (league) => league.accountContext?.lcuConnected ?? false,
+      ),
+    );
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -45,13 +66,6 @@ class _ScoutPageState extends ConsumerState<ScoutPage> {
           padding: GsSizes.pageInsets(context),
           children: [
             // 1. Search Console Bar
-            const GsSectionHeading(
-              page: true,
-              title: 'Scout',
-              subtitle:
-                  'Conoce a cada jugador. Encuentra patrones en sus partidas.',
-            ),
-            const SizedBox(height: GsSizes.sectionGap),
             _buildSearchConsole(state),
             const SizedBox(height: 14),
 
@@ -75,7 +89,10 @@ class _ScoutPageState extends ConsumerState<ScoutPage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          _buildLinkedAccountCard(activeContextState),
+                          _buildLinkedAccountCard(
+                            activeAccount,
+                            leagueConnected,
+                          ),
                           const SizedBox(height: 16),
                           if (analytics != null &&
                               analytics.recentTeammates.isNotEmpty) ...[
@@ -122,7 +139,7 @@ class _ScoutPageState extends ConsumerState<ScoutPage> {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    _buildLinkedAccountCard(activeContextState),
+                    _buildLinkedAccountCard(activeAccount, leagueConnected),
                     const SizedBox(height: 16),
                     if (analytics != null) ...[
                       _buildPerformanceSummary(analytics),
@@ -222,33 +239,40 @@ class _ScoutPageState extends ConsumerState<ScoutPage> {
             GsIconButton(
               icon: Icons.refresh_rounded,
               tooltip: 'Actualizar historial local',
-              onPressed: state.loading
+              onPressed: state.loading || state.refreshing
                   ? null
                   : () => ref.read(localScoutProvider.notifier).refresh(),
             ),
           ],
         ),
-        if (state.loading) ...[
+        if (state.loading || state.refreshing) ...[
           const SizedBox(height: 6),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(2),
-            child: const LinearProgressIndicator(
-              minHeight: 2,
-              backgroundColor: Colors.transparent,
-              color: GsColors.cyan,
-            ),
-          ),
-          if (state.loadingLabel != null) ...[
-            const SizedBox(height: 4),
-            Text(
-              state.loadingLabel!,
-              style: const TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w500,
-                color: GsColors.cyan,
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const RepaintBoundary(
+                child: SizedBox.square(
+                  dimension: 8,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 1.5,
+                    color: GsColors.cyan,
+                  ),
+                ),
               ),
-            ),
-          ],
+              const SizedBox(width: 6),
+              Text(
+                state.loadingLabel ??
+                    (state.refreshing
+                        ? 'Actualizando en segundo plano'
+                        : 'Cargando datos locales'),
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                  color: GsColors.cyan,
+                ),
+              ),
+            ],
+          ),
         ],
       ],
     );
@@ -457,9 +481,10 @@ class _ScoutPageState extends ConsumerState<ScoutPage> {
     );
   }
 
-  Widget _buildLinkedAccountCard(AccountContextState? activeContextState) {
-    final account = activeContextState?.context?.account;
-
+  Widget _buildLinkedAccountCard(
+    LeagueAccountProfile? account,
+    bool leagueConnected,
+  ) {
     return GsCard(
       title: 'Cuenta Conectada',
       icon: Icons.link_rounded,
@@ -497,7 +522,7 @@ class _ScoutPageState extends ConsumerState<ScoutPage> {
                             width: 6,
                             height: 6,
                             decoration: BoxDecoration(
-                              color: activeContextState?.lcuConnected == true
+                              color: leagueConnected
                                   ? GsColors.emerald
                                   : GsColors.textMuted,
                               shape: BoxShape.circle,
@@ -505,7 +530,7 @@ class _ScoutPageState extends ConsumerState<ScoutPage> {
                           ),
                           const SizedBox(width: 6),
                           Text(
-                            activeContextState?.lcuConnected == true
+                            leagueConnected
                                 ? 'Cuenta conectada'
                                 : 'Desconectado',
                             style: const TextStyle(
@@ -903,6 +928,11 @@ class _ScoutPageState extends ConsumerState<ScoutPage> {
     List<ScoutMatchSummary> matches,
     LocalScoutState state,
   ) {
+    final visibleMatches = matches
+        .take(_visibleMatchCount)
+        .toList(growable: false);
+    final remainingMatches = matches.length - visibleMatches.length;
+    final nextPageSize = remainingMatches.clamp(0, _matchPageSize);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -944,7 +974,7 @@ class _ScoutPageState extends ConsumerState<ScoutPage> {
           )
         else
           Column(
-            children: matches.map((match) {
+            children: visibleMatches.map((match) {
               final isExpanded = _expandedMatchIds.contains(match.matchId);
               return Padding(
                 padding: const EdgeInsets.only(bottom: 8),
@@ -968,6 +998,20 @@ class _ScoutPageState extends ConsumerState<ScoutPage> {
               );
             }).toList(),
           ),
+        if (visibleMatches.length < matches.length) ...[
+          const SizedBox(height: 4),
+          Align(
+            alignment: Alignment.center,
+            child: GsButton(
+              label:
+                  'Mostrar $nextPageSize ${nextPageSize == 1 ? 'partida' : 'partidas'} más',
+              icon: Icons.expand_more_rounded,
+              variant: GsButtonVariant.secondary,
+              onPressed: () =>
+                  setState(() => _visibleMatchCount += _matchPageSize),
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -1039,11 +1083,16 @@ class _ModernMatchCard extends StatelessWidget {
             // Collapsed Row
             InkWell(
               onTap: onToggleExpand,
-              child: IntrinsicHeight(
+              child: SizedBox(
+                height: 76,
                 child: Row(
                   children: [
                     // Solid Left Accent Stripe
-                    Container(width: 4, color: accentColor),
+                    Container(
+                      width: 4,
+                      height: double.infinity,
+                      color: accentColor,
+                    ),
                     const SizedBox(width: 12),
 
                     // Result & Queue Info

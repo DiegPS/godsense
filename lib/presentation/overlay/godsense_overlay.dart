@@ -8,26 +8,38 @@ class GodSenseOverlay extends ConsumerStatefulWidget {
 }
 
 class _GodSenseOverlayState extends ConsumerState<GodSenseOverlay> {
-  late final Timer _clock;
+  Timer? _clock;
   DateTime _now = DateTime.now();
 
-  @override
-  void initState() {
-    super.initState();
-    _clock = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted) setState(() => _now = DateTime.now());
-    });
+  void _setClockActive(bool active) {
+    if (active && _clock == null) {
+      _clock = Timer.periodic(const Duration(seconds: 1), (_) {
+        if (mounted) setState(() => _now = DateTime.now());
+      });
+    } else if (!active && _clock != null) {
+      _clock!.cancel();
+      _clock = null;
+    }
   }
 
   @override
   void dispose() {
-    _clock.cancel();
+    _clock?.cancel();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final companion = ref.watch(companionControllerProvider);
+    final companion = ref.watch(
+      companionControllerProvider.select(
+        (state) => (
+          alerts: state.alerts,
+          settings: state.settings,
+          coaching: state.coaching,
+          directives: state.directives,
+        ),
+      ),
+    );
     final nativeVision = ref.watch(nativeVisionProvider);
     final nativeSpeech = ref.watch(nativeSpeechProvider);
     final nativeVoiceCoach = ref.watch(nativeVoiceCoachProvider);
@@ -71,6 +83,14 @@ class _GodSenseOverlayState extends ConsumerState<GodSenseOverlay> {
     final inGame = game != null && !game.gameEnded;
     final inGameVisible = inGame && visibilityEvent?.raw['visible'] != false;
     final visible = layout.editing || inGameVisible;
+    _setClockActive(
+      visible &&
+          (companion.alerts.isNotEmpty ||
+              nativeVision.events.isNotEmpty ||
+              nativeVision.lastKnown.isNotEmpty ||
+              nativeSpeech.pushToTalkPressed ||
+              nativeSpeech.lastTranscriptAt != null),
+    );
     final enemies = game?.enemies ?? const <Map<String, dynamic>>[];
     final jungler = enemies
         .where((enemy) => enemy['role']?.toString().toUpperCase() == 'JUNGLE')

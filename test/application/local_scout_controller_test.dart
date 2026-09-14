@@ -214,13 +214,6 @@ void main() {
               lastSeenAt: DateTime.utc(2026, 9, 3),
             ),
         synchronizeAccount: (account, {onProgress}) async {
-          await onProgress?.call(
-            const LocalScoutSyncProgress(
-              stage: LocalScoutSyncStage.ranked,
-              completed: 1,
-              total: 1,
-            ),
-          );
           synchronizationStarted.complete();
           await finishSynchronization.future;
           return const LocalScoutSyncResult(
@@ -243,20 +236,53 @@ void main() {
         progressiveController.state.profile['game_name'],
         'Visible primero',
       );
-      expect(progressiveController.state.loading, isTrue);
-      expect(
-        progressiveController.state.loadingLabel,
-        'Rango recibido. Solicitando partidas…',
-      );
+      expect(progressiveController.state.loading, isFalse);
+      expect(progressiveController.state.refreshing, isTrue);
+      expect(progressiveController.state.loadingLabel, isNull);
 
       finishSynchronization.complete();
       await search;
       expect(progressiveController.state.loading, isFalse);
+      expect(progressiveController.state.refreshing, isFalse);
       expect(
         progressiveController.state.profile['game_name'],
         'Visible primero',
       );
       progressiveController.dispose();
+    },
+  );
+
+  test(
+    'does not reload when reconciliation returns the same account',
+    () async {
+      var matchLoads = 0;
+      var synchronizations = 0;
+      final deduplicatingController = LocalScoutController(
+        loadMatches: (puuid, {limit = 20}) async {
+          matchLoads++;
+          return repository.loadMatches(puuid, limit: limit);
+        },
+        loadRanked: repository.loadLatestRanked,
+        synchronizeAccount: (account, {onProgress}) async {
+          synchronizations++;
+          return const LocalScoutSyncResult(
+            matchesSeen: 0,
+            matchesStored: 0,
+            detailsStored: 0,
+            timelinesStored: 0,
+            rankedStored: false,
+          );
+        },
+      );
+
+      await deduplicatingController.loadAccount(_account());
+      await deduplicatingController.loadAccount(
+        _account().copyWith(lastSeenAt: DateTime.utc(2026, 9, 4)),
+      );
+
+      expect(matchLoads, 2);
+      expect(synchronizations, 1);
+      deduplicatingController.dispose();
     },
   );
 }

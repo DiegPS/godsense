@@ -18,19 +18,6 @@ class CoachSectionHeader extends StatelessWidget {
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      GsSectionHeading(
-        page: true,
-        title: 'Coach',
-        subtitle:
-            'Prepara tu partida. Decide con contexto. Aprende de cada sesión.',
-        action: GsBadge(
-          label: phase == automaticPhase ? 'Sincronizado' : 'Vista manual',
-          variant: phase == automaticPhase
-              ? GsBadgeVariant.success
-              : GsBadgeVariant.neutral,
-        ),
-      ),
-      const SizedBox(height: 24),
       Wrap(
         spacing: 8,
         runSpacing: 8,

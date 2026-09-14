@@ -1,11 +1,7 @@
 import 'dart:async';
 
+import 'package:dart_ai_runtime/dart_ai_runtime.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:godsense/application/ai/ai_runtime_services.dart';
-import 'package:godsense/application/ai/ai_runtime_supervisor.dart';
-import 'package:godsense/application/artifacts/artifact_downloader.dart';
-import 'package:godsense/domain/ai/ai_runtime_models.dart';
-import 'package:godsense/domain/artifacts/artifact_spec.dart';
 
 void main() {
   test(
@@ -167,7 +163,7 @@ class _FakeInstaller implements AiRuntimeInstallService {
         kind: kind,
         version: '1',
         executableName: '${kind.id}.exe',
-        package: ArtifactSpec(
+        artifact: ArtifactSpec(
           id: kind.id,
           version: '1',
           group: 'ai',
@@ -182,6 +178,11 @@ class _FakeInstaller implements AiRuntimeInstallService {
             ),
           ],
           requiredPaths: ['${kind.id}.exe'],
+          license: ArtifactLicense(
+            name: 'fixture',
+            uri: Uri.parse('https://example.test/license'),
+            notice: 'Test fixture only.',
+          ),
         ),
       ),
   };

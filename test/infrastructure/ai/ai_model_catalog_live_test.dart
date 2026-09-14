@@ -22,20 +22,24 @@ void main() {
         );
         final health = AiRuntimeHealthClient();
         try {
-          final process =
-              await LocalAiRuntimeProcessService(AiRuntimePaths(root)).start(
-                AiRuntimeInstallation(
-                  definition: const PinnedAiRuntimeCatalog().definition(kind),
-                  directoryPath: File(path!).parent.path,
-                ),
-                password: 'catalog-test-only',
-              );
+          final storage = AiRuntimeStorage(
+            sharedStoreRoot: Directory('${root.path}\\shared'),
+            applicationDataRoot: Directory('${root.path}\\private'),
+            applicationId: 'godsense-test',
+          );
+          final process = await LocalAiRuntimeProcessService(storage).start(
+            AiRuntimeInstallation(
+              definition: const PinnedAiRuntimeCatalog().definition(kind),
+              directoryPath: File(path!).parent.path,
+            ),
+            password: 'catalog-test-only',
+          );
           try {
             final ready = await health.waitUntilReady(process.endpoint);
             expect(ready.healthy, isTrue);
             final client = OpenCodeCompatibleRuntimeClient(
               endpoint: process.endpoint,
-              directory: root.path,
+              workspaceDirectory: storage.workspace(kind).path,
             );
             try {
               final providers = await client.providers();

@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 
 import '../multi_view_desktop.dart';
@@ -15,21 +16,19 @@ import '../multi_view_desktop.dart';
 /// )
 /// ```
 class DragToMoveArea extends StatelessWidget {
-  const DragToMoveArea({
-    super.key,
-    required this.child,
-  });
+  const DragToMoveArea({super.key, required this.child});
 
   /// Child widget that receives drag gestures to move the window.
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return Listener(
       behavior: HitTestBehavior.translucent,
-      onPanStart: (_) => MultiViewDesktop.of(context).startDragging(),
-      // Absorb double-tap to avoid accidental maximize on the drag area.
-      onDoubleTap: () {},
+      onPointerDown: (event) {
+        if (event.buttons & kPrimaryMouseButton == 0) return;
+        MultiViewDesktop.of(context).startDragging();
+      },
       child: child,
     );
   }

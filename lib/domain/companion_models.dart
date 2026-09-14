@@ -256,6 +256,29 @@ class CompanionSettings {
   final String cadence;
   final List<String> overlayHiddenPanels;
   final Map<String, dynamic> meta;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CompanionSettings &&
+          other.pttKey == pttKey &&
+          other.ttsEnabled == ttsEnabled &&
+          other.ttsVolume == ttsVolume &&
+          other.language == language &&
+          other.cadence == cadence &&
+          _deepEquals(other.overlayHiddenPanels, overlayHiddenPanels) &&
+          _deepEquals(other.meta, meta);
+
+  @override
+  int get hashCode => Object.hash(
+    pttKey,
+    ttsEnabled,
+    ttsVolume,
+    language,
+    cadence,
+    _deepHash(overlayHiddenPanels),
+    _deepHash(meta),
+  );
 }
 
 enum CompanionAlertKind {
@@ -419,4 +442,38 @@ List<Map<String, dynamic>> _mapList(Object? value) {
 List<String> _stringList(Object? value) {
   if (value is! List) return const [];
   return value.map((item) => item.toString()).toList(growable: false);
+}
+
+bool _deepEquals(Object? left, Object? right) {
+  if (identical(left, right)) return true;
+  if (left is List && right is List) {
+    if (left.length != right.length) return false;
+    for (var index = 0; index < left.length; index++) {
+      if (!_deepEquals(left[index], right[index])) return false;
+    }
+    return true;
+  }
+  if (left is Map && right is Map) {
+    if (left.length != right.length) return false;
+    for (final entry in left.entries) {
+      if (!right.containsKey(entry.key) ||
+          !_deepEquals(entry.value, right[entry.key])) {
+        return false;
+      }
+    }
+    return true;
+  }
+  return left == right;
+}
+
+int _deepHash(Object? value) {
+  if (value is List) return Object.hashAll(value.map(_deepHash));
+  if (value is Map) {
+    var hash = 0;
+    for (final entry in value.entries) {
+      hash ^= Object.hash(_deepHash(entry.key), _deepHash(entry.value));
+    }
+    return hash;
+  }
+  return value.hashCode;
 }

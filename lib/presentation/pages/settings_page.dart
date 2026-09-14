@@ -13,12 +13,19 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   @override
   Widget build(BuildContext context) {
     final overlayEnabled = ref.watch(overlayEnabledProvider);
-    final companion = ref.watch(companionControllerProvider);
-    final league = ref.watch(nativeLeagueProvider);
-    final speech = ref.watch(nativeSpeechProvider);
+    final (settings, operationInProgress) = ref.watch(
+      companionControllerProvider.select(
+        (companion) => (companion.settings, companion.operationInProgress),
+      ),
+    );
+    final leagueConnected = ref.watch(
+      nativeLeagueProvider.select((state) => state.lcuConnected),
+    );
+    final speechSettings = ref.watch(
+      nativeSpeechProvider.select((state) => state.settings),
+    );
     final nativeCalibration = ref.watch(nativeCalibrationProvider);
     final calibration = nativeCalibration.calibration;
-    final settings = companion.settings;
     final meta = settings?.meta ?? const <String, dynamic>{};
     final locks = meta['locks'] is Map ? meta['locks'] as Map : const {};
     const panels = {
@@ -34,13 +41,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     return ListView(
       padding: GsSizes.pageInsets(context),
       children: [
-        GsSectionHeading(
-          page: true,
-          title: 'Ajustes',
-          subtitle: 'Personaliza cómo GodSense te acompaña dentro y fuera de partida.',
-          action: null,
-        ),
-        const SizedBox(height: 16),
         Align(
           alignment: Alignment.centerLeft,
           child: _SettingsSectionSwitch(
@@ -82,8 +82,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                       'es': 'Español',
                     },
                     onChanged:
-                        locks.containsKey('language') ||
-                            companion.operationInProgress
+                        locks.containsKey('language') || operationInProgress
                         ? null
                         : (value) => ref
                               .read(companionControllerProvider.notifier)
@@ -105,8 +104,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                       'chatty': 'Frecuente',
                     },
                     onChanged:
-                        meta['cadence_editable'] != true ||
-                            companion.operationInProgress
+                        meta['cadence_editable'] != true || operationInProgress
                         ? null
                         : (value) => ref
                               .read(companionControllerProvider.notifier)
@@ -211,7 +209,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 return GsToggleSwitch(
                   title: entry.value,
                   value: !hidden,
-                  onChanged: companion.operationInProgress
+                  onChanged: operationInProgress
                       ? null
                       : (visible) {
                           final next = [...?settings?.overlayHiddenPanels];
@@ -241,10 +239,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               children: [
                 _ReadinessRow(
                   title: 'Cliente de League',
-                  detail: league.lcuConnected
+                  detail: leagueConnected
                       ? 'Cuenta y selección de campeón disponibles.'
                       : 'Abre League e inicia sesión para conectar tu cuenta.',
-                  ready: league.lcuConnected,
+                  ready: leagueConnected,
                 ),
                 const Divider(height: 1, color: Color(0x14FFFFFF)),
                 _ReadinessRow(
@@ -276,10 +274,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 const Divider(height: 1, color: Color(0x14FFFFFF)),
                 _ReadinessRow(
                   title: 'Preguntas por voz',
-                  detail: speech.settings.pushToTalkEnabled
-                      ? 'Mantén ${speech.settings.pushToTalkKey.toUpperCase()} para hablar con el coach.'
+                  detail: speechSettings.pushToTalkEnabled
+                      ? 'Mantén ${speechSettings.pushToTalkKey.toUpperCase()} para hablar con el coach.'
                       : 'La función está desactivada.',
-                  ready: speech.settings.pushToTalkEnabled,
+                  ready: speechSettings.pushToTalkEnabled,
                 ),
               ],
             ),
@@ -341,7 +339,7 @@ class _CoachingSettingsSectionState
     try {
       await action();
       if (mounted) setState(() => _notice = success);
-    } on ArtifactDownloadCancelledException {
+    } on ai_runtime.ArtifactDownloadCancelledException {
       if (mounted) {
         setState(
           () => _notice = 'Instalación cancelada. Puedes volver a intentarlo.',
@@ -389,7 +387,7 @@ class _CoachingSettingsSectionState
           active && state.lifecycle == AiRuntimeLifecycle.installing;
       final starting = active && state.lifecycle == AiRuntimeLifecycle.starting;
       final progress = installing ? state.installProgress : null;
-      final bytes = definition.package.payloads.fold<int>(
+      final bytes = definition.artifact.payloads.fold<int>(
         0,
         (sum, file) => sum + file.bytes,
       );
@@ -432,13 +430,16 @@ class _CoachingSettingsSectionState
                 const SizedBox(height: 12),
                 if (installing || starting) ...[
                   LinearProgressIndicator(
-                    value: progress?.phase == ArtifactInstallPhase.downloading
+                    value:
+                        progress?.phase ==
+                            ai_runtime.ArtifactInstallPhase.downloading
                         ? progress?.fraction
                         : null,
                     semanticsLabel: '$name: $status',
                   ),
                   const SizedBox(height: 8),
-                  if (progress?.phase == ArtifactInstallPhase.downloading &&
+                  if (progress?.phase ==
+                          ai_runtime.ArtifactInstallPhase.downloading &&
                       progress!.totalBytes > 0)
                     Text(
                       '${(progress.receivedBytes / (1024 * 1024)).toStringAsFixed(1)} / '
@@ -600,15 +601,16 @@ class _CoachingSettingsSectionState
   }
 }
 
-String _installPhaseLabel(ArtifactInstallPhase? phase) => switch (phase) {
-  ArtifactInstallPhase.downloading => 'Descargando…',
-  ArtifactInstallPhase.verifying => 'Verificando descarga…',
-  ArtifactInstallPhase.extracting => 'Extrayendo archivos…',
-  ArtifactInstallPhase.validating => 'Comprobando instalación…',
-  ArtifactInstallPhase.activating => 'Finalizando instalación…',
-  ArtifactInstallPhase.installed => 'Instalado',
-  _ => 'Preparando instalación…',
-};
+String _installPhaseLabel(ai_runtime.ArtifactInstallPhase? phase) =>
+    switch (phase) {
+      ai_runtime.ArtifactInstallPhase.downloading => 'Descargando…',
+      ai_runtime.ArtifactInstallPhase.verifying => 'Verificando descarga…',
+      ai_runtime.ArtifactInstallPhase.extracting => 'Extrayendo archivos…',
+      ai_runtime.ArtifactInstallPhase.validating => 'Comprobando instalación…',
+      ai_runtime.ArtifactInstallPhase.installing => 'Finalizando instalación…',
+      ai_runtime.ArtifactInstallPhase.installed => 'Instalado',
+      _ => 'Preparando instalación…',
+    };
 
 class _SettingsPlanCard extends StatelessWidget {
   const _SettingsPlanCard({

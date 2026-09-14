@@ -33,7 +33,7 @@ void main() {
           password: 'test',
           pid: 1,
         ),
-        directory: 'test',
+        workspaceDirectory: 'test',
         client: httpClient,
       );
       await client.beginOAuth(

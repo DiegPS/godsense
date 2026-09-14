@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import '../infrastructure/persistence/shared_preferences_post_game_report_store.dart';
 
+import 'package:dart_ai_runtime/dart_ai_runtime.dart' as ai_runtime;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
 
@@ -15,11 +17,6 @@ import '../domain/ai/ai_runtime_models.dart';
 import '../infrastructure/data_dragon/data_dragon_catalog_service.dart';
 import '../infrastructure/data_dragon/data_dragon_game_asset_catalog.dart';
 import '../infrastructure/native_runtime/native_companion_gateway.dart';
-import '../infrastructure/ai/ai_runtime_health_client.dart';
-import '../infrastructure/ai/ai_runtime_paths.dart';
-import '../infrastructure/ai/local_ai_runtime_process_service.dart';
-import '../infrastructure/ai/open_code_compatible_runtime_client.dart';
-import '../infrastructure/ai/pinned_ai_runtime_installer.dart';
 import '../infrastructure/ai/shared_preferences_ai_models.dart';
 import '../infrastructure/ai/shared_preferences_ai_conversation_history.dart';
 import '../infrastructure/ai/shared_preferences_ai_runtime_settings.dart';
@@ -60,6 +57,10 @@ final coachGameAssetsProvider = FutureProvider<GameAssetCatalogSnapshot?>((
         : ClientVersion(account.clientVersion!),
   );
 });
+
+final coachVisionEventsProvider = Provider<List<NativeTrackerEvent>>(
+  (ref) => ref.watch(nativeVisionProvider.select((vision) => vision.events)),
+);
 
 final coachControllerProvider =
     StateNotifierProvider<CoachController, CoachState>((ref) {
@@ -117,8 +118,22 @@ final coachControllerProvider =
         );
       }
 
-      ref.listen(nativeLeagueProvider, (_, _) => synchronize());
-      ref.listen(nativeVisionProvider, (_, _) => synchronize());
+      ref.listen(
+        nativeLeagueProvider.select(
+          (league) => (
+            accountKey: league.accountContext?.context?.account.puuid.value,
+            gameflowPhase: league.gameflowPhase,
+            session: league.gameSession,
+            liveGame: league.liveGame,
+            lobby: league.lobby,
+            runes: league.runeRecommendations,
+            items: league.itemRecommendations,
+            jungle: league.jungleRecommendations,
+          ),
+        ),
+        (_, _) => synchronize(),
+      );
+      ref.listen(coachVisionEventsProvider, (_, _) => synchronize());
       ref.listen(nativeVoiceCoachProvider, (_, _) => synchronize());
       ref.listen(coachGameAssetsProvider, (_, _) => synchronize());
       Future<void>.microtask(synchronize);
@@ -131,8 +146,11 @@ final nativeVoiceCoachProvider =
     ) {
       final speech = ref.watch(nativeSpeechProvider.notifier);
       final engine = ref.watch(nativeTacticalEngineProvider);
-      ref.listen(nativeLeagueProvider, (_, league) {
-        for (final reminder in engine.takeTimerReminders(league.liveGame)) {
+      ref.listen(nativeLeagueProvider.select((league) => league.liveGame), (
+        _,
+        liveGame,
+      ) {
+        for (final reminder in engine.takeTimerReminders(liveGame)) {
           speech.speak(reminder);
         }
       });
@@ -219,6 +237,14 @@ final nativeVoiceCoachProvider =
       );
     });
 
+final connectedScoutAccountGenerationProvider = Provider<int?>((ref) {
+  return ref.watch(
+    nativeLeagueProvider.select(
+      (league) => league.accountContext?.context?.accountGeneration,
+    ),
+  );
+});
+
 final localScoutProvider =
     StateNotifierProvider<LocalScoutController, LocalScoutState>((ref) {
       final league = ref.read(nativeLeagueProvider.notifier);
@@ -231,10 +257,10 @@ final localScoutProvider =
         loadChampionNames: league.loadChampionNames,
       );
       ref.listen(
-        nativeLeagueProvider.select(
-          (state) => state.accountContext?.context?.account,
+        connectedScoutAccountGenerationProvider,
+        (_, _) => controller.loadAccount(
+          ref.read(nativeLeagueProvider).accountContext?.context?.account,
         ),
-        (_, account) => controller.loadAccount(account),
         fireImmediately: true,
       );
       return controller;
@@ -253,35 +279,61 @@ final companionGatewayProvider = Provider<CompanionGateway>((ref) {
   );
 });
 
+final companionSourceRevisionProvider = Provider<String>((ref) {
+  final league = ref.watch(nativeLeagueProvider);
+  return jsonEncode([
+    league.gameflowPhase,
+    league.lobby,
+    league.lastLiveUpdate?.microsecondsSinceEpoch,
+  ]);
+});
+
 final companionControllerProvider =
     StateNotifierProvider<CompanionController, CompanionState>((ref) {
       final controller = CompanionController(
         ref.watch(companionGatewayProvider),
       );
       controller.start();
+      ref.listen(companionSourceRevisionProvider, (_, _) {
+        controller.refreshFromSource();
+      });
       return controller;
     });
 
-final aiRuntimePathsProvider = Provider<AiRuntimePaths>((ref) {
-  final baseDir = Directory(
-    Platform.environment['GODSENSE_AI_RUNTIME_DIR'] ??
-        p.join(
-          Platform.environment['APPDATA'] ??
-              Platform.environment['USERPROFILE'] ??
-              '.',
-          'GodSense',
-          'ai_runtimes',
-        ),
+final aiRuntimeStorageProvider = Provider<ai_runtime.AiRuntimeStorage>((ref) {
+  final override = Platform.environment['GODSENSE_AI_RUNTIME_DIR'];
+  if (override != null && override.isNotEmpty) {
+    return ai_runtime.AiRuntimeStorage(
+      sharedStoreRoot: Directory(p.join(override, 'shared')),
+      applicationDataRoot: Directory(
+        p.join(override, 'applications', 'godsense'),
+      ),
+      applicationId: 'godsense',
+    );
+  }
+  return ai_runtime.AiRuntimeStorage.windowsUnpackaged(
+    publisherDirectoryName: 'DiegPS',
+    applicationId: 'godsense',
   );
-  return AiRuntimePaths(baseDir);
 });
 
+final aiRuntimeProcessServiceProvider =
+    Provider<ai_runtime.LocalAiRuntimeProcessService>((ref) {
+      return ai_runtime.LocalAiRuntimeProcessService(
+        ref.watch(aiRuntimeStorageProvider),
+      );
+    });
+
 final aiRuntimeSupervisorProvider = Provider<AiRuntimeSupervisor>((ref) {
-  final paths = ref.watch(aiRuntimePathsProvider);
-  final installer = PinnedAiRuntimeInstaller(paths: paths);
-  final processService = LocalAiRuntimeProcessService(paths);
-  final health = AiRuntimeHealthClient();
-  final supervisor = AiRuntimeSupervisor(
+  final storage = ref.watch(aiRuntimeStorageProvider);
+  final downloader = ai_runtime.HttpArtifactDownloader();
+  final installer = ai_runtime.PinnedAiRuntimeInstaller(
+    storage: storage,
+    downloader: downloader,
+  );
+  final processService = ref.watch(aiRuntimeProcessServiceProvider);
+  final health = ai_runtime.AiRuntimeHealthClient();
+  final supervisor = ai_runtime.AiRuntimeSupervisor(
     installer: installer,
     processes: processService,
     health: health,
@@ -290,6 +342,7 @@ final aiRuntimeSupervisorProvider = Provider<AiRuntimeSupervisor>((ref) {
   ref.onDispose(() {
     supervisor.dispose();
     health.dispose();
+    downloader.dispose();
   });
   return supervisor;
 });
@@ -320,7 +373,8 @@ final aiRuntimeBootstrapProvider = FutureProvider<void>((ref) async {
 final aiConversationProvider =
     StateNotifierProvider<AiConversationController, AiConversationState>((ref) {
       final supervisor = ref.watch(aiRuntimeSupervisorProvider);
-      final paths = ref.watch(aiRuntimePathsProvider);
+      final storage = ref.watch(aiRuntimeStorageProvider);
+      final processService = ref.watch(aiRuntimeProcessServiceProvider);
       final controller = AiConversationController(
         supervisor: supervisor,
         modelSelection: () {
@@ -344,9 +398,10 @@ final aiConversationProvider =
           if (endpoint == null) {
             throw StateError('El motor de IA local no está encendido.');
           }
-          return OpenCodeCompatibleRuntimeClient(
+          return ai_runtime.OpenCodeCompatibleRuntimeClient(
             endpoint: endpoint,
-            directory: paths.root.path,
+            workspaceDirectory: storage.workspace(endpoint.kind).path,
+            systemPromptService: processService.systemPromptService,
           );
         },
         historyStore: const SharedPreferencesAiConversationHistory(),
@@ -366,12 +421,14 @@ final aiModelSelectionProvider =
       final snapshot =
           ref.watch(aiRuntimeSupervisorStateProvider).value ?? supervisor.state;
       final endpoint = snapshot.isReady ? snapshot.endpoint : null;
-      final paths = ref.watch(aiRuntimePathsProvider);
+      final storage = ref.watch(aiRuntimeStorageProvider);
+      final processService = ref.watch(aiRuntimeProcessServiceProvider);
       final client = endpoint == null
           ? null
-          : OpenCodeCompatibleRuntimeClient(
+          : ai_runtime.OpenCodeCompatibleRuntimeClient(
               endpoint: endpoint,
-              directory: paths.root.path,
+              workspaceDirectory: storage.workspace(endpoint.kind).path,
+              systemPromptService: processService.systemPromptService,
             );
       if (client != null) ref.onDispose(client.dispose);
       final controller = AiModelSelectionController(
@@ -399,9 +456,15 @@ final aiProviderConnectionProvider =
       final controller = AiProviderConnectionController(
         client: endpoint == null
             ? null
-            : OpenCodeCompatibleRuntimeClient(
+            : ai_runtime.OpenCodeCompatibleRuntimeClient(
                 endpoint: endpoint,
-                directory: ref.watch(aiRuntimePathsProvider).root.path,
+                workspaceDirectory: ref
+                    .watch(aiRuntimeStorageProvider)
+                    .workspace(endpoint.kind)
+                    .path,
+                systemPromptService: ref
+                    .watch(aiRuntimeProcessServiceProvider)
+                    .systemPromptService,
               ),
       );
       if (endpoint != null) scheduleMicrotask(controller.refresh);

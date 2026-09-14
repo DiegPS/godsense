@@ -157,10 +157,13 @@ void main() {
       );
       final cached = _record(10);
       final result = await service.loadMatchDetails(cached);
-      expect(transport.paths, ['/lol-match-history/v1/games/10']);
+      expect(transport.paths, [
+        '/lol-match-history/v1/games/10',
+        '/lol-match-history/v1/game-timelines/10',
+      ]);
       expect(result.detailsJson, isNotNull);
       expect(result.summaryJson, cached.summaryJson);
-      expect(result.timelineJson, cached.timelineJson);
+      expect(result.timelineJson, isNotNull);
       expect(result.startedAt, cached.startedAt);
       expect(repository.saved, same(result));
     },

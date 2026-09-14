@@ -62,6 +62,13 @@ class _GodSenseHomeState extends ConsumerState<GodSenseHome> {
   @override
   void initState() {
     super.initState();
+    ref.read(visionSessionCoordinatorProvider);
+    ref.read(companionControllerProvider);
+    ref.read(nativeLeagueProvider);
+    ref.read(nativeCalibrationProvider);
+    ref.read(nativeSpeechProvider);
+    ref.read(nativeVoiceCoachProvider);
+    ref.read(aiRuntimeBootstrapProvider);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       unawaited(
@@ -86,14 +93,10 @@ class _GodSenseHomeState extends ConsumerState<GodSenseHome> {
   @override
   Widget build(BuildContext context) {
     final selectedPage = ref.watch(selectedPageProvider);
-    ref.watch(visionSessionCoordinatorProvider);
-    final companion = ref.watch(companionControllerProvider);
-    final nativeLeague = ref.watch(nativeLeagueProvider);
-    final overlayLayout = ref.watch(overlayLayoutProvider);
-    ref.watch(nativeCalibrationProvider);
-    ref.watch(nativeSpeechProvider);
-    ref.watch(nativeVoiceCoachProvider);
-    ref.watch(aiRuntimeBootstrapProvider);
+    final session = ref.watch(shellSessionStatusProvider);
+    final overlayEditing = ref.watch(
+      overlayLayoutProvider.select((layout) => layout.editing),
+    );
 
     ref.listen<bool>(overlayWindowVisibleProvider, (previous, visible) {
       if (previous == visible) return;
@@ -157,9 +160,9 @@ class _GodSenseHomeState extends ConsumerState<GodSenseHome> {
                 selectedPage: selectedPage,
                 onSelectPage: (page) =>
                     ref.read(selectedPageProvider.notifier).state = page,
-                overlayEditing: overlayLayout.editing,
+                overlayEditing: overlayEditing,
                 onToggleEditing: _onToggleEditing,
-                onResetPanels: overlayLayout.editing
+                onResetPanels: overlayEditing
                     ? () => ref.read(overlayLayoutProvider.notifier).reset()
                     : null,
                 onHelp: () async {
@@ -170,10 +173,8 @@ class _GodSenseHomeState extends ConsumerState<GodSenseHome> {
                     ref.read(selectedPageProvider.notifier).state = destination;
                   }
                 },
-                sessionLabel: _sessionLabel(companion, nativeLeague),
-                isOnline:
-                    companion.connection == CompanionConnection.online ||
-                    nativeLeague.liveGame != null,
+                sessionLabel: session.label,
+                isOnline: session.online,
               ),
               Expanded(
                 child: Center(
@@ -223,134 +224,216 @@ class _GodSenseCustomTitleBar extends StatelessWidget {
   ];
 
   @override
-  Widget build(BuildContext context) => Material(
-    color: GsColors.canvas,
-    child: Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        SizedBox(
-          height: GsSizes.control(context) + 12,
-          child: Row(
-            children: [
-              Expanded(
-                child: DragToMoveArea(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final showLabels =
+          constraints.maxWidth >= 1100 &&
+          MediaQuery.textScalerOf(context).scale(14) <= 20;
+      return Material(
+        color: GsColors.canvas,
+        child: DecoratedBox(
+          decoration: const BoxDecoration(
+            border: Border(bottom: BorderSide(color: GsColors.border)),
+          ),
+          child: SizedBox(
+            height: GsSizes.control(context) + 12,
+            child: Row(
+              children: [
+                Expanded(
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.translucent,
+                    onPanStart: (_) {
+                      try {
+                        MultiViewDesktop.of(context).startDragging();
+                      } catch (_) {}
+                    },
                     child: Row(
                       children: [
-                        const Icon(
-                          Icons.radar_rounded,
-                          color: GsColors.cyan,
-                          size: 24,
-                        ),
-                        const SizedBox(width: 10),
-                        const Text(
-                          'GodSense',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
+                        const DragToMoveArea(
+                          child: Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 12),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.radar_rounded,
+                                  color: GsColors.cyan,
+                                  size: 24,
+                                ),
+                                SizedBox(width: 8),
+                                Text(
+                                  'GodSense',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
-                        if (MediaQuery.sizeOf(context).width >= 1000) ...[
-                          const SizedBox(width: 24),
-                          Flexible(
-                            child: Text(
-                              sessionLabel,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: isOnline
-                                    ? GsColors.emerald
-                                    : GsColors.textMuted,
+                        for (var index = 0; index < _navItems.length; index++)
+                          Padding(
+                            padding: const EdgeInsets.only(right: 2),
+                            child: Semantics(
+                              selected: selectedPage == index,
+                              child: Tooltip(
+                                message: _navItems[index].label,
+                                child: TextButton(
+                                  onPressed: () => onSelectPage(index),
+                                  style:
+                                      gsButtonStyle(
+                                        context,
+                                        variant: GsButtonVariant.ghost,
+                                        compact: true,
+                                      ).copyWith(
+                                        textStyle: WidgetStatePropertyAll(
+                                          Theme.of(context)
+                                              .textTheme
+                                              .labelMedium
+                                              ?.copyWith(
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                        ),
+                                        padding: const WidgetStatePropertyAll(
+                                          EdgeInsets.symmetric(
+                                            horizontal: 6,
+                                            vertical: 8,
+                                          ),
+                                        ),
+                                        backgroundColor:
+                                            WidgetStateProperty.resolveWith(
+                                              (states) =>
+                                                  states.contains(
+                                                        WidgetState.hovered,
+                                                      ) ||
+                                                      states.contains(
+                                                        WidgetState.pressed,
+                                                      )
+                                                  ? GsColors.cyanGlow
+                                                  : Colors.transparent,
+                                            ),
+                                        foregroundColor: WidgetStatePropertyAll(
+                                          selectedPage == index
+                                              ? GsColors.cyan
+                                              : GsColors.textSecondary,
+                                        ),
+                                        side: WidgetStateProperty.resolveWith(
+                                          (states) => BorderSide(
+                                            color:
+                                                states.contains(
+                                                  WidgetState.focused,
+                                                )
+                                                ? GsColors.cyanLight
+                                                : Colors.transparent,
+                                          ),
+                                        ),
+                                      ),
+                                  child: Stack(
+                                    clipBehavior: Clip.none,
+                                    children: [
+                                      Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(_navItems[index].icon, size: 18),
+                                          if (showLabels) ...[
+                                            const SizedBox(width: 6),
+                                            Text(_navItems[index].label),
+                                          ],
+                                        ],
+                                      ),
+                                      if (selectedPage == index)
+                                        const Positioned(
+                                          left: 0,
+                                          right: 0,
+                                          bottom: -9,
+                                          child: SizedBox(
+                                            height: 2,
+                                            child: ColoredBox(
+                                              color: GsColors.cyan,
+                                            ),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                ),
                               ),
                             ),
                           ),
-                        ],
+                        Expanded(
+                          child: DragToMoveArea(
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                              ),
+                              child: Tooltip(
+                                message: sessionLabel,
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.end,
+                                  children: [
+                                    Icon(
+                                      Icons.circle,
+                                      size: 8,
+                                      color: isOnline
+                                          ? GsColors.emerald
+                                          : GsColors.textMuted,
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Flexible(
+                                      child: Text(
+                                        sessionLabel,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: isOnline
+                                              ? GsColors.emerald
+                                              : GsColors.textMuted,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
                       ],
                     ),
                   ),
                 ),
-              ),
-              if (overlayEditing)
-                GsIconButton(
-                  icon: Icons.restart_alt_rounded,
-                  tooltip: 'Restablecer HUD',
-                  onPressed: onResetPanels,
-                  variant: GsButtonVariant.ghost,
+                if (overlayEditing)
+                  GsIconButton(
+                    icon: Icons.restart_alt_rounded,
+                    tooltip: 'Restablecer HUD',
+                    onPressed: onResetPanels,
+                    variant: GsButtonVariant.ghost,
+                  ),
+                GsButton(
+                  label: overlayEditing ? 'Guardar HUD' : 'Editar HUD',
+                  icon: overlayEditing
+                      ? Icons.check_rounded
+                      : Icons.dashboard_customize_outlined,
+                  variant: overlayEditing
+                      ? GsButtonVariant.primary
+                      : GsButtonVariant.secondary,
+                  onPressed: onToggleEditing,
+                  compact: true,
                 ),
-              GsButton(
-                label: overlayEditing ? 'Guardar HUD' : 'Editar HUD',
-                icon: overlayEditing
-                    ? Icons.check_rounded
-                    : Icons.dashboard_customize_outlined,
-                variant: overlayEditing
-                    ? GsButtonVariant.primary
-                    : GsButtonVariant.secondary,
-                onPressed: onToggleEditing,
-                compact: true,
-              ),
-              const SizedBox(width: 8),
-              if (MediaQuery.sizeOf(context).width >= 640)
+                const SizedBox(width: 4),
                 GsIconButton(
                   icon: Icons.help_outline_rounded,
                   tooltip: 'Guía y atajos',
                   onPressed: onHelp,
                   variant: GsButtonVariant.ghost,
                 ),
-              const SizedBox(width: 8),
-              const _CustomWindowControlButtons(),
-            ],
+                const SizedBox(width: 4),
+                const _CustomWindowControlButtons(),
+              ],
+            ),
           ),
         ),
-        const Divider(height: 1),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Row(
-            children: [
-              Expanded(
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      for (var index = 0; index < _navItems.length; index++)
-                        Padding(
-                          padding: const EdgeInsets.only(right: 8),
-                          child: Semantics(
-                            selected: selectedPage == index,
-                            child: TextButton.icon(
-                              onPressed: () => onSelectPage(index),
-                              style:
-                                  gsButtonStyle(
-                                    context,
-                                    variant: GsButtonVariant.ghost,
-                                  ).copyWith(
-                                    backgroundColor: WidgetStatePropertyAll(
-                                      selectedPage == index
-                                          ? GsColors.cyanGlow
-                                          : Colors.transparent,
-                                    ),
-                                    foregroundColor: WidgetStatePropertyAll(
-                                      selectedPage == index
-                                          ? GsColors.cyan
-                                          : GsColors.textSecondary,
-                                    ),
-                                  ),
-                              icon: Icon(_navItems[index].icon, size: 18),
-                              label: Text(_navItems[index].label),
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        const Divider(height: 1),
-      ],
-    ),
+      );
+    },
   );
 }
 
@@ -365,6 +448,12 @@ class _CustomWindowControlButtons extends StatefulWidget {
 class _CustomWindowControlButtonsState
     extends State<_CustomWindowControlButtons> {
   bool _isMaximized = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkMaximized());
+  }
 
   MultiViewDesktop? _currentWindow() {
     try {
@@ -386,7 +475,6 @@ class _CustomWindowControlButtonsState
 
   @override
   Widget build(BuildContext context) {
-    _checkMaximized();
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -417,7 +505,7 @@ class _CustomWindowControlButtonsState
           isClose: true,
           onTap: () {
             try {
-              MultiViewDesktop.closeApp();
+              MultiViewDesktop.closeApp(closeMode: CloseMode.destroy);
             } catch (_) {}
           },
         ),
@@ -441,13 +529,48 @@ class _WindowBtn extends StatelessWidget {
   final double iconSize;
   final bool isClose;
   @override
-  Widget build(BuildContext context) => GsIconButton(
-    icon: icon,
-    tooltip: tooltip,
-    iconSize: iconSize,
-    onPressed: onTap,
-    variant: isClose ? GsButtonVariant.danger : GsButtonVariant.ghost,
-  );
+  Widget build(BuildContext context) {
+    if (!isClose) {
+      return GsIconButton(
+        icon: icon,
+        tooltip: tooltip,
+        iconSize: iconSize,
+        onPressed: onTap,
+        variant: GsButtonVariant.ghost,
+      );
+    }
+    return IconButton(
+      icon: Icon(icon, size: iconSize),
+      tooltip: tooltip,
+      onPressed: onTap,
+      style:
+          gsButtonStyle(
+            context,
+            variant: GsButtonVariant.ghost,
+            compact: true,
+          ).copyWith(
+            minimumSize: WidgetStatePropertyAll(
+              Size.square(GsSizes.control(context)),
+            ),
+            padding: const WidgetStatePropertyAll(EdgeInsets.all(8)),
+            foregroundColor: WidgetStateProperty.resolveWith((states) {
+              if (states.contains(WidgetState.hovered) ||
+                  states.contains(WidgetState.pressed)) {
+                return Colors.white;
+              }
+              return GsColors.textSecondary;
+            }),
+            backgroundColor: WidgetStateProperty.resolveWith((states) {
+              if (states.contains(WidgetState.hovered) ||
+                  states.contains(WidgetState.pressed)) {
+                return GsColors.crimson;
+              }
+              return Colors.transparent;
+            }),
+            overlayColor: const WidgetStatePropertyAll(Colors.transparent),
+          ),
+    );
+  }
 }
 
 class _FramelessWindowResizeBorder extends StatelessWidget {
