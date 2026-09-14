@@ -18,12 +18,16 @@ import '../infrastructure/persistence/drift_local_scout_repository.dart';
 import '../infrastructure/persistence/godsense_database.dart'
     hide AccountContextState;
 import '../infrastructure/persistence/journal_payload_codec.dart';
+import '../infrastructure/persistence/local_data_manager.dart';
 import 'account_context_coordinator.dart';
 import 'game_session_coordinator.dart';
 import 'live_client_journal_adapter.dart';
 import 'local_scout_sync_service.dart';
 import 'tactical_advice_journal_adapter.dart';
 import 'vision_journal_adapter.dart';
+
+export '../infrastructure/persistence/local_data_manager.dart'
+    show LocalDataRetentionResult;
 
 const _accountReconciliationInterval = Duration(seconds: 30);
 const _capabilityReconciliationInterval = Duration(minutes: 5);
@@ -88,6 +92,7 @@ class NativeLeagueFoundation {
   LiveClientJournalAdapter? _liveClientJournal;
   LocalScoutSyncService? _scoutSync;
   DriftLocalScoutRepository? _scoutRepository;
+  LocalDataManager? _localData;
   TacticalAdviceJournalAdapter? _tacticalAdviceJournal;
   VisionJournalAdapter? _visionJournal;
   late final GameSessionCoordinator _sessions = GameSessionCoordinator(
@@ -112,6 +117,23 @@ class NativeLeagueFoundation {
   final Map<String, String> _snapshotHashes = {};
 
   NativeLeagueFoundationState get state => _state;
+
+  Future<LocalDataRetentionResult> applyLocalDataRetention() async {
+    await _ensureInitialized();
+    return _localData!.applyRetention(now: _now());
+  }
+
+  Future<File> exportLocalData(File destination) async {
+    await _ensureInitialized();
+    return _localData!.exportTo(destination);
+  }
+
+  Future<void> deleteAllLocalData() async {
+    await _ensureInitialized();
+    await _localData!.deleteAllUserData();
+    _snapshotHashes.clear();
+    _state = NativeLeagueFoundationState.initial(_now());
+  }
 
   Future<List<LocalMatchRecord>> loadLocalMatches(
     Puuid puuid, {
@@ -430,6 +452,8 @@ class NativeLeagueFoundation {
       return;
     }
     _database = database;
+    _localData = LocalDataManager(database);
+    await _localData!.applyRetention(now: _now());
     _journal = DriftJournalRepository(database);
     _tacticalAdviceJournal = TacticalAdviceJournalAdapter(
       repository: _journal!,

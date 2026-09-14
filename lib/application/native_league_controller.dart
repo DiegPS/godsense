@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import '../domain/league/scout_models.dart';
 
@@ -284,6 +285,28 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
   DateTime? _lastPollStarted;
 
   int? get localSummonerId => _localSummonerId;
+
+  Future<File> exportLocalData(File destination) =>
+      (foundation ??= NativeLeagueFoundation(
+        client: _lcu,
+      )).exportLocalData(destination);
+
+  Future<LocalDataRetentionResult> applyLocalDataRetention() =>
+      (foundation ??= NativeLeagueFoundation(
+        client: _lcu,
+      )).applyLocalDataRetention();
+
+  Future<void> deleteAllLocalData() async {
+    await (foundation ??= NativeLeagueFoundation(
+      client: _lcu,
+    )).deleteAllLocalData();
+    state = NativeLeagueState(
+      lcuConnected: state.lcuConnected,
+      lcuEventConnected: state.lcuEventConnected,
+      gameflowPhase: state.gameflowPhase,
+      liveApiConnected: state.liveApiConnected,
+    );
+  }
 
   Future<bool> recordTacticalAdvice({
     required String question,

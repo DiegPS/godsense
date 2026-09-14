@@ -9,6 +9,95 @@ class SettingsPage extends ConsumerStatefulWidget {
 
 class _SettingsPageState extends ConsumerState<SettingsPage> {
   _SettingsSection _section = _SettingsSection.general;
+  bool _dataOperationInProgress = false;
+  String? _dataNotice;
+
+  Future<void> _exportData() async {
+    final date = DateTime.now().toIso8601String().split('T').first;
+    final location = await getSaveLocation(
+      acceptedTypeGroups: const [
+        XTypeGroup(label: 'JSON', extensions: ['json']),
+      ],
+      suggestedName: 'godsense-data-$date.json',
+    );
+    if (location == null || !mounted) return;
+    await _runDataOperation(() async {
+      await ref
+          .read(nativeLeagueProvider.notifier)
+          .exportLocalData(File(location.path));
+      return 'Datos exportados en ${location.path}';
+    });
+  }
+
+  Future<void> _applyRetention() async {
+    await _runDataOperation(() async {
+      final result = await ref
+          .read(nativeLeagueProvider.notifier)
+          .applyLocalDataRetention();
+      return result.total == 0
+          ? 'No había datos vencidos para eliminar.'
+          : 'Se eliminaron ${result.total} registros vencidos.';
+    });
+  }
+
+  Future<void> _deleteData() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('¿Borrar los datos locales?'),
+        content: const Text(
+          'Se eliminarán cuentas, partidas, estadísticas y evidencia local. '
+          'La configuración, los modelos descargados y la calibración se conservarán. '
+          'Si League sigue conectado, GodSense podrá recopilar datos nuevos.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Borrar definitivamente'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    await _runDataOperation(() async {
+      await ref.read(nativeLeagueProvider.notifier).deleteAllLocalData();
+      await ref.read(aiConversationProvider.notifier).clearConversation();
+      ref.invalidate(localScoutProvider);
+      ref.invalidate(coachControllerProvider);
+      return 'Los datos locales de League se borraron.';
+    });
+  }
+
+  Future<void> _runDataOperation(Future<String> Function() operation) async {
+    if (_dataOperationInProgress) return;
+    setState(() {
+      _dataOperationInProgress = true;
+      _dataNotice = null;
+    });
+    try {
+      final notice = await operation();
+      if (mounted) setState(() => _dataNotice = notice);
+    } catch (error, stackTrace) {
+      AppLogger.error(
+        'Local data operation failed.',
+        category: 'privacy',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      if (mounted) {
+        setState(
+          () => _dataNotice =
+              'No se pudo completar la operación. Revisa el registro local.',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _dataOperationInProgress = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -279,6 +368,53 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                       : 'La función está desactivada.',
                   ready: speechSettings.pushToTalkEnabled,
                 ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          GsCard(
+            title: 'Datos y privacidad',
+            subtitle: 'Los diagnósticos duran 7 días, los eventos de partida 24 horas tras terminar y el historial de Scout 180 días.',
+            icon: Icons.shield_outlined,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    GsButton(
+                      label: 'Exportar mis datos',
+                      icon: Icons.download_outlined,
+                      variant: GsButtonVariant.secondary,
+                      onPressed: _dataOperationInProgress ? null : _exportData,
+                    ),
+                    GsButton(
+                      label: 'Aplicar retención',
+                      icon: Icons.auto_delete_outlined,
+                      variant: GsButtonVariant.secondary,
+                      onPressed: _dataOperationInProgress
+                          ? null
+                          : _applyRetention,
+                    ),
+                    GsButton(
+                      label: 'Borrar datos locales',
+                      icon: Icons.delete_forever_outlined,
+                      variant: GsButtonVariant.ghost,
+                      onPressed: _dataOperationInProgress ? null : _deleteData,
+                    ),
+                  ],
+                ),
+                if (_dataNotice != null) ...[
+                  const SizedBox(height: 12),
+                  Semantics(
+                    liveRegion: true,
+                    child: Text(
+                      _dataNotice!,
+                      style: const TextStyle(color: GsColors.textSecondary),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),

@@ -28,7 +28,11 @@ void main() {
       firstSeenAt: DateTime.utc(2026),
       lastSeenAt: DateTime.utc(2026),
     );
-    final payload = jsonEncode({
+    final summaryPayload = jsonEncode({
+      'gameDuration': 1800,
+      'participants': const [],
+    });
+    final detailsPayload = jsonEncode({
       'gameDuration': 1800,
       'participantIdentities': [
         {
@@ -52,8 +56,26 @@ void main() {
     final record = LocalMatchRecord(
       match: MatchKey(platformId: PlatformId('LA1'), gameId: 10),
       puuid: account.puuid,
-      summaryJson: payload,
+      summaryJson: summaryPayload,
       syncedAt: DateTime.utc(2026),
+    );
+    const summary = ScoutMatchSummary(
+      matchId: 10,
+      queueId: null,
+      queueLabel: 'Partida',
+      durationMinutes: 30,
+      isWin: true,
+      championId: 22,
+      championName: 'Ashe',
+      role: ScoutRole.bottom,
+      kills: 5,
+      deaths: 2,
+      assists: 7,
+      kdaRatio: 6,
+      cs: 200,
+      csm: 6.7,
+      items: [],
+      hasFullDetails: false,
     );
     final controller = LocalScoutController(
       loadMatches: (_, {limit = 20}) async => [record],
@@ -64,8 +86,11 @@ void main() {
         }
         return response.future;
       },
+      initialState: LocalScoutState(
+        subjectAccount: account,
+        typedMatches: const [summary],
+      ),
     );
-    await controller.loadAccount(account);
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
@@ -80,7 +105,8 @@ void main() {
     );
     await tester.ensureVisible(find.byTooltip('Abrir detalle de partida'));
     await tester.tap(find.byTooltip('Abrir detalle de partida'));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
     expect(find.text('League no disponible'), findsOneWidget);
     await tester.tap(find.text('Reintentar detalles'));
     await tester.pump();
@@ -90,11 +116,12 @@ void main() {
         match: record.match,
         puuid: record.puuid,
         summaryJson: record.summaryJson,
-        detailsJson: payload,
+        detailsJson: detailsPayload,
         syncedAt: record.syncedAt,
       ),
     );
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
     expect(find.text('Cargando detalles de esta partida…'), findsNothing);
     expect(find.text('Reintentar detalles'), findsNothing);
     expect(find.text('Nombre recibido#LAN'), findsOneWidget);

@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:dart_ai_runtime/dart_ai_runtime.dart' as ai_runtime;
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -21,6 +23,7 @@ import '../domain/companion_models.dart';
 import '../domain/identity/league_identity.dart';
 import '../domain/league/account_context.dart';
 import '../domain/vision/vision_observation.dart';
+import '../infrastructure/diagnostics/app_logger.dart';
 import '../presentation/native_speech_settings_card.dart';
 import '../presentation/coach/coach_page.dart';
 import '../presentation/coach/shared/ai_model_selector.dart';

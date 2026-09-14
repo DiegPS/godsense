@@ -59,7 +59,6 @@ dependencies:
   archive: ^4.2.0
   background_downloader: ^9.5.9
   crypto: ^3.0.7
-  logger: ^2.0.2
   file_selector: ^1.1.0
   drift: ^2.34.3
 

@@ -121,6 +121,8 @@ void main() {
       await File('${root.path}\\targets_resized\\Sion.bmp').readAsBytes(),
       cv.IMREAD_COLOR,
     );
+    final frameData = Uint8List.fromList(frame.data);
+    final targetData = Uint8List.fromList(target.data);
     var manualDelta = 0;
     var manualCount = 0;
     for (var y = 7; y < 21; y++) {
@@ -128,7 +130,7 @@ void main() {
         for (var channel = 0; channel < 3; channel++) {
           final frameIndex = ((47 + y) * frame.cols + (41 + x)) * 3 + channel;
           final targetIndex = (y * target.cols + x) * 3 + channel;
-          manualDelta += (frame.data[frameIndex] - target.data[targetIndex])
+          manualDelta += (frameData[frameIndex] - targetData[targetIndex])
               .abs();
           manualCount++;
         }
@@ -147,6 +149,7 @@ void main() {
       await File('${root.path}\\targets_resized\\Sion.bmp').readAsBytes(),
       cv.IMREAD_COLOR,
     );
+    final targetData = Uint8List.fromList(target.data);
     var rawDelta = 0;
     var count = 0;
     for (var y = 7; y < 21; y++) {
@@ -154,7 +157,7 @@ void main() {
         for (var channel = 0; channel < 3; channel++) {
           rawDelta +=
               (raw[((47 + y) * 300 + (41 + x)) * 3 + channel] -
-                      target.data[(y * 28 + x) * 3 + channel])
+                      targetData[(y * 28 + x) * 3 + channel])
                   .abs();
           count++;
         }
@@ -163,9 +166,10 @@ void main() {
     final bgr = cv.Mat.fromList(300, 300, cv.MatType.CV_8UC3, raw);
     final bgra = cv.cvtColor(bgr, cv.COLOR_BGR2BGRA);
     final restored = cv.cvtColor(bgra, cv.COLOR_BGRA2BGR);
+    final restoredData = Uint8List.fromList(restored.data);
     var roundtripDelta = 0;
     for (var index = 0; index < raw.length; index++) {
-      roundtripDelta += (raw[index] - restored.data[index]).abs();
+      roundtripDelta += (raw[index] - restoredData[index]).abs();
     }
     debugPrint(
       'Raw MAE=${(rawDelta / count).toStringAsFixed(4)}, '

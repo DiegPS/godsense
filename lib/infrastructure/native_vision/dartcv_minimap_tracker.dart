@@ -588,7 +588,7 @@ class DartCvMinimapTracker {
   List<double> _faceHistogram(cv.Mat face) {
     final hsv = cv.cvtColor(face, cv.COLOR_BGR2HSV);
     final histogram = List<double>.filled(30 * 32, 0);
-    final data = hsv.data;
+    final data = Uint8List.fromList(hsv.data);
     for (var index = 0; index < hsv.rows * hsv.cols; index++) {
       final h = data[index * 3];
       final s = data[index * 3 + 1];
@@ -620,13 +620,13 @@ class DartCvMinimapTracker {
   }
 
   double _pixelMae(cv.Mat a, cv.Mat b) {
-    if (a.rows != b.rows ||
-        a.cols != b.cols ||
-        a.data.length != b.data.length) {
+    final aLength = a.total * a.elemSize;
+    final bLength = b.total * b.elemSize;
+    if (a.rows != b.rows || a.cols != b.cols || aLength != bLength) {
       return double.infinity;
     }
-    final aData = a.data;
-    final bData = b.data;
+    final aData = Uint8List.fromList(a.data);
+    final bData = Uint8List.fromList(b.data);
     var total = 0;
     for (var index = 0; index < aData.length; index++) {
       total += (aData[index] - bData[index]).abs();
