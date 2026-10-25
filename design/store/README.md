@@ -32,3 +32,8 @@ Para regenerarlas:
 hash del renderer. El arte corresponde a Data Dragon 16.21.1; no se presenta el
 perfil sintético como una recomendación oficial de Riot ni una medición en vivo.
 El aviso de demostración es una franja del renderer, ajena al producto normal.
+
+`listing-es-MX.json` contiene la descripción, características y leyendas de cada
+imagen. Las seis imágenes y sus leyendas se cargaron en el borrador de Partner
+Center; la ficha en español de México quedó marcada como completada. No se ha
+enviado el producto a certificación ni publicado en Store.

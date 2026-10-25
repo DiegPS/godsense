@@ -57,13 +57,18 @@ certificación ni a publicación. Véase la [guía de Store](microsoft-store.md)
 
 Partner Center ya contiene el MSIX 1.0.0.0 con validación de aceptación
 `Validated`. Propiedades, privacidad y justificación de `runFullTrust` están
-guardadas; la publicación quedó manual. La ficha, precio/disponibilidad e IARC
-seguían pendientes al preparar las imágenes. No se envió a certificación.
+guardadas; la publicación quedó manual. La ficha es-MX está completada con
+descripción, ocho características, seis imágenes sintéticas y sus leyendas.
+Precio/disponibilidad e IARC siguen pendientes. No se envió a certificación.
 
 La política pública en `https://diegps.com/godsense/privacy` se actualizó para
 explicar IA opcional, transcripciones, audio temporal y límites de borrado.
-Despliegue Wrangler verificado en el dominio, versión
-`b8a4af91-e05b-458b-8231-0886e26e0e9b`; commit web `f723c35`.
+Las imágenes públicas anteriores se sustituyeron por las vistas de demostración,
+incluidas las variantes adaptables y la vista social. Despliegue Wrangler
+verificado en el dominio, versión `b232e523-973a-4b64-afb4-ef9148060271`.
+Cambios de GodSense en el repositorio web: `f723c35` y `052ffd4`; se conservaron
+los cambios locales previos del sitio al desplegar. El PNG público de Scout se
+descargó y su SHA256 coincidió con la imagen de demostración preparada.
 
 Las pruebas generativas de Kilo/OpenCode requieren configuración explícita de
 su entorno. Las omisiones de esas pruebas no se presentan como nuevas llamadas

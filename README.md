@@ -84,5 +84,6 @@ omitido no equivale a una función validada con el servicio real.
 - [Estado de funcionalidades](docs/architecture/implementation-status.md)
 - [Runtime de IA opcional](docs/architecture/ai-runtime.md)
 - [Diseño de interfaz](docs/design-system.md)
+- [Imágenes y textos de Store con datos de demostración](design/store/README.md)
 
 GodSense es un proyecto independiente; no es un producto oficial de Riot Games.

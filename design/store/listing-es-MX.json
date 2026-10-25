@@ -1,0 +1,26 @@
+{
+  "name": "GodSense",
+  "shortDescription": "Scout, preparación de partidas, consejos tácticos y voz local para acompañar tus partidas de League of Legends en Windows.",
+  "description": "GodSense reúne el historial de partidas, la preparación de selecciones y las herramientas de asistencia en una aplicación de escritorio para League of Legends.\n\nConsulta Scout para revisar campeones, rendimiento e historial sincronizado. En Coach puedes explorar la selección de ambos equipos, su composición y las recomendaciones disponibles para la partida. Configura el minimapa para utilizar las funciones de visión y organiza los paneles del overlay según tu forma de jugar.\n\nLa voz se procesa en tu equipo: instala los modelos que necesites, configura Push-to-Talk y prueba el micrófono desde Ajustes. Puedes detener una respuesta hablada sin desactivar las siguientes. El consejo táctico local está disponible sin usar el chat con IA.\n\nEl chat con IA es opcional. Requiere configurar un motor y un proveedor/modelo; las preguntas, transcripciones y contexto necesario pueden enviarse al proveedor elegido, sujeto a sus condiciones y posibles costes.\n\nDesde Ajustes puedes exportar el historial, borrar los datos locales administrados por GodSense y aplicar su retención. La interfaz está en español; reconocimiento y síntesis tienen su propia selección de idioma.\n\nRequiere Windows x64 y League of Legends para las funciones de partida. La captura depende de la pantalla configurada; el overlay está pensado para League en modo Sin bordes. Los modelos y recursos opcionales requieren descarga.\n\nLas imágenes usan datos de demostración y no representan estadísticas reales de jugadores. GodSense es un proyecto independiente y no está aprobado, respaldado ni afiliado con Riot Games.",
+  "features": [
+    "Scout con historial local, campeones y métricas de rendimiento",
+    "Vista de selección de campeones y composición de ambos equipos",
+    "Consejos tácticos locales y avisos del minimapa configurado",
+    "Overlay con paneles y distribución personalizables",
+    "Reconocimiento de voz y síntesis locales con modelos descargables",
+    "Prueba de micrófono, Push-to-Talk y control para detener la voz",
+    "Exportación, borrado y retención de datos locales",
+    "Chat opcional con el proveedor y modelo de IA que configures"
+  ],
+  "website": "https://diegps.com/godsense",
+  "privacyPolicy": "https://diegps.com/godsense/privacy",
+  "support": "https://diegps.com/godsense",
+  "screenshots": [
+    {"file": "01-scout.png", "caption": "Scout: rendimiento e historial con un perfil ficticio de demostración."},
+    {"file": "02-draft.png", "caption": "Selección de campeones y evaluación de composición con datos de demostración."},
+    {"file": "03-coach-en-partida.png", "caption": "Consejos locales, avisos, oro y pregunta por voz en un escenario de demostración."},
+    {"file": "04-voz-y-privacidad.png", "caption": "Ajustes de voz local, prueba de micrófono y configuración del overlay."},
+    {"file": "05-datos-locales.png", "caption": "Controles de exportación, borrado y retención de datos locales."},
+    {"file": "06-mapa.png", "caption": "Vista del minimapa con un mapa estático público de demostración, sin una partida real."}
+  ]
+}
