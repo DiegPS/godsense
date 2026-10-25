@@ -70,7 +70,31 @@ $manifest = @{
     ($manifest | ConvertTo-Json -Depth 5), [Text.UTF8Encoding]::new($false))
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 $archive = Join-Path $distributionRoot ($candidateName + '.zip')
-[IO.Compression.ZipFile]::CreateFromDirectory($staging, $archive)
+$archiveStream = [IO.File]::Open($archive, [IO.FileMode]::CreateNew)
+$zip = [IO.Compression.ZipArchive]::new(
+    $archiveStream, [IO.Compression.ZipArchiveMode]::Create, $false)
+try {
+    # Windows PowerShell's CreateFromDirectory uses backslashes in ZIP entry
+    # names. Write standard forward-slash paths for portable extraction.
+    foreach ($file in Get-ChildItem -LiteralPath $staging -File -Recurse) {
+        $entryName = $file.FullName.Substring($staging.Length + 1).Replace('\', '/')
+        [void][IO.Compression.ZipFileExtensions]::CreateEntryFromFile(
+            $zip, $file.FullName, $entryName, [IO.Compression.CompressionLevel]::Optimal)
+    }
+} finally {
+    $zip.Dispose()
+    $archiveStream.Dispose()
+}
+$inspection = [IO.Compression.ZipFile]::OpenRead($archive)
+try {
+    foreach ($required in @('godsense.exe', 'data/app.so', 'data/icudtl.dat', 'msvcp140.dll', 'vcruntime140.dll', 'vcruntime140_1.dll')) {
+        if ($null -eq $inspection.GetEntry($required)) {
+            throw "The ZIP is incomplete: $required is missing."
+        }
+    }
+} finally {
+    $inspection.Dispose()
+}
 $digest = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
 [IO.File]::WriteAllText(($archive + '.sha256'),
     ($digest + '  ' + [IO.Path]::GetFileName($archive) + [Environment]::NewLine))
