@@ -26,6 +26,9 @@ de voz y HUD.
   canceladas no se reproducen.
 - Estado de voz que distingue funciones apagadas, modelos ausentes, prueba en
   curso y errores. Restablecer el HUD requiere confirmación.
+- Identidad propia: búho cartógrafo transparente en la barra superior, el icono
+  nativo y los recursos del paquete de Microsoft Store. El empaquetado toma el
+  logo del candidato verificado para mantenerlo unido a su versión.
 - Verificación local con pruebas, cobertura, perfilado y arranque real de la
   build. El ZIP incluye las DLL de Visual C++ y un manifiesto SHA256.
 

@@ -1,5 +1,7 @@
 # GodSense
 
+![Búho cartógrafo de GodSense](assets/branding/godsense-icon-256.png)
+
 Asistente de League of Legends para Windows. Conecta automáticamente con el
 cliente de Riot y combina datos de partida, reconocimiento del minimapa,
 recomendaciones, historial local y preguntas por voz.

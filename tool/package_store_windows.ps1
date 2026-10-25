@@ -84,11 +84,10 @@ Get-ChildItem -LiteralPath $candidate | Copy-Item -Destination $staging -Recurse
 $assets = Join-Path $staging 'Assets'
 [void](New-Item -ItemType Directory -Path $assets)
 
-# Derive package tiles from the existing executable icon without another tool
-# or a runtime dependency. This preserves the application's current branding.
+# Read the PNG bundled in the verified candidate, so the Store artwork always
+# belongs to that binary rather than to a possibly newer repository checkout.
 Add-Type -AssemblyName System.Drawing
-$icon = [Drawing.Icon]::new((Join-Path $projectRoot 'windows\runner\resources\app_icon.ico'), 256, 256)
-$original = $icon.ToBitmap()
+$original = [Drawing.Bitmap]::new((Join-Path $candidate 'data\flutter_assets\assets\branding\godsense-icon-256.png'))
 try {
     foreach ($asset in @(@('StoreLogo.png', 50), @('Square44x44Logo.png', 44), @('Square150x150Logo.png', 150))) {
         $bitmap = [Drawing.Bitmap]::new([int]$asset[1], [int]$asset[1])
@@ -100,7 +99,7 @@ try {
             $bitmap.Save((Join-Path $assets $asset[0]), [Drawing.Imaging.ImageFormat]::Png)
         } finally { $graphics.Dispose(); $bitmap.Dispose() }
     }
-} finally { $original.Dispose(); $icon.Dispose() }
+} finally { $original.Dispose() }
 
 $manifestText = Get-Content -LiteralPath 'windows/packaging/AppxManifest.template.xml' -Raw -Encoding UTF8
 $values = @{

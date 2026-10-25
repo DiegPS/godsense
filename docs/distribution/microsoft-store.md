@@ -61,8 +61,10 @@ del ejecutable se conservan para no cambiar las rutas de datos del modo portable
 Crear, validar y extraer un MSIX no demuestra su instalación ni el comportamiento
 con identidad de paquete. Sigue pendiente probar la aplicación instalada, en
 partida real, y ejecutar Windows App Certification Kit antes de enviar la ficha.
-El icono actual del runner todavía es el de Flutter; los assets del MSIX se
-derivan de ese icono y deben sustituirse por la identidad gráfica definitiva.
+El runner y la barra superior usan el búho cartógrafo de GodSense. Los assets
+del MSIX se derivan del PNG incluido en el candidato verificado, sin depender
+de un icono diferente en el checkout. El master y el generador están documentados
+en [branding](../../design/branding/README.md).
 
 No se generan certificados privados ni se modifica el almacén de confianza de
 Windows. El candidato sin firma está destinado a preparación para Store, no a
@@ -70,7 +72,28 @@ instalación directa mediante doble clic. Store vuelve a firmar el paquete despu
 de su certificación. La ficha comercial, política de privacidad y capturas se
 completan en Partner Center.
 
+## Certificación local pendiente
+
+El SDK instalado incluye Windows App Certification Kit. Ejecuta la prueba
+desde PowerShell como administrador, en una sesión de escritorio activa y con
+un paquete preparado para instalación:
+
+```powershell
+$appCert = "${env:ProgramFiles(x86)}\Windows Kits\10\App Certification Kit\appcert.exe"
+& $appCert reset
+& $appCert test -appxpackagepath 'C:\ruta\GodSense.msix' -reportoutputpath 'C:\ruta\wack-report.xml'
+```
+
+No basta con el código de salida: revisa el informe XML/HTML y comprueba el
+arranque de la aplicación instalada. El candidato de Store sin firma no se
+presenta como instalador local. Windows 11 permite paquetes de desarrollo sin
+firma con un OID especial, pero esa modalidad cambia la identidad; no valida
+por sí sola el paquete oficial de Store. El flujo de empaquetado no cambia
+políticas de Windows ni instala certificados para saltarse esta comprobación.
+
 Referencias oficiales:
 
 - [Crear los componentes de un MSIX](https://learn.microsoft.com/en-us/windows/msix/desktop/desktop-to-uwp-manual-conversion).
 - [Requisitos, versiones y firma para Store](https://learn.microsoft.com/en-us/windows/apps/publish/publish-your-app/msix/app-package-requirements).
+- [Windows App Certification Kit](https://learn.microsoft.com/en-us/windows/uwp/debug-test-perf/windows-app-certification-kit).
+- [Paquetes sin firma e identidad de desarrollo](https://learn.microsoft.com/en-us/windows/msix/package/unsigned-package).

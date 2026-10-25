@@ -9,6 +9,11 @@
 
 ## Reglas
 
+La marca es el búho cartógrafo, con exterior transparente y cara blanca opaca.
+La barra superior carga el PNG de 64 píxeles a 28 píxeles lógicos. El master no
+se incluye en el bundle. Consulta [branding](../design/branding/README.md) para
+regenerar el ICO y los PNG de la aplicación.
+
 1. Controles de 40 píxeles lógicos como mínimo; 48 para acciones grandes.
    Compacto reduce padding horizontal, no la altura. Aumentar la altura con el
    escalado de texto; no desactivar el escalado de Windows.

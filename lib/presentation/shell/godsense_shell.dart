@@ -288,18 +288,19 @@ class _GodSenseCustomTitleBar extends StatelessWidget {
                     },
                     child: Row(
                       children: [
-                        const DragToMoveArea(
+                        DragToMoveArea(
                           child: Padding(
-                            padding: EdgeInsets.symmetric(horizontal: 12),
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
                             child: Row(
                               children: [
-                                Icon(
-                                  Icons.radar_rounded,
-                                  color: GsColors.cyan,
-                                  size: 24,
+                                Image.asset(
+                                  'assets/branding/godsense-icon-64.png',
+                                  width: 28,
+                                  height: 28,
+                                  excludeFromSemantics: true,
                                 ),
-                                SizedBox(width: 8),
-                                Text(
+                                const SizedBox(width: 8),
+                                const Text(
                                   'GodSense',
                                   style: TextStyle(
                                     fontSize: 16,

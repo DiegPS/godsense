@@ -71,6 +71,10 @@
   and temporary-file cleanup, PTT exclusion during testing, and a stop action
   that clears pending speech without changing enabled preferences. Late cancelled
   synthesis cannot resume audio. HUD reset requires explicit confirmation.
+- The cartographer owl replaces the Flutter runner icon and generic titlebar
+  mark. Native icons include nine sizes; Store tiles use the branding PNG from
+  the verified application candidate. The editable generation recipe and raster
+  master are tracked under `design/branding/`.
 
 ### September 4 closure
 
