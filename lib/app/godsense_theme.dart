@@ -4,6 +4,7 @@ import '../presentation/shared/gs_tokens.dart';
 
 TextStyle _interStyle(double size, [FontWeight weight = FontWeight.w400]) {
   return TextStyle(
+    fontFamily: 'InterVariable',
     fontSize: size,
     fontWeight: weight,
     letterSpacing: 0,

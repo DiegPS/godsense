@@ -1,0 +1,153 @@
+{
+  "personal_data_loaded": false,
+  "images": [
+    {
+      "file": "01-scout.png",
+      "sha256": "ac895b90803e7b98e2d66d592757dd538558f2b24d61625a75372d022859df1b",
+      "bytes": 165863,
+      "width": 1600,
+      "height": 1000
+    },
+    {
+      "file": "02-draft.png",
+      "sha256": "7a92670e47d1313bff0afb7acf32f204ea52362ae3c45c82f7ced7128eb7fc45",
+      "bytes": 193600,
+      "width": 1600,
+      "height": 1000
+    },
+    {
+      "file": "03-coach-en-partida.png",
+      "sha256": "340603acd7d7da4c6110cde3cf3fabee7477d93268049e67f4496f9062599317",
+      "bytes": 132804,
+      "width": 1600,
+      "height": 1000
+    },
+    {
+      "file": "04-voz-y-privacidad.png",
+      "sha256": "c5ed20e84c9ff4bf439e1d992be79197deda43ed56aab6ccfaf663832cf45536",
+      "bytes": 119437,
+      "width": 1600,
+      "height": 1000
+    },
+    {
+      "file": "05-datos-locales.png",
+      "sha256": "c8b8ae9f792ea5bf06de32ceb751d37dc7f4ec630f4c9d3b350b1b1511104734",
+      "bytes": 92536,
+      "width": 1600,
+      "height": 1000
+    },
+    {
+      "file": "06-mapa.png",
+      "sha256": "45a05aeeab7c23447cc73c5503ef5141f82d497ac61c0c070bdc84aa8c35f75a",
+      "bytes": 146315,
+      "width": 1600,
+      "height": 1000
+    }
+  ],
+  "renderer_sha256": "49f0e2f6e76bdadbe7cdf086dc49ea9c92db51dd9be730e831b64b538ee62776",
+  "public_art": [
+    {
+      "url": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/champion/Ahri.png",
+      "sha256": "8e93368d97e3d302463c4e83ac5980d1f0a3a0aaf92ac44435730fecbd55b565"
+    },
+    {
+      "url": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/champion/Azir.png",
+      "sha256": "fa90e249ef38adeabd757f24fc4069db8caccdf64353868d9683a5a9c4c81a35"
+    },
+    {
+      "url": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/champion/Orianna.png",
+      "sha256": "7d70d8bcb2991de3f3512efb565c453a9d470dca78088c05aec3691d22dd7511"
+    },
+    {
+      "url": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/champion/Ashe.png",
+      "sha256": "423666bdb0685355be4576f78eb6406fd49469b4f6e9f780f1c5eb4349fed91f"
+    },
+    {
+      "url": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/champion/LeeSin.png",
+      "sha256": "890f439dd16bfa686b3c6f06f9749eb5477e5b706a8ff85cb8161f91adcff9a8"
+    },
+    {
+      "url": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/champion/Garen.png",
+      "sha256": "53018603962e1867b391071f159bb4c60d57919422585c33bfd36551e97f3752"
+    },
+    {
+      "url": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/champion/Jinx.png",
+      "sha256": "2777d44345974b93f8af378430811670566d0451b6410b2caff2984e93797357"
+    },
+    {
+      "url": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/champion/Leona.png",
+      "sha256": "d7e170e1d5c37b243663e03d480a4befe727d86d0733e3e411b90297cb192461"
+    },
+    {
+      "url": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/champion/Thresh.png",
+      "sha256": "27f9bfc32eb28d9e17e42e29f8d555c91110e040991d56577f433ddc9eca6c7e"
+    },
+    {
+      "url": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/champion/Lissandra.png",
+      "sha256": "ece7fc0269138d30380dbb0420ccf822e7ca95819d7d911a0e29f7d10cf7445d"
+    },
+    {
+      "url": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/champion/Darius.png",
+      "sha256": "4c73167413335e00b3ece58fadaa495a0c3fe05184b246b0f8b9af923a0d3d81"
+    },
+    {
+      "url": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/champion/Vi.png",
+      "sha256": "282bd7a3e6a3bdd309f90eebf03b1fb7009a5357e6f53e158dd8c7df8103b4ab"
+    },
+    {
+      "url": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/champion/MasterYi.png",
+      "sha256": "1c23534926a7956a260591fb3cee8f38cb6de3d9d4f064fe93fb88c8f76b1b66"
+    },
+    {
+      "url": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/champion/Zed.png",
+      "sha256": "3ad3e956e9ad5ca3127d8f685faf69d4251fb726e9b4f0be989764f0027e9c5f"
+    },
+    {
+      "url": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/champion/Yasuo.png",
+      "sha256": "25a7597bfbd3198740b56d369734542f9e7b2100645d9f1199d969c7e1538ffb"
+    },
+    {
+      "url": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/champion/Katarina.png",
+      "sha256": "998f3a479b5441f86f4031aace49bbd70bb83a76c05d39b0697288fe50ba029e"
+    },
+    {
+      "url": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/3031.png",
+      "sha256": "39382e1bef39a48d14e6d37e52e9d02068df9153ca60c2bcca033dd276fae5df"
+    },
+    {
+      "url": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/3072.png",
+      "sha256": "adcf226cf9ca11cf22c840d56e94a5a240212f4503fca8b90ad3463b87b28180"
+    },
+    {
+      "url": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/3006.png",
+      "sha256": "81089b0f6e9514f812189ee9b664e44045933c812ef3a62c0732cc2655397264"
+    },
+    {
+      "url": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/3089.png",
+      "sha256": "ad77331bb9a325db9536f5614f3ca3516e24279406123f2892eb33ee419d369b"
+    },
+    {
+      "url": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/3020.png",
+      "sha256": "0204f61a81aa9c3ef318dd27ed272e8c83e12009ce37a23d7c6193f9d991261b"
+    },
+    {
+      "url": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/6655.png",
+      "sha256": "4db05b7a2a461db8c6b4cff7053653f755ed2d0442e2133d1c4131a77d832a7b"
+    },
+    {
+      "url": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/3340.png",
+      "sha256": "a7153d00ff55d5165ac8c6d113681582d0c2902330c44cb12141472415c1c722"
+    },
+    {
+      "url": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/item/3363.png",
+      "sha256": "b6a5c5c4734269116b9325dff2aab9ef9b711f85d815883b69494471911e35e3"
+    },
+    {
+      "url": "https://ddragon.leagueoflegends.com/cdn/16.21.1/img/map/map11.png",
+      "sha256": "5b446777c3e8491c1ab1860bc8fd448ad58f46cf3630d909f74dd3dc3dda8cd1"
+    }
+  ],
+  "art_patch": "16.21.1",
+  "subject": "Hide on bush#DEMO",
+  "classification": "synthetic-demo"
+}

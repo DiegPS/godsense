@@ -32,6 +32,17 @@ class _InstalledSpeechController extends NativeSpeechController {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  test('standalone control styles retain the bundled font', () {
+    final theme = godsenseTheme();
+    expect(
+      theme.filledButtonTheme.style!.textStyle!.resolve({})!.fontFamily,
+      'InterVariable',
+    );
+    expect(theme.listTileTheme.titleTextStyle!.fontFamily, 'InterVariable');
+    expect(theme.listTileTheme.subtitleTextStyle!.fontFamily, 'InterVariable');
+    expect(theme.tooltipTheme.textStyle!.fontFamily, 'InterVariable');
+  });
+
   setUpAll(() async {
     final fonts = FontLoader('InterVariable')
       ..addFont(rootBundle.load('assets/fonts/inter/InterVariable.ttf'))

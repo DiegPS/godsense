@@ -191,7 +191,7 @@ class _GodSenseHomeState extends ConsumerState<GodSenseHome> {
         children: [
           Column(
             children: [
-              _GodSenseCustomTitleBar(
+              GodSenseTitleBar(
                 selectedPage: selectedPage,
                 onSelectPage: (page) =>
                     ref.read(selectedPageProvider.notifier).state = page,
@@ -232,8 +232,9 @@ class _GodSenseHomeState extends ConsumerState<GodSenseHome> {
   }
 }
 
-class _GodSenseCustomTitleBar extends StatelessWidget {
-  const _GodSenseCustomTitleBar({
+class GodSenseTitleBar extends StatelessWidget {
+  const GodSenseTitleBar({
+    super.key,
     required this.selectedPage,
     required this.onSelectPage,
     required this.overlayEditing,

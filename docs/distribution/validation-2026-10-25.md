@@ -25,6 +25,15 @@ PNG pequeño; el original de alta resolución no se incluye en el bundle.
 - Integración adicional con Kilo 7.5.9 instalado aprobada: arranque aislado,
   autenticación local, health, catálogo, SSE y ciclo de vida de sesión.
   OpenCode y la inferencia generativa quedaron omitidos por configuración.
+- Registro de desarrollo del paquete con identidad oficial completado y estado
+  Windows `Ok`; ejecución desde su AppID revisada. No se instalaron certificados
+  ni se cambió el modo de desarrollo que ya estaba habilitado. Esto no prueba la
+  instalación de una descarga firmada por Store.
+- Seis imágenes de Store generadas con widgets reales y datos de demostración,
+  sin perfiles, conversaciones, micrófono ni captura del escritorio del usuario.
+  [Fuentes, imágenes y manifiesto](../../design/store/README.md).
+- Tipografía de controles y ListTile fijada explícitamente a InterVariable;
+  diez comprobaciones de tipografía/controles y la exportación visual aprobadas.
 
 Informe local de perfil:
 `build/performance/navigation-ddb4f33e62f54a3b87b4967a2f80d955.json`.
@@ -40,10 +49,21 @@ calibración del monitor actual. La pantalla de la calibración guardada no est�
 disponible en esta sesión; el aviso y los reintentos funcionan, sin sobrescribir
 la selección del usuario. No se detectó un proceso de League en esta revisión.
 
-También siguen pendientes instalación con identidad oficial, WACK y envío a
-Store. La sesión de herramientas actual no está elevada. El candidato MSIX
+Siguen pendientes instalación desde un paquete firmado, WACK y envío a
+certificación. El registro de desarrollo sí se comprobó con la identidad oficial.
+WACK se intentó ejecutar y Windows exigió elevación; la sesión no está elevada. El candidato MSIX
 sin firma, su validación con MakeAppx y la ejecución portable no equivalen a
 certificación ni a publicación. Véase la [guía de Store](microsoft-store.md).
+
+Partner Center ya contiene el MSIX 1.0.0.0 con validación de aceptación
+`Validated`. Propiedades, privacidad y justificación de `runFullTrust` están
+guardadas; la publicación quedó manual. La ficha, precio/disponibilidad e IARC
+seguían pendientes al preparar las imágenes. No se envió a certificación.
+
+La política pública en `https://diegps.com/godsense/privacy` se actualizó para
+explicar IA opcional, transcripciones, audio temporal y límites de borrado.
+Despliegue Wrangler verificado en el dominio, versión
+`b8a4af91-e05b-458b-8231-0886e26e0e9b`; commit web `f723c35`.
 
 Las pruebas generativas de Kilo/OpenCode requieren configuración explícita de
 su entorno. Las omisiones de esas pruebas no se presentan como nuevas llamadas
