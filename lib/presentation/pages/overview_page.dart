@@ -18,6 +18,11 @@ class OverviewPage extends ConsumerWidget {
       nativeCalibrationProvider.select((state) => state.calibration),
     );
     final overlayEnabled = ref.watch(overlayEnabledProvider);
+    final vision = ref.watch(
+      nativeVisionProvider.select(
+        (state) => (error: state.error, hasFrame: state.frame != null),
+      ),
+    );
     final speechSettings = ref.watch(
       nativeSpeechProvider.select((state) => state.settings),
     );
@@ -56,12 +61,26 @@ class OverviewPage extends ConsumerWidget {
             ),
             _OverviewServiceCard(
               title: 'Alertas del minimapa',
-              status: calibration == null ? 'Necesitan calibración' : 'Listas',
+              status: calibration == null
+                  ? 'Necesitan calibración'
+                  : calibration.recalibrationSuggested
+                  ? 'Necesitan recalibración'
+                  : vision.error != null
+                  ? 'Captura no disponible'
+                  : vision.hasFrame
+                  ? 'Activas'
+                  : 'Iniciando captura',
               detail: calibration == null
                   ? 'Configura el área del minimapa'
+                  : vision.error != null
+                  ? 'Revisa la pantalla configurada en Mapa'
                   : 'GodSense vigilará las amenazas',
               icon: Icons.radar_rounded,
-              isOnline: calibration != null,
+              isOnline:
+                  calibration != null &&
+                  !calibration.recalibrationSuggested &&
+                  vision.error == null &&
+                  vision.hasFrame,
             ),
             _OverviewServiceCard(
               title: 'Preguntas por voz',

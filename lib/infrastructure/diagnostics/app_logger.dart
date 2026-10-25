@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -9,6 +10,16 @@ abstract final class AppLogger {
   static File? _file;
   static int _maxBytes = 512 * 1024;
   static int _backupCount = 3;
+  static Future<void> _io = Future<void>.value();
+  static int _pendingWrites = 0;
+
+  static Future<void> flush() => _io;
+
+  static Future<T> _serialize<T>(Future<T> Function() operation) {
+    final result = _io.then((_) => operation());
+    _io = result.then<void>((_) {}, onError: (Object _, StackTrace _) {});
+    return result;
+  }
 
   static String? get logFilePath => _file?.path;
 
@@ -17,6 +28,7 @@ abstract final class AppLogger {
     int maxBytes = 512 * 1024,
     int backupCount = 3,
   }) async {
+    await flush();
     _maxBytes = maxBytes;
     _backupCount = backupCount;
     _file = null;
@@ -27,6 +39,7 @@ abstract final class AppLogger {
       _file = File(p.join(logDirectory.path, 'godsense.log'));
       await deleteExpired(const Duration(days: 7));
       info('Local diagnostic logging initialized.', category: 'diagnostics');
+      await flush();
       return true;
     } catch (error, stackTrace) {
       _file = null;
@@ -45,7 +58,8 @@ abstract final class AppLogger {
   }
 
   static Stream<Map<String, Object?>> exportEntriesStream() async* {
-    for (final file in _existingFiles()) {
+    await flush();
+    for (final file in await _existingFiles()) {
       final lines = file
           .openRead()
           .transform(utf8.decoder)
@@ -64,37 +78,38 @@ abstract final class AppLogger {
     }
   }
 
-  static Future<int> deleteExpired(Duration maxAge, {DateTime? now}) async {
-    final cutoff = (now ?? DateTime.now()).toUtc().subtract(maxAge);
-    var deleted = 0;
-    for (final file in _existingFiles()) {
-      final fallbackTimestamp = file.lastModifiedSync().toUtc();
-      final lines = file.readAsLinesSync();
-      final retained = <String>[];
-      for (final line in lines) {
-        if (line.trim().isEmpty) continue;
-        final timestamp = _entryTimestamp(line) ?? fallbackTimestamp;
-        if (!timestamp.isBefore(cutoff)) retained.add(line);
-      }
-      if (retained.isEmpty) {
-        file.deleteSync();
-        deleted++;
-      } else if (retained.length !=
-          lines.where((line) => line.trim().isNotEmpty).length) {
-        file.writeAsStringSync('${retained.join('\n')}\n', flush: true);
-      }
-    }
-    return deleted;
-  }
+  static Future<int> deleteExpired(Duration maxAge, {DateTime? now}) =>
+      _serialize(() async {
+        final cutoff = (now ?? DateTime.now()).toUtc().subtract(maxAge);
+        var deleted = 0;
+        for (final file in await _existingFiles()) {
+          final fallbackTimestamp = (await file.lastModified()).toUtc();
+          final lines = await file.readAsLines();
+          final retained = <String>[];
+          for (final line in lines) {
+            if (line.trim().isEmpty) continue;
+            final timestamp = _entryTimestamp(line) ?? fallbackTimestamp;
+            if (!timestamp.isBefore(cutoff)) retained.add(line);
+          }
+          if (retained.isEmpty) {
+            await file.delete();
+            deleted++;
+          } else if (retained.length !=
+              lines.where((line) => line.trim().isNotEmpty).length) {
+            await file.writeAsString('${retained.join('\n')}\n', flush: true);
+          }
+        }
+        return deleted;
+      });
 
-  static Future<int> deleteAll() async {
+  static Future<int> deleteAll() => _serialize(() async {
     var deleted = 0;
-    for (final file in _existingFiles()) {
+    for (final file in await _existingFiles()) {
       await file.delete();
       deleted++;
     }
     return deleted;
-  }
+  });
 
   static String redact(Object? value) {
     var text = value?.toString() ?? '';
@@ -191,34 +206,44 @@ abstract final class AppLogger {
     if (kDebugMode) debugPrint(entry);
     final file = _file;
     if (file == null) return;
-    try {
-      _rotateIfNeeded(file, utf8.encode(entry).length + 1);
-      file.writeAsStringSync('$entry\n', mode: FileMode.append, flush: true);
-    } catch (_) {
-      // Diagnostics must never take down the application.
-    }
+    // Bound the queue if a drive is slow; diagnostic traffic must not exhaust
+    // memory or synchronously stall the UI waiting for disk.
+    if (_pendingWrites >= 256) return;
+    _pendingWrites++;
+    unawaited(
+      _serialize(() async {
+        try {
+          await _rotateIfNeeded(file, utf8.encode(entry).length + 1);
+          await file.writeAsString('$entry\n', mode: FileMode.append);
+        } catch (_) {
+          // Diagnostics must never take down the application.
+        } finally {
+          _pendingWrites--;
+        }
+      }),
+    );
   }
 
-  static void _rotateIfNeeded(File file, int incomingBytes) {
-    if (!file.existsSync() || file.lengthSync() + incomingBytes <= _maxBytes) {
+  static Future<void> _rotateIfNeeded(File file, int incomingBytes) async {
+    if (!await file.exists() ||
+        await file.length() + incomingBytes <= _maxBytes) {
       return;
     }
     for (var index = _backupCount; index >= 1; index--) {
       final current = File('${file.path}.$index');
-      if (index == _backupCount && current.existsSync()) {
-        current.deleteSync();
+      if (index == _backupCount && await current.exists()) {
+        await current.delete();
       }
       final previous = index == 1 ? file : File('${file.path}.${index - 1}');
-      if (previous.existsSync()) previous.renameSync(current.path);
+      if (await previous.exists()) await previous.rename(current.path);
     }
   }
 
-  static List<File> _existingFiles() {
+  static Future<List<File>> _existingFiles() async {
     final file = _file;
-    if (file == null || !file.parent.existsSync()) return const [];
+    if (file == null || !await file.parent.exists()) return const [];
     final baseName = p.basename(file.path);
-    return file.parent
-        .listSync()
+    return (await file.parent.list().toList())
         .whereType<File>()
         .where((candidate) {
           final name = p.basename(candidate.path);

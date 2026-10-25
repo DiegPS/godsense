@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -85,6 +86,31 @@ void main() {
 
     expect(received, isEmpty);
     await subscription.cancel();
+  });
+
+  test('disposal during asynchronous discovery never opens a socket', () async {
+    await events.dispose();
+    final credentials = Completer<LcuCredentials?>();
+    var connections = 0;
+    events = LcuEventStream(
+      credentialsProvider: () => credentials.future,
+      connector: (_, _) async {
+        connections++;
+        throw StateError('Must not connect after disposal');
+      },
+    );
+    events.start();
+    await events.dispose();
+    credentials.complete(
+      LcuCredentials(
+        port: server.port,
+        password: 'test',
+        protocol: 'http',
+        lockfilePath: 'test',
+      ),
+    );
+    await Future<void>.delayed(Duration.zero);
+    expect(connections, 0);
   });
 }
 

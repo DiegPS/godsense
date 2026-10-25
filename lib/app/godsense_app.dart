@@ -25,6 +25,7 @@ import '../domain/league/account_context.dart';
 import '../domain/vision/vision_observation.dart';
 import '../infrastructure/diagnostics/app_logger.dart';
 import '../presentation/native_speech_settings_card.dart';
+import '../presentation/shell/retained_page_stack.dart';
 import '../presentation/coach/coach_page.dart';
 import '../presentation/coach/shared/ai_model_selector.dart';
 import '../presentation/coach/shared/ai_provider_connections.dart';

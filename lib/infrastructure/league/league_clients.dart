@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 
 import 'lcu_probe_transport.dart';
 import 'league_installation.dart';
@@ -38,8 +39,13 @@ class LcuClient implements LcuReadTransport {
   LcuCredentials? _credentials;
   String? _activeDirectory;
   DateTime? _lastDiscovery;
+  Future<LcuCredentials?>? _discovery;
 
-  LcuCredentials? discover() {
+  Future<LcuCredentials?> discover() {
+    return _discovery ??= _discover().whenComplete(() => _discovery = null);
+  }
+
+  Future<LcuCredentials?> _discover() async {
     final provider = credentialsProvider;
     if (provider != null) return _credentials = provider();
     final explicit = Platform.environment['GODSENSE_LCU_LOCKFILE'];
@@ -47,7 +53,7 @@ class LcuClient implements LcuReadTransport {
         (_lastDiscovery == null ||
             DateTime.now().difference(_lastDiscovery!).inSeconds >= 10)) {
       _lastDiscovery = DateTime.now();
-      _activeDirectory = activeLeagueDirectory();
+      _activeDirectory = await Isolate.run(activeLeagueDirectory);
     }
     final candidates = explicit != null && explicit.trim().isNotEmpty
         ? <String?>[explicit]
@@ -61,9 +67,8 @@ class LcuClient implements LcuReadTransport {
     for (final path in candidates) {
       if (path == null) continue;
       final file = File(path);
-      if (!file.existsSync()) continue;
       try {
-        final parts = file.readAsStringSync().trim().split(':');
+        final parts = (await file.readAsString()).trim().split(':');
         if (parts.length < 5) continue;
         final port = int.tryParse(parts[2]);
         if (port == null) continue;
@@ -109,7 +114,7 @@ class LcuClient implements LcuReadTransport {
     String path, {
     Object? body,
   }) async {
-    final credentials = _credentials ?? discover();
+    final credentials = _credentials ?? await discover();
     if (credentials == null) {
       return const LcuProbeResponse.failure(
         failureKind: LcuProbeFailureKind.disconnected,

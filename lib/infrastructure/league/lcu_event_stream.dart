@@ -27,7 +27,7 @@ typedef LcuWebSocketConnector = Future<WebSocket> Function(
 
 class LcuEventStream {
   LcuEventStream({
-    required LcuCredentials? Function() credentialsProvider,
+    required FutureOr<LcuCredentials?> Function() credentialsProvider,
     LcuWebSocketConnector? connector,
     this.reconnectDelay = const Duration(seconds: 2),
   }) : _credentialsProvider = credentialsProvider,
@@ -36,7 +36,7 @@ class LcuEventStream {
            ? (HttpClient()..badCertificateCallback = (_, _, _) => true)
            : null;
 
-  final LcuCredentials? Function() _credentialsProvider;
+  final FutureOr<LcuCredentials?> Function() _credentialsProvider;
   final LcuWebSocketConnector? _connector;
   final HttpClient? _httpClient;
   final Duration reconnectDelay;
@@ -60,16 +60,17 @@ class LcuEventStream {
 
   Future<void> _open() async {
     if (_disposed || !_started || _connecting || _socket != null) return;
-    final credentials = _credentialsProvider();
-    if (credentials == null) {
-      _emitState(LcuEventConnectionState.disconnected);
-      _scheduleReconnect();
-      return;
-    }
     _connecting = true;
     _emitState(LcuEventConnectionState.connecting);
     final generation = ++_generation;
     try {
+      final credentials = await _credentialsProvider();
+      if (_disposed || generation != _generation) return;
+      if (credentials == null) {
+        _emitState(LcuEventConnectionState.disconnected);
+        _scheduleReconnect();
+        return;
+      }
       final scheme = credentials.protocol == 'https' ? 'wss' : 'ws';
       final socket = await (_connector ?? _connect)(
         Uri(scheme: scheme, host: '127.0.0.1', port: credentials.port),

@@ -9,13 +9,18 @@
 
 #include <algorithm>
 #include <chrono>
+#include <condition_variable>
 #include <cstdint>
 #include <cstring>
 #include <memory>
+#include <functional>
+#include <mutex>
 #include <optional>
 #include <stdexcept>
+#include <queue>
 #include <string>
 #include <utility>
+#include <thread>
 #include <vector>
 
 namespace {
@@ -427,114 +432,237 @@ class DuplicationSession {
 };
 
 class DesktopCapturePlugin : public flutter::Plugin {
- public:
-  static void RegisterWithRegistrar(flutter::PluginRegistrarWindows* registrar) {
+public:
+  static void
+  RegisterWithRegistrar(flutter::PluginRegistrarWindows *registrar) {
     auto plugin = std::make_unique<DesktopCapturePlugin>(registrar);
     registrar->AddPlugin(std::move(plugin));
   }
 
-  explicit DesktopCapturePlugin(flutter::PluginRegistrarWindows* registrar) {
+  explicit DesktopCapturePlugin(flutter::PluginRegistrarWindows *registrar) {
+    // Method channels execute on the Windows platform thread, even when the
+    // Dart caller runs in an isolate. Keep all DXGI work on one native worker.
+    WNDCLASSW window_class = {};
+    window_class.lpfnWndProc = CompletionWindowProc;
+    window_class.hInstance = GetModuleHandle(nullptr);
+    window_class.lpszClassName = L"GodSenseCaptureCompletion";
+    RegisterClassW(&window_class);
+    completion_window_ =
+        CreateWindowExW(0, window_class.lpszClassName, L"", 0, 0, 0, 0, 0,
+                        HWND_MESSAGE, nullptr, window_class.hInstance, this);
+    if (completion_window_ == nullptr) {
+      throw std::runtime_error("No se pudo iniciar el worker de captura.");
+    }
     channel_ = std::make_unique<flutter::MethodChannel<EncodableValue>>(
         registrar->messenger(), "godsense/desktop_capture",
         &flutter::StandardMethodCodec::GetInstance());
-    channel_->SetMethodCallHandler(
-        [this](const auto& call, auto result) {
-          HandleMethodCall(call, std::move(result));
-        });
+    channel_->SetMethodCallHandler([this](const auto &call, auto result) {
+      Enqueue(call, std::move(result));
+    });
+    worker_ = std::thread([this] { RunWorker(); });
   }
 
- private:
-  void HandleMethodCall(
-      const flutter::MethodCall<EncodableValue>& call,
-      std::unique_ptr<flutter::MethodResult<EncodableValue>> result) {
-    try {
-      if (call.method_name() == "getDisplays") {
-        flutter::EncodableList values;
-        for (const auto& display : EnumerateOutputs()) {
-          values.emplace_back(DisplayToMap(display));
-        }
-        result->Success(EncodableValue(values));
-        return;
-      }
-      if (call.method_name() != "capture") {
-        result->NotImplemented();
-        return;
-      }
-      const auto* arguments = std::get_if<EncodableMap>(call.arguments());
-      if (arguments == nullptr) {
-        throw std::invalid_argument("Faltan los datos de captura.");
-      }
-      const int global_left = ReadInt(*arguments, "left");
-      const int global_top = ReadInt(*arguments, "top");
-      const int width = ReadInt(*arguments, "width");
-      const int height = ReadInt(*arguments, "height");
-      const std::string requested_id = ReadString(*arguments, "displayId");
-      const auto displays = EnumerateOutputs();
-      auto selected = displays.end();
-      if (!requested_id.empty()) {
-        selected = std::find_if(
-            displays.begin(), displays.end(),
-            [&requested_id](const DisplayOutput& display) {
-              return display.id == requested_id;
-            });
-        if (selected == displays.end()) {
-          throw std::runtime_error(
-              "La pantalla calibrada no está disponible en este momento.");
-        }
-      } else {
-        selected = std::find_if(
-            displays.begin(), displays.end(),
-            [global_left, global_top, width, height](const DisplayOutput& display) {
-              const RECT bounds = display.description.DesktopCoordinates;
-              return global_left >= bounds.left && global_top >= bounds.top &&
-                     global_left + width <= bounds.right &&
-                     global_top + height <= bounds.bottom;
-            });
-      }
-      if (selected == displays.end()) {
-        throw std::invalid_argument(
-            "La región no pertenece por completo a ninguna pantalla activa.");
-      }
-      const RECT display_bounds = selected->description.DesktopCoordinates;
-      int local_left = global_left - display_bounds.left;
-      int local_top = global_top - display_bounds.top;
-      if (!requested_id.empty() && requested_id == selected->id) {
-        const EncodableValue* local_left_value =
-            FindValue(*arguments, "localLeft");
-        const EncodableValue* local_top_value = FindValue(*arguments, "localTop");
-        if (local_left_value != nullptr && local_top_value != nullptr) {
-          local_left = ReadInt(*arguments, "localLeft");
-          local_top = ReadInt(*arguments, "localTop");
-        }
-      }
-      if (session_ == nullptr || session_->display_id() != selected->id) {
-        session_ = std::make_unique<DuplicationSession>(*selected);
-      }
-      const auto started = std::chrono::steady_clock::now();
-      auto pixels = session_->Capture(local_left, local_top, width, height);
-      const auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(
-                               std::chrono::steady_clock::now() - started)
-                               .count();
-      EncodableMap response = DisplayToMap(*selected);
-      response[EncodableValue("captureWidth")] = EncodableValue(width);
-      response[EncodableValue("captureHeight")] = EncodableValue(height);
-      response[EncodableValue("localLeft")] = EncodableValue(local_left);
-      response[EncodableValue("localTop")] = EncodableValue(local_top);
-      response[EncodableValue("captureMicroseconds")] =
-          EncodableValue(static_cast<int64_t>(elapsed));
-      response[EncodableValue("bgra")] = EncodableValue(std::move(pixels));
-      result->Success(EncodableValue(response));
-    } catch (const std::exception& error) {
-      session_.reset();
-      result->Error("CAPTURE_FAILED", error.what());
+  ~DesktopCapturePlugin() override {
+    channel_->SetMethodCallHandler(nullptr);
+    {
+      std::lock_guard<std::mutex> lock(mutex_);
+      stopping_ = true;
     }
+    ready_.notify_one();
+    if (worker_.joinable())
+      worker_.join();
+    DestroyWindow(completion_window_);
+  }
+
+private:
+  static constexpr UINT kCompletionMessage = WM_APP + 73;
+
+  static LRESULT CALLBACK CompletionWindowProc(HWND window, UINT message,
+                                               WPARAM wparam, LPARAM lparam) {
+    if (message == WM_NCCREATE) {
+      const auto *create = reinterpret_cast<CREATESTRUCTW *>(lparam);
+      SetWindowLongPtrW(window, GWLP_USERDATA,
+                        reinterpret_cast<LONG_PTR>(create->lpCreateParams));
+    }
+    auto *plugin = reinterpret_cast<DesktopCapturePlugin *>(
+        GetWindowLongPtrW(window, GWLP_USERDATA));
+    if (message == kCompletionMessage && plugin != nullptr) {
+      std::queue<std::function<void()>> completions;
+      {
+        std::lock_guard<std::mutex> lock(plugin->mutex_);
+        completions.swap(plugin->completions_);
+      }
+      while (!completions.empty()) {
+        completions.front()();
+        completions.pop();
+      }
+      return 0;
+    }
+    return DefWindowProcW(window, message, wparam, lparam);
+  }
+
+  void Complete(std::function<void()> completion) {
+    {
+      std::lock_guard<std::mutex> lock(mutex_);
+      if (stopping_)
+        return;
+      completions_.push(std::move(completion));
+    }
+    PostMessageW(completion_window_, kCompletionMessage, 0, 0);
+  }
+
+  void Enqueue(const flutter::MethodCall<EncodableValue> &call,
+               std::unique_ptr<flutter::MethodResult<EncodableValue>> result) {
+    const auto method = call.method_name();
+    if (method != "capture" && method != "getDisplays") {
+      result->NotImplemented();
+      return;
+    }
+    auto arguments = std::make_shared<EncodableValue>(
+        call.arguments() == nullptr ? EncodableValue() : *call.arguments());
+    auto reply = std::shared_ptr<flutter::MethodResult<EncodableValue>>(
+        std::move(result));
+    {
+      std::lock_guard<std::mutex> lock(mutex_);
+      if (stopping_ || requests_.size() >= 4) {
+        reply->Error("CAPTURE_BUSY", "La captura anterior sigue en curso.");
+        return;
+      }
+      requests_.push([this, method, arguments, reply] {
+        try {
+          auto response = std::make_shared<EncodableValue>(
+              HandleRequest(method, arguments.get()));
+          Complete([reply, response] { reply->Success(*response); });
+        } catch (const std::exception &error) {
+          session_.reset();
+          displays_.clear();
+          const std::string message = error.what();
+          Complete(
+              [reply, message] { reply->Error("CAPTURE_FAILED", message); });
+        }
+      });
+    }
+    ready_.notify_one();
+  }
+
+  void RunWorker() {
+    const HRESULT com_result = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+    for (;;) {
+      std::function<void()> request;
+      {
+        std::unique_lock<std::mutex> lock(mutex_);
+        ready_.wait(lock, [this] { return stopping_ || !requests_.empty(); });
+        if (stopping_)
+          break;
+        request = std::move(requests_.front());
+        requests_.pop();
+      }
+      request();
+    }
+    session_.reset();
+    displays_.clear();
+    if (SUCCEEDED(com_result))
+      CoUninitialize();
+  }
+
+  EncodableValue HandleRequest(const std::string &method,
+                               const EncodableValue *request_arguments) {
+    if (method == "getDisplays") {
+      flutter::EncodableList values;
+      displays_ = EnumerateOutputs();
+      displays_checked_at_ = std::chrono::steady_clock::now();
+      for (const auto &display : displays_) {
+        values.emplace_back(DisplayToMap(display));
+      }
+      return EncodableValue(values);
+    }
+    const auto *arguments = std::get_if<EncodableMap>(request_arguments);
+    if (arguments == nullptr) {
+      throw std::invalid_argument("Faltan los datos de captura.");
+    }
+    const int global_left = ReadInt(*arguments, "left");
+    const int global_top = ReadInt(*arguments, "top");
+    const int width = ReadInt(*arguments, "width");
+    const int height = ReadInt(*arguments, "height");
+    const std::string requested_id = ReadString(*arguments, "displayId");
+    const auto now = std::chrono::steady_clock::now();
+    if (displays_.empty() ||
+        now - displays_checked_at_ > std::chrono::seconds(5)) {
+      displays_ = EnumerateOutputs();
+      displays_checked_at_ = now;
+    }
+    const auto &displays = displays_;
+    auto selected = displays.end();
+    if (!requested_id.empty()) {
+      selected = std::find_if(displays.begin(), displays.end(),
+                              [&requested_id](const DisplayOutput &display) {
+                                return display.id == requested_id;
+                              });
+      if (selected == displays.end()) {
+        throw std::runtime_error(
+            "La pantalla calibrada no está disponible en este momento.");
+      }
+    } else {
+      selected = std::find_if(displays.begin(), displays.end(),
+                              [global_left, global_top, width,
+                               height](const DisplayOutput &display) {
+                                const RECT bounds =
+                                    display.description.DesktopCoordinates;
+                                return global_left >= bounds.left &&
+                                       global_top >= bounds.top &&
+                                       global_left + width <= bounds.right &&
+                                       global_top + height <= bounds.bottom;
+                              });
+    }
+    if (selected == displays.end()) {
+      throw std::invalid_argument(
+          "La región no pertenece por completo a ninguna pantalla activa.");
+    }
+    const RECT display_bounds = selected->description.DesktopCoordinates;
+    int local_left = global_left - display_bounds.left;
+    int local_top = global_top - display_bounds.top;
+    if (!requested_id.empty() && requested_id == selected->id) {
+      const EncodableValue *local_left_value =
+          FindValue(*arguments, "localLeft");
+      const EncodableValue *local_top_value = FindValue(*arguments, "localTop");
+      if (local_left_value != nullptr && local_top_value != nullptr) {
+        local_left = ReadInt(*arguments, "localLeft");
+        local_top = ReadInt(*arguments, "localTop");
+      }
+    }
+    if (session_ == nullptr || session_->display_id() != selected->id) {
+      session_ = std::make_unique<DuplicationSession>(*selected);
+    }
+    const auto started = std::chrono::steady_clock::now();
+    auto pixels = session_->Capture(local_left, local_top, width, height);
+    const auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(
+                             std::chrono::steady_clock::now() - started)
+                             .count();
+    EncodableMap response = DisplayToMap(*selected);
+    response[EncodableValue("captureWidth")] = EncodableValue(width);
+    response[EncodableValue("captureHeight")] = EncodableValue(height);
+    response[EncodableValue("localLeft")] = EncodableValue(local_left);
+    response[EncodableValue("localTop")] = EncodableValue(local_top);
+    response[EncodableValue("captureMicroseconds")] =
+        EncodableValue(static_cast<int64_t>(elapsed));
+    response[EncodableValue("bgra")] = EncodableValue(std::move(pixels));
+    return EncodableValue(std::move(response));
   }
 
   std::unique_ptr<flutter::MethodChannel<EncodableValue>> channel_;
   std::unique_ptr<DuplicationSession> session_;
+  std::vector<DisplayOutput> displays_;
+  std::chrono::steady_clock::time_point displays_checked_at_;
+  HWND completion_window_ = nullptr;
+  std::thread worker_;
+  std::mutex mutex_;
+  std::condition_variable ready_;
+  std::queue<std::function<void()>> requests_;
+  std::queue<std::function<void()>> completions_;
+  bool stopping_ = false;
 };
 
-}  // namespace
+} // namespace
 
 void DesktopCapturePluginRegisterWithRegistrar(
     FlutterDesktopPluginRegistrarRef registrar) {

@@ -141,14 +141,17 @@ class _GodSenseHomeState extends ConsumerState<GodSenseHome> {
         );
       }
     });
-    final content = switch (selectedPage) {
-      0 => const OverviewPage(),
-      1 => const LivePage(),
-      2 => const VisionPage(),
-      3 => const CoachPage(),
-      4 => const ScoutPage(),
-      _ => const SettingsPage(),
-    };
+    final content = RetainedPageStack(
+      index: selectedPage.clamp(0, 5),
+      children: const [
+        OverviewPage(),
+        LivePage(),
+        VisionPage(),
+        CoachPage(),
+        ScoutPage(),
+        SettingsPage(),
+      ],
+    );
 
     return Scaffold(
       backgroundColor: GsColors.canvas,

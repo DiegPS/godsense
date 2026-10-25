@@ -1,6 +1,6 @@
 # Native architecture implementation status
 
-- Updated: 2026-09-04
+- Updated: 2026-10-24
 - Scope: Native product foundation plus optional local AI runtime integration
 - Core runtime target: Flutter/Dart/C++ on Windows, without Python, Node.js or
   Electron. AI coaching may start one isolated, private OpenCode-compatible
@@ -38,6 +38,26 @@
 | Product scope | Coaching, vision, voice, LCU, and Scout are first-class; Highlights and Discord Rich Presence are intentionally excluded | No dormant settings, gateway contracts, or UI placeholders |
 
 ## Current measured baseline
+
+### October 24 Windows stability
+
+- Windows capture is now performed on a serial native worker rather than the
+  platform thread. Cached display enumeration and progressive retries bound
+  work when a calibrated monitor is unavailable.
+- Navigation retains visited pages, disables hidden tickers/focus, and keeps
+  drafts and scroll state. The overlay is created on demand.
+- Log I/O and League process discovery no longer execute synchronously on the
+  UI isolate. Binding initialization and application startup share one zone.
+- Replaced the Material Slider overlay that reproduced a native Windows
+  accessibility crash in Flutter 3.47.2. Keyboard and slider semantics remain
+  covered by tests; no global SDK upgrade is required.
+- Reproducible profile runs, unit/widget regression tests and a startup smoke
+  check supplement the Windows build. The local package tool includes CRT DLLs,
+  checksums and source provenance. See
+  [Windows responsiveness](../development/windows-responsiveness.md).
+- Real installed Canary/Supertonic models and the Kilo runtime passed local
+  smoke checks. Final live-match acceptance and Store product identity remain
+  separate from the generated local candidate.
 
 ### September 4 closure
 

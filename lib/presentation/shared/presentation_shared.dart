@@ -14,7 +14,7 @@ String _sessionLabel({
   if (companionLobby?.lcuConnected == true) {
     return '${companionLobby!.phase} · datos parciales';
   }
-  return 'Waiting for League';
+  return 'Esperando a League';
 }
 
 String _formatGameTime(double seconds) {
@@ -55,7 +55,7 @@ String _calibrationDescription(CalibrationState? calibration) {
       ? ''
       : ' en la pantalla ${displayMatch.group(1)}';
   return calibration.calibrated
-      ? 'Área del minimapa guardada$displayLabel y lista para detectar alertas.'
+      ? 'Área del minimapa guardada$displayLabel. Comprueba la captura en Mapa.'
       : 'Área estimada automáticamente; puedes ajustarla si no coincide.';
 }
 

@@ -10,7 +10,13 @@ powershell -ExecutionPolicy Bypass -File .\tool\verify_windows.ps1
 El flujo resuelve dependencias, ejecuta el analizador, corre pruebas unitarias y
 de widgets con un piso local de cobertura del 65 %, ejecuta cada archivo de
 integración en un proceso separado y finalmente genera la build release de
-Windows.
+Windows y comprueba que el ejecutable arranca.
+
+Ejecuta un solo comando Flutter de compilación o integración a la vez en este
+workspace. Debug, profile y release comparten `windows/flutter/ephemeral`; dos
+compilaciones simultáneas pueden mezclar el motor de una configuración con el
+código de otra aunque ambas compilen. El chequeo de arranque detecta esa build
+inutilizable.
 
 Las pruebas nativas de DartCV se ejecutan, archivo por archivo, en procesos
 aislados del resto de la suite. Esto reproduce mejor el proceso único de la
@@ -36,3 +42,8 @@ El piso de cobertura también puede ajustarse explícitamente, por ejemplo:
 ```powershell
 .\tool\verify_windows.ps1 -MinimumCoverage 70
 ```
+
+Para incluir la comprobación real de fluidez y captura de pantalla antes de
+generar la build final, usa `-ProfileUI`. Requiere un escritorio desbloqueado y
+una pantalla disponible. Los límites y el diagnóstico están en
+[windows-responsiveness.md](windows-responsiveness.md).

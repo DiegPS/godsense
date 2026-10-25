@@ -2,6 +2,7 @@
 param(
     [switch]$SkipIntegration,
     [switch]$SkipBuild,
+    [switch]$ProfileUI,
     [double]$MinimumCoverage = 65
 )
 
@@ -101,12 +102,30 @@ if (-not $SkipIntegration) {
     }
 }
 
+if ($ProfileUI) {
+    & (Join-Path $PSScriptRoot 'profile_windows.ps1')
+}
+
 if (-not $SkipBuild) {
     Invoke-FlutterStep 'Windows release build' @(
         'build',
         'windows',
         '--release'
     )
+    $releaseDirectory = Join-Path $projectRoot 'build\windows\x64\runner\Release'
+    $smoke = Start-Process -FilePath (Join-Path $releaseDirectory 'godsense.exe') `
+        -WorkingDirectory $releaseDirectory -WindowStyle Hidden -PassThru
+    try {
+        if ($smoke.WaitForExit(8000)) {
+            throw "Release exited during startup with code $($smoke.ExitCode)."
+        }
+        Write-Host 'Windows release startup passed.' -ForegroundColor Green
+    } finally {
+        if (-not $smoke.HasExited) {
+            Stop-Process -Id $smoke.Id
+        }
+        $smoke.Dispose()
+    }
 }
 
 Write-Host "`nGodSense local verification passed." -ForegroundColor Green

@@ -227,6 +227,8 @@ class NativeVisionController extends StateNotifier<NativeVisionState> {
   List<String> _loadedNames = const [];
   int _frameEpoch = 0;
   bool _captureInProgress = false;
+  int _captureFailures = 0;
+  DateTime? _retryCaptureAt;
 
   void _recoverWorker() {
     final runtime = _runtime;
@@ -320,6 +322,8 @@ class NativeVisionController extends StateNotifier<NativeVisionState> {
       return;
     }
     if (!mapEquals(state.bounds, bounds) || _iconSize != iconSize) {
+      _captureFailures = 0;
+      _retryCaptureAt = null;
       _resetTracking();
     }
     state = state.copyWith(bounds: Map.of(bounds));
@@ -503,6 +507,8 @@ class NativeVisionController extends StateNotifier<NativeVisionState> {
 
   Future<void> captureOnce(Map<String, dynamic> bounds) async {
     if (_disposed) return;
+    _captureFailures = 0;
+    _retryCaptureAt = null;
     if (!mapEquals(state.bounds, bounds)) _resetTracking();
     state = state.copyWith(bounds: bounds, clearError: true);
     await _captureAndProcess();
@@ -561,6 +567,8 @@ class NativeVisionController extends StateNotifier<NativeVisionState> {
     }
     final bounds = state.bounds;
     if (bounds == null) return;
+    final retryAt = _retryCaptureAt;
+    if (retryAt != null && _clock().isBefore(retryAt)) return;
     final epoch = _frameEpoch;
     _captureInProgress = true;
     try {
@@ -572,6 +580,8 @@ class NativeVisionController extends StateNotifier<NativeVisionState> {
         generatePreview,
       );
       if (_disposed || epoch != _frameEpoch) return;
+      _captureFailures = 0;
+      _retryCaptureAt = null;
       final frame = capture.frame;
       _cvSamples.add(frame.cvMicroseconds);
       _captureSamples.add(capture.captureMicroseconds);
@@ -669,6 +679,10 @@ class NativeVisionController extends StateNotifier<NativeVisionState> {
       if (_disposed || epoch != _frameEpoch) return;
       final message = error.toString();
       final now = DateTime.now();
+      _captureFailures = (_captureFailures + 1).clamp(1, 4);
+      _retryCaptureAt = _clock().add(
+        Duration(seconds: 1 << (_captureFailures - 1)),
+      );
       if (_lastErrorMessage != message ||
           _lastErrorLoggedAt == null ||
           now.difference(_lastErrorLoggedAt!).inSeconds >= 5) {

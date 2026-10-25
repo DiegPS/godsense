@@ -117,6 +117,35 @@ class VisionPage extends ConsumerWidget {
         ),
         const SizedBox(height: 16),
 
+        if (native.error != null) ...[
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: GsColors.crimsonGlow,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0x4DEF4444)),
+            ),
+            child: const Row(
+              children: [
+                Icon(
+                  Icons.error_outline_rounded,
+                  size: 16,
+                  color: GsColors.crimson,
+                ),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'No pudimos leer el minimapa. Comprueba que la pantalla guardada '
+                    'está conectada y revisa la calibración. Comprobar ahora reintenta la captura.',
+                    style: TextStyle(color: GsColors.crimson, fontSize: 12),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
+
         // 3. Useful previews
         Wrap(
           spacing: 12,
@@ -155,37 +184,6 @@ class VisionPage extends ConsumerWidget {
                   ),
                 ],
               ),
-            ),
-          ),
-        ],
-        if (native.error != null) ...[
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: GsColors.crimsonGlow,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: const Color(0x4DEF4444)),
-            ),
-            child: Row(
-              children: [
-                const Icon(
-                  Icons.error_outline_rounded,
-                  size: 16,
-                  color: GsColors.crimson,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'No pudimos revisar el minimapa. Comprueba la calibración '
-                    'e inténtalo de nuevo.',
-                    style: const TextStyle(
-                      color: GsColors.crimson,
-                      fontSize: 12,
-                    ),
-                  ),
-                ),
-              ],
             ),
           ),
         ],

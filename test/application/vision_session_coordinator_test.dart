@@ -14,6 +14,51 @@ import 'package:godsense/infrastructure/native_vision/native_minimap_calibrator.
 import 'package:godsense/infrastructure/native_vision/vision_runtime.dart';
 
 void main() {
+  testWidgets('manual capture retries immediately during automatic backoff', (
+    tester,
+  ) async {
+    final runtime = _FailOnceRuntime();
+    final vision = NativeVisionController(runtime: runtime);
+    const bounds = {'left': 0, 'top': 0, 'width': 300, 'height': 300};
+    vision.configure(
+      enabled: true,
+      calibrationStale: false,
+      bounds: bounds,
+      iconSize: 28,
+    );
+    await tester.pump();
+    expect(runtime.attempts, 1);
+    await vision.captureOnce(bounds);
+    expect(runtime.attempts, 2);
+    expect(vision.state.error, isNull);
+    expect(vision.state.frame, isNotNull);
+    vision.dispose();
+  });
+  testWidgets('failed capture backs off and resumes after recovery', (
+    tester,
+  ) async {
+    var now = DateTime.utc(2026);
+    final runtime = _FailOnceRuntime();
+    final vision = NativeVisionController(runtime: runtime, clock: () => now);
+    vision.configure(
+      enabled: true,
+      calibrationStale: false,
+      bounds: const {'left': 0, 'top': 0, 'width': 300, 'height': 300},
+      iconSize: 28,
+    );
+    await tester.pump();
+    expect(runtime.attempts, 1);
+    now = now.add(const Duration(milliseconds: 500));
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(runtime.attempts, 1);
+    now = now.add(const Duration(seconds: 1));
+    await tester.pump(const Duration(milliseconds: 167));
+    expect(runtime.attempts, 2);
+    expect(vision.state.error, isNull);
+    await tester.pump(const Duration(milliseconds: 167));
+    expect(runtime.attempts, 3);
+    vision.dispose();
+  });
   test(
     'saved calibration starts vision without an active League game',
     () async {
@@ -41,6 +86,21 @@ void main() {
       expect(vision.state.bounds?['display_id'], 'secondary');
     },
   );
+}
+
+class _FailOnceRuntime extends _IdleRuntime {
+  int attempts = 0;
+  @override
+  Future<VisionCaptureResult> capture(
+    Map<String, dynamic> bounds,
+    int size,
+    bool preview,
+  ) {
+    if (++attempts == 1) {
+      return Future.error(StateError('Monitor temporarily unavailable'));
+    }
+    return super.capture(bounds, size, preview);
+  }
 }
 
 class _CalibrationRepository implements CalibrationRepository {

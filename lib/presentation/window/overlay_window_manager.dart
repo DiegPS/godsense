@@ -34,7 +34,7 @@ class OverlayWindowManager extends WindowObserver {
   }
 
   Future<void> _reconcile(BuildContext ownerContext) async {
-    final id = await _ensureCreated(ownerContext);
+    final id = _desiredVisible ? await _ensureCreated(ownerContext) : _viewId;
     if (id == null) return;
     if (_desiredVisible) {
       await _showWindow(id);

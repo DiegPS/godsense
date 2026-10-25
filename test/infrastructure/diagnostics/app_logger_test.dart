@@ -18,6 +18,7 @@ void main() {
   });
 
   tearDown(() async {
+    await AppLogger.flush();
     if (temporaryDirectory.existsSync()) {
       await temporaryDirectory.delete(recursive: true);
     }
@@ -69,7 +70,7 @@ void main() {
     },
   );
 
-  test('writes JSON lines and rotates bounded local files', () {
+  test('writes JSON lines and rotates bounded local files', () async {
     for (var index = 0; index < 20; index++) {
       AppLogger.error(
         'Failure $index token=secret-$index ${'x' * 80}',
@@ -77,6 +78,7 @@ void main() {
       );
     }
 
+    await AppLogger.flush();
     final file = File(AppLogger.logFilePath!);
     expect(file.existsSync(), isTrue);
     expect(File('${file.path}.1').existsSync(), isTrue);
@@ -108,6 +110,17 @@ void main() {
     );
     expect(file.existsSync(), isFalse);
   });
+
+  test(
+    'queued writes are ordered and deletion cannot resurrect old logs',
+    () async {
+      AppLogger.info('before-delete');
+      await AppLogger.deleteAll();
+      AppLogger.info('after-delete');
+      final entries = await AppLogger.exportEntries();
+      expect(entries.map((entry) => entry['message']), ['after-delete']);
+    },
+  );
 
   test('removes expired entries without deleting recent entries', () async {
     final file = File(AppLogger.logFilePath!);

@@ -1570,7 +1570,8 @@ void MultiViewDesktop::PopUpWindowMenu(const flutter::EncodableMap &args) {
 
 void MultiViewDesktop::StartDragging() {
     ReleaseCapture();
-    SendMessage(GetMainWindow(), WM_SYSCOMMAND, SC_MOVE | HTCAPTION, 0);
+    // Return the channel result before Windows enters its modal move loop.
+    PostMessage(GetMainWindow(), WM_SYSCOMMAND, SC_MOVE | HTCAPTION, 0);
 }
 
 void MultiViewDesktop::StartResizing(const flutter::EncodableMap &args) {

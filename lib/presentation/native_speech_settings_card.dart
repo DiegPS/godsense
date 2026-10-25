@@ -10,6 +10,7 @@ import '../infrastructure/speech/speech/live_captions_service.dart';
 import '../infrastructure/speech/speech/speech_model_catalog.dart';
 import '../infrastructure/speech/tts_service.dart';
 import '../infrastructure/speech/tts/tts_model_catalog.dart';
+import 'shared/gs_slider.dart';
 
 class NativeSpeechSettingsCard extends ConsumerWidget {
   const NativeSpeechSettingsCard({super.key});
@@ -288,14 +289,12 @@ class NativeSpeechSettingsCard extends ConsumerWidget {
                   ),
                 ),
                 Expanded(
-                  child: Slider(
+                  child: GsSlider(
                     value: settings.ttsSpeed,
                     min: 0.6,
                     max: 1.6,
                     divisions: 20,
-                    activeColor: GsColors.cyan,
-                    inactiveColor: GsColors.surfaceElevated,
-                    label: settings.ttsSpeed.toStringAsFixed(2),
+                    label: 'Velocidad de voz',
                     onChanged: (value) =>
                         update(settings.copyWith(ttsSpeed: value)),
                   ),

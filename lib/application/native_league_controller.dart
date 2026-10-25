@@ -467,7 +467,7 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
       var phase = 'NO_LCU';
       var lobby = const <String, dynamic>{};
       Object? champSelectSession;
-      final credentials = _lcu.discover();
+      final credentials = await _lcu.discover();
       if (credentials != null) {
         try {
           final phaseRaw = await _lcu.get('/lol-gameflow/v1/gameflow-phase');
