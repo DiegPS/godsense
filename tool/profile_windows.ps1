@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param(
     [double]$MaximumNavigationMs = 100,
-    [double]$MaximumEventLoopGapMs = 250
+    [double]$MaximumEventLoopGapMs = 250,
+    [double]$MaximumCatalogEventLoopGapMs = 100
 )
 
 $ErrorActionPreference = 'Stop'
@@ -37,5 +38,19 @@ foreach ($name in @('cold_navigation', 'warm_navigation', 'navigation_with_captu
 }
 if ($report.captures -lt 10 -or $report.capture_errors -ne 0) {
     throw "Capture stress failed: $($report.captures) frames, $($report.capture_errors) errors."
+}
+if ($null -eq $report.model_catalog) {
+    throw 'The model catalog measurement is missing.'
+}
+if ($report.model_catalog.available) {
+    if ($report.model_catalog.failed -or $report.model_catalog.refresh_ms.Count -ne 3) {
+        throw 'The model catalog refresh did not complete successfully.'
+    }
+    if ($report.model_catalog.event_loop_max_ms -gt $MaximumCatalogEventLoopGapMs) {
+        throw "Model catalog stalled the event loop for $($report.model_catalog.event_loop_max_ms) ms."
+    }
+    Write-Host "Model catalog event loop gap: $($report.model_catalog.event_loop_max_ms) ms."
+} else {
+    Write-Host 'Model catalog unavailable: no ready AI runtime; this check was skipped.'
 }
 Write-Host "Windows UI performance passed. Report: $reportPath" -ForegroundColor Green

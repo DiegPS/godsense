@@ -37,7 +37,7 @@ void main() {
           try {
             final ready = await health.waitUntilReady(process.endpoint);
             expect(ready.healthy, isTrue);
-            final client = OpenCodeCompatibleRuntimeClient(
+            final client = BackgroundCatalogRuntimeClient(
               endpoint: process.endpoint,
               workspaceDirectory: storage.workspace(kind).path,
             );

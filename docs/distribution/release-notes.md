@@ -5,6 +5,7 @@ Esta revisión se centra en la estabilidad y la respuesta de la interfaz.
 - Captura DXGI en un worker nativo, independiente del hilo de la ventana.
 - Pestañas que conservan el estado, los borradores y el desplazamiento.
 - Logs asíncronos con cola limitada y búsqueda de League en segundo plano.
+- Catálogo de modelos de IA cargado y decodificado fuera del hilo de interfaz.
 - Corrección del arranque de Flutter en zonas distintas.
 - Corrección del cierre nativo de accesibilidad al ocultar el control de
   velocidad de voz; conserva teclado y lector de pantalla.

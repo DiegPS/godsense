@@ -18,6 +18,7 @@ import '../infrastructure/data_dragon/data_dragon_catalog_service.dart';
 import '../infrastructure/data_dragon/data_dragon_game_asset_catalog.dart';
 import '../infrastructure/native_runtime/native_companion_gateway.dart';
 import '../infrastructure/ai/shared_preferences_ai_models.dart';
+import '../infrastructure/ai/open_code_compatible_runtime_client.dart';
 import '../infrastructure/ai/shared_preferences_ai_conversation_history.dart';
 import '../infrastructure/ai/shared_preferences_ai_runtime_settings.dart';
 import 'ai/ai_model_selection_controller.dart';
@@ -398,7 +399,7 @@ final aiConversationProvider =
           if (endpoint == null) {
             throw StateError('El motor de IA local no está encendido.');
           }
-          return ai_runtime.OpenCodeCompatibleRuntimeClient(
+          return BackgroundCatalogRuntimeClient(
             endpoint: endpoint,
             workspaceDirectory: storage.workspace(endpoint.kind).path,
             systemPromptService: processService.systemPromptService,
@@ -425,7 +426,7 @@ final aiModelSelectionProvider =
       final processService = ref.watch(aiRuntimeProcessServiceProvider);
       final client = endpoint == null
           ? null
-          : ai_runtime.OpenCodeCompatibleRuntimeClient(
+          : BackgroundCatalogRuntimeClient(
               endpoint: endpoint,
               workspaceDirectory: storage.workspace(endpoint.kind).path,
               systemPromptService: processService.systemPromptService,
@@ -456,7 +457,7 @@ final aiProviderConnectionProvider =
       final controller = AiProviderConnectionController(
         client: endpoint == null
             ? null
-            : ai_runtime.OpenCodeCompatibleRuntimeClient(
+            : BackgroundCatalogRuntimeClient(
                 endpoint: endpoint,
                 workspaceDirectory: ref
                     .watch(aiRuntimeStorageProvider)

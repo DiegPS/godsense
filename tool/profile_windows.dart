@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:ui';
 
 import 'package:flutter/widgets.dart';
+import 'package:godsense/application/dependencies.dart';
 import 'package:godsense/main.dart' as app;
 import 'package:godsense/infrastructure/diagnostics/app_logger.dart';
 import 'package:godsense/infrastructure/native_vision/desktop_screen_capture.dart';
@@ -27,6 +28,7 @@ Future<void> _profile() async {
   };
   report['cold_navigation'] = await _navigate(rounds: 1);
   report['warm_navigation'] = await _navigate(rounds: 3);
+  report['model_catalog'] = await _profileModelCatalog();
 
   final screen = DesktopScreenCapture();
   var capturing = true;
@@ -85,6 +87,42 @@ Future<void> _profile() async {
     await AppLogger.flush();
     exit(captures == 0 ? 1 : 0);
   }
+}
+
+Future<Map<String, Object?>> _profileModelCatalog() async {
+  final container = app.appProviderContainer;
+  final controller = container.read(aiModelSelectionProvider.notifier);
+  if (controller.runtimeId == 'inactive') return {'available': false};
+  final elapsed = <double>[];
+  var maximumGap = 0;
+  final clock = Stopwatch()..start();
+  var previous = 0;
+  final heartbeat = Timer.periodic(const Duration(milliseconds: 16), (_) {
+    final now = clock.elapsedMicroseconds;
+    final gap = now - previous;
+    if (gap > maximumGap) maximumGap = gap;
+    previous = now;
+  });
+  try {
+    for (var sample = 0; sample < 3; sample++) {
+      final started = clock.elapsedMicroseconds;
+      await controller.refresh();
+      elapsed.add((clock.elapsedMicroseconds - started) / 1000);
+      // Observe the heartbeat after decoding, including work before completion.
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+    }
+  } finally {
+    heartbeat.cancel();
+  }
+  final state = container.read(aiModelSelectionProvider);
+  return {
+    'available': true,
+    'refresh_ms': elapsed,
+    'event_loop_max_ms': maximumGap / 1000,
+    'providers': state.providers.length,
+    'models': state.providers.fold<int>(0, (sum, p) => sum + p.models.length),
+    'failed': state.error != null,
+  };
 }
 
 Future<Map<String, Object?>> _navigate({required int rounds}) async {

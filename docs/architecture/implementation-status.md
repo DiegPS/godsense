@@ -48,6 +48,9 @@
   drafts and scroll state. The overlay is created on demand.
 - Log I/O and League process discovery no longer execute synchronously on the
   UI isolate. Binding initialization and application startup share one zone.
+- Large AI provider catalogs are fetched and decoded in a separate isolate;
+  concurrent readers of the same client share one request. The performance
+  runner also checks catalog refresh responsiveness when a runtime is ready.
 - Replaced the Material Slider overlay that reproduced a native Windows
   accessibility crash in Flutter 3.47.2. Keyboard and slider semantics remain
   covered by tests; no global SDK upgrade is required.

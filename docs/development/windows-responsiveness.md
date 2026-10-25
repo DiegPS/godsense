@@ -75,3 +75,31 @@ de mejora entre debug y profile porque no son modos comparables.
 Esta prueba no simula una partida completa de League, inferencia de cada
 proveedor de IA ni la instalación de todos los modelos de voz. Sus resultados
 no sustituyen esas validaciones.
+
+## Catálogo de modelos de IA
+
+Una medición adicional de tres recargas del catálogo Kilo real reprodujo una
+pausa de 241,4 ms en el event loop. El cliente compartido decodificaba el JSON
+y construía los modelos de todos los proveedores en el isolate de la interfaz,
+incluidos los proveedores desconectados.
+
+`BackgroundCatalogRuntimeClient` ejecuta esa operación de lectura en un isolate
+con su propio cliente HTTP y reutiliza una petición en curso por cliente. El
+worker recibe solo endpoint, directorio y timeout; no captura recursos de UI ni
+el puente de prompts. Se conserva el parser del paquete compartido, sin copiar
+sus reglas de selección o autenticación. Las operaciones de conversación y
+autenticación siguen utilizando el cliente compartido.
+
+El perfilador registra tres recargas, cantidades de proveedores/modelos y la
+pausa máxima del event loop. No escribe credenciales, contenido del catálogo
+ni mensajes del usuario. Con un runtime listo exige que las recargas terminen
+y que la pausa no exceda 100 ms. Si no hay runtime listo, informa explícitamente
+que esa parte no se pudo medir. Las pruebas locales cubren autenticación,
+peticiones simultáneas, respuesta malformada, reintento, timeout y cierre.
+
+La repetición en profile con el catálogo real (333 modelos conectados) redujo
+la pausa máxima durante su recarga de 241,4 a 33,5 ms. La petición completa
+sigue tardando aproximadamente un segundo; ese tiempo ya no congela la UI.
+En esa ejecución la navegación repetida tuvo un máximo de 13,7 ms y la
+navegación con captura de 12,0 ms, con 47 capturas y ningún error. Son medidas
+de esta máquina, no garantías para cualquier hardware.
