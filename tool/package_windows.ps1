@@ -68,6 +68,7 @@ $manifest = @{
 }
 [IO.File]::WriteAllText((Join-Path $staging 'build-manifest.json'),
     ($manifest | ConvertTo-Json -Depth 5), [Text.UTF8Encoding]::new($false))
+Add-Type -AssemblyName System.IO.Compression
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 $archive = Join-Path $distributionRoot ($candidateName + '.zip')
 $archiveStream = [IO.File]::Open($archive, [IO.FileMode]::CreateNew)
