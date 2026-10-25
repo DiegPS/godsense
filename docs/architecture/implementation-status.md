@@ -59,8 +59,10 @@
   checksums and source provenance. See
   [Windows responsiveness](../development/windows-responsiveness.md).
 - Real installed Canary/Supertonic models and the Kilo runtime passed local
-  smoke checks. Final live-match acceptance and Store product identity remain
-  separate from the generated local candidate.
+  smoke checks. Final live-match acceptance remains separate from the generated
+  local candidate. Store identity is now configured for `DiegPS.GodSense`, with
+  local SDK-based MSIX packaging; installed-package acceptance and certification
+  remain pending.
 - Quality-of-life follow-up: persisted overlay enablement with ordered writes,
   editing while disabled without changing that preference, an explicit local
   instant-advice action, and accurate language/fullscreen guidance. The interface

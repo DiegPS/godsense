@@ -47,9 +47,9 @@ El ZIP es portable, x64 y sin firma digital. Extrae toda la carpeta y ejecuta
 modelos de voz; se configuran localmente desde la aplicación.
 
 No se presenta como validación final de una partida completa de League ni de
-todos los proveedores de inferencia. La publicación definitiva y la ficha de
-Microsoft Store quedan pendientes de esa aceptación y de la identidad oficial
-del producto en Partner Center.
+todos los proveedores de inferencia. La identidad oficial de Partner Center ya
+está configurada y se puede generar el MSIX local. La publicación definitiva
+requiere aceptación de la aplicación instalada, partida real y certificación.
 
 Las versiones de los runtimes de IA están fijadas. Su uso y la disponibilidad
 de modelos dependen del proveedor elegido; el coaching con IA es opcional.

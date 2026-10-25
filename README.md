@@ -56,8 +56,16 @@ manifiesto de archivos:
 .\tool\package_windows.ps1
 ```
 
-El paquete queda en `build/distribution/`. Es un candidato local; la publicación
-en Microsoft Store necesita la identidad del producto de Partner Center.
+El ZIP queda en `build/distribution/`. La identidad de Microsoft Store ya está
+configurada para `DiegPS.GodSense` (Store ID `9N6CB23D5LBK`). Para generar un
+MSIX local con esa identidad:
+
+```powershell
+.\tool\package_store_windows.ps1
+```
+
+El MSIX queda en `build/store/`. La validación de instalación y la publicación
+se realizan por separado. Consulta la [guía de Store](docs/distribution/microsoft-store.md).
 
 Los informes quedan en `build/performance/`. La build normal está en
 `build/windows/x64/runner/Release/`; para distribuirla hay que incluir la carpeta
