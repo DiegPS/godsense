@@ -14,7 +14,7 @@
   ],
   "website": "https://diegps.com/godsense",
   "privacyPolicy": "https://diegps.com/godsense/privacy",
-  "support": "https://diegps.com/godsense",
+  "support": "support@diegps.com",
   "screenshots": [
     {"file": "01-scout.png", "caption": "Scout: rendimiento e historial con un perfil ficticio de demostración."},
     {"file": "02-draft.png", "caption": "Selección de campeones y evaluación de composición con datos de demostración."},

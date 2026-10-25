@@ -55,11 +55,27 @@ WACK se intentó ejecutar y Windows exigió elevación; la sesión no está elev
 sin firma, su validación con MakeAppx y la ejecución portable no equivalen a
 certificación ni a publicación. Véase la [guía de Store](microsoft-store.md).
 
-Partner Center ya contiene el MSIX 1.0.0.0 con validación de aceptación
+Partner Center ya contiene el MSIX 1.0.1.0 con validación de aceptación
 `Validated`. Propiedades, privacidad y justificación de `runFullTrust` están
 guardadas; la publicación quedó manual. La ficha es-MX está completada con
 descripción, ocho características, seis imágenes sintéticas y sus leyendas.
-Precio/disponibilidad e IARC siguen pendientes. No se envió a certificación.
+Se guardó precio base cero (MXN), audiencia pública y 240 mercados; al reabrir
+se conserva el precio, aunque el resumen aún no marca esa sección completada.
+El cuestionario IARC está en vista previa: falta que el titular acepte sus
+términos y declare su mayoría de edad. No se envió a certificación.
+
+El candidato actualizado procede del commit limpio `91904a5` e incorpora la
+corrección de tipografía. Build release aprobada; MakeAppx validó, extrajo y
+verificó identidad y hashes. El ejecutable extraído permaneció abierto durante
+ocho segundos. La prueba no equivale a instalación firmada ni a WACK.
+Paquete: `build/store/20261025-133931-31e18bbb/DiegPS.GodSense_1.0.1.0_x64.msix`.
+SHA256: `c817048c5e56f135488f3ff6eee3c588657bd7d9ae0484704dae98390fab4155`.
+Se prepararon [instrucciones de certificación](../../design/store/certification-notes.txt)
+sin credenciales ni cuentas personales.
+
+Se consultó AirDown en modo lectura: ya tiene clasificación IARC y utiliza
+`support@diegps.com`. GodSense usa ahora ese mismo contacto público. Teléfono,
+direcciones, código postal, ciudad, estado y país de la ficha están vacíos.
 
 La política pública en `https://diegps.com/godsense/privacy` se actualizó para
 explicar IA opcional, transcripciones, audio temporal y límites de borrado.
@@ -73,3 +89,8 @@ descargó y su SHA256 coincidió con la imagen de demostración preparada.
 Las pruebas generativas de Kilo/OpenCode requieren configuración explícita de
 su entorno. Las omisiones de esas pruebas no se presentan como nuevas llamadas
 de inferencia aprobadas.
+
+El contacto de la política de GodSense se cambió al alias público de soporte
+y se desplegó con Wrangler, versión `25b8910e-e66f-4ba2-9c5c-3b124618c2fc`.
+Build y comprobación TypeScript aprobadas; el HTML público contiene el enlace
+`mailto:support@diegps.com`. Commit web `cdcd278`, publicado en `origin/main`.

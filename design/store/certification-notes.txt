@@ -1,0 +1,13 @@
+GodSense is an independent Windows x64 companion utility for League of Legends. It is not a game and is not affiliated with or endorsed by Riot Games.
+
+No GodSense account or paid subscription is required to launch the application, navigate its pages or open settings. Live match features require the official League of Legends client and an active game; a Riot account belongs to the tester and no publisher credentials are embedded or provided. The application remains available when League is closed and reports the disconnected state.
+
+Suggested review: launch GodSense; switch between Inicio, Scout, Mapa, Coach and Ajustes; inspect voice settings and local data export/deletion/retention controls. Live match setup: start the official League client, enter a practice match, configure the visible minimap in Mapa and use borderless mode for the overlay. Only explicit user actions apply rune/item changes. Store screenshots use labeled fictional demonstration data and a static public map, not a supplied demo account or an assertion of live capture.
+
+runFullTrust is required for the packaged Win32 Flutter application, native DartCV/DXGI screen capture, local League client communication and optional local speech/AI runtime processes. GodSense runs at standard user integrity and does not require administrator execution. It does not inject code into the game or install a kernel driver. The capture source must be configured by the user.
+
+Microphone access is optional for Push-to-Talk and the explicit microphone test. Speech models are downloaded on request and speech recognition/synthesis run locally. Generative chat is optional and requires the user's configured provider/model through a supported local runtime. Provider authentication, network access and possible third-party usage charges are separate from acquiring GodSense. Text/transcriptions and relevant game context may be sent to the selected provider. No API keys, conversations, player history or user-specific calibration are bundled.
+
+Privacy: https://diegps.com/godsense/privacy
+Support: support@diegps.com
+Website: https://diegps.com/godsense
