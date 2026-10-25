@@ -49,8 +49,9 @@ calibración del monitor actual. La pantalla de la calibración guardada no est�
 disponible en esta sesión; el aviso y los reintentos funcionan, sin sobrescribir
 la selección del usuario. No se detectó un proceso de League en esta revisión.
 
-Siguen pendientes instalación desde un paquete firmado, WACK y envío a
-certificación. El registro de desarrollo sí se comprobó con la identidad oficial.
+Siguen pendientes instalación desde un paquete firmado y WACK.
+El envío a certificación se completó el 25 de octubre de 2026; no equivale a
+aprobación ni publicación. El registro de desarrollo sí se comprobó con la identidad oficial.
 WACK se intentó ejecutar y Windows exigió elevación; la sesión no está elevada. El candidato MSIX
 sin firma, su validación con MakeAppx y la ejecución portable no equivalen a
 certificación ni a publicación. Véase la [guía de Store](microsoft-store.md).
@@ -59,10 +60,18 @@ Partner Center ya contiene el MSIX 1.0.1.0 con validación de aceptación
 `Validated`. Propiedades, privacidad y justificación de `runFullTrust` están
 guardadas; la publicación quedó manual. La ficha es-MX está completada con
 descripción, ocho características, seis imágenes sintéticas y sus leyendas.
-Se guardó precio base cero (MXN), audiencia pública y 240 mercados; al reabrir
-se conserva el precio, aunque el resumen aún no marca esa sección completada.
-El cuestionario IARC está en vista previa: falta que el titular acepte sus
-términos y declare su mayoría de edad. No se envió a certificación.
+Se guardó precio base cero (MXN), audiencia pública y 240 mercados. La revisión
+por mercado mostró precios cero. El titular completó personalmente la aceptación
+IARC; la clasificación guardada muestra, entre otras, ESRB E10+, PEGI 3 y USK 6.
+El identificador IARC figuraba pendiente antes del envío.
+
+Microsoft recibió el envío 1 (`1152921505702228590`) y Partner Center confirmó
+«En proceso de certificación»: envío completado, preprocesamiento en curso,
+certificación y publicación sin iniciar en esa observación. La publicación
+continúa en espera manual y requiere «Publicar ahora» después de la aprobación.
+Comprobante local: `build/publication-proof/store-submitted-certification.png`.
+El estado visible del portal es la evidencia de recepción; no se presenta WACK
+ni la aceptación en una partida real como pruebas completadas.
 
 El candidato actualizado procede del commit limpio `91904a5` e incorpora la
 corrección de tipografía. Build release aprobada; MakeAppx validó, extrajo y
