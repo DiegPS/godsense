@@ -1,6 +1,7 @@
 # GodSense: candidato Windows x64
 
-Esta revisión se centra en la estabilidad y la respuesta de la interfaz.
+Esta revisión mejora la estabilidad, la respuesta de la interfaz y los controles
+de voz y HUD.
 
 - Captura DXGI en un worker nativo, independiente del hilo de la ventana.
 - Pestañas que conservan el estado, los borradores y el desplazamiento.
@@ -12,6 +13,19 @@ Esta revisión se centra en la estabilidad y la respuesta de la interfaz.
 - Reintentos progresivos cuando la pantalla calibrada no está disponible,
   aviso visible y reintento manual inmediato.
 - Overlay creado bajo demanda y arrastre sin bloquear la respuesta del canal.
+- El interruptor del overlay se conserva al reiniciar; editar el HUD sigue
+  disponible aunque esté desactivado y no cambia esa preferencia.
+- Botón «Consejo ahora» en Coach para una recomendación táctica local sin
+  micrófono. Se desactiva mientras la respuesta está en curso.
+- Ajustes que indican el idioma real de la interfaz y ayuda para configurar
+  League en modo Sin bordes cuando el overlay no aparece.
+- Prueba local de micrófono: captura de hasta tres segundos, nivel de entrada,
+  reproducción, cancelación y borrado del audio temporal; no requiere modelos.
+- Botón «Detener voz» en la barra superior, Coach y Ajustes para cortar la
+  respuesta y su cola sin desactivar las siguientes respuestas. Las síntesis
+  canceladas no se reproducen.
+- Estado de voz que distingue funciones apagadas, modelos ausentes, prueba en
+  curso y errores. Restablecer el HUD requiere confirmación.
 - Verificación local con pruebas, cobertura, perfilado y arranque real de la
   build. El ZIP incluye las DLL de Visual C++ y un manifiesto SHA256.
 

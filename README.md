@@ -11,10 +11,16 @@ recomendaciones, historial local y preguntas por voz.
    resolución o tamaño del minimapa, revisa la calibración.
 3. En **Ajustes**, instala los modelos de voz que quieras usar y configura el
    atajo para hablar. La transcripción y la síntesis se ejecutan localmente.
+   **Probar micrófono** graba hasta tres segundos, los reproduce y borra el audio
+   temporal. Funciona sin descargar modelos. **Detener voz**, también disponible
+   en la barra superior mientras habla, corta la respuesta sin desactivar la voz.
 4. **Coach** muestra preparación y asistencia según el estado de la partida.
    El chat con IA es opcional y requiere configurar su proveedor/modelo.
 5. El overlay aparece durante la partida. **Editar HUD** permite colocar sus
    paneles; salir de la edición guarda la distribución.
+   Su interruptor se conserva al reiniciar y restablecer los paneles pide
+   confirmación. **Consejo ahora**, en Coach durante la partida, ofrece una
+   recomendación local sin usar el micrófono.
 
 En Ajustes puedes exportar o borrar tus datos locales y aplicar la retención.
 Los modelos descargados y la calibración se conservan al borrar el historial.

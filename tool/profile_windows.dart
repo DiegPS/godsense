@@ -11,7 +11,17 @@ import 'package:godsense/infrastructure/native_vision/desktop_screen_capture.dar
 
 void main() {
   app.main();
-  unawaited(_profile());
+  unawaited(_runProfile());
+}
+
+Future<void> _runProfile() async {
+  try {
+    await _profile().timeout(const Duration(seconds: 90));
+  } catch (error) {
+    debugPrint('GODSENSE_PERFORMANCE_FAILED ${AppLogger.redact(error)}');
+    await AppLogger.flush();
+    exit(1);
+  }
 }
 
 Future<void> _profile() async {
@@ -26,8 +36,11 @@ Future<void> _profile() async {
         : 'debug',
     'timestamp': DateTime.now().toUtc().toIso8601String(),
   };
+  debugPrint('GODSENSE_PERFORMANCE_STAGE cold_navigation');
   report['cold_navigation'] = await _navigate(rounds: 1);
+  debugPrint('GODSENSE_PERFORMANCE_STAGE warm_navigation');
   report['warm_navigation'] = await _navigate(rounds: 3);
+  debugPrint('GODSENSE_PERFORMANCE_STAGE model_catalog');
   report['model_catalog'] = await _profileModelCatalog();
 
   final screen = DesktopScreenCapture();
@@ -144,7 +157,13 @@ Future<Map<String, Object?>> _navigate({required int rounds}) async {
         final started = clock.elapsedMicroseconds;
         app.appProviderContainer.read(app.selectedPageProvider.notifier).state =
             page;
-        await WidgetsBinding.instance.endOfFrame;
+        await WidgetsBinding.instance.endOfFrame.timeout(
+          const Duration(seconds: 5),
+          onTimeout: () => throw StateError(
+            'No rendered frame arrived. Keep the GodSense window visible '
+            'and the Windows desktop unlocked while profiling.',
+          ),
+        );
         navigation.add(clock.elapsedMicroseconds - started);
         await Future<void>.delayed(const Duration(milliseconds: 200));
       }

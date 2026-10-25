@@ -76,6 +76,12 @@ Esta prueba no simula una partida completa de League, inferencia de cada
 proveedor de IA ni la instalación de todos los modelos de voz. Sus resultados
 no sustituyen esas validaciones.
 
+El perfilador tiene un límite total de 90 segundos y espera como máximo cinco
+segundos por frame. Si la ventana no puede renderizar (por ejemplo, escritorio
+bloqueado o ventana minimizada), termina con error en vez de quedar esperando.
+La ventana debe permanecer visible durante la medición. Los marcadores de etapa
+permiten identificar dónde se detuvo una ejecución incompleta.
+
 ## Catálogo de modelos de IA
 
 Una medición adicional de tres recargas del catálogo Kilo real reprodujo una

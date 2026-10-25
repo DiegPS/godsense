@@ -18,6 +18,7 @@ import '../application/native_vision_controller.dart';
 import '../application/vision_session_coordinator.dart';
 import '../application/local_scout_controller.dart';
 import '../application/overlay_layout_controller.dart';
+import '../application/overlay_visibility_controller.dart';
 import '../domain/ai/ai_runtime_models.dart';
 import '../domain/companion_models.dart';
 import '../domain/identity/league_identity.dart';
@@ -31,12 +32,16 @@ import '../presentation/coach/shared/ai_model_selector.dart';
 import '../presentation/coach/shared/ai_provider_connections.dart';
 import '../presentation/shared/live_rank_badge.dart';
 import '../presentation/shared/getting_started_guide.dart';
+import '../presentation/shared/confirm_hud_reset.dart';
+import '../presentation/shared/speech_readiness.dart';
 import '../presentation/shared/resilient_network_image.dart';
 import '../presentation/shared/godsense_ui_components.dart';
 import 'godsense_theme.dart';
 
 export '../presentation/shared/godsense_ui_components.dart';
 export 'godsense_theme.dart';
+export '../application/overlay_visibility_controller.dart'
+    show overlayEnabledProvider;
 
 part '../presentation/shell/godsense_shell.dart';
 part '../presentation/pages/overview_page.dart';
@@ -50,7 +55,6 @@ part '../presentation/window/overlay_window_manager.dart';
 part '../presentation/shared/presentation_shared.dart';
 
 final selectedPageProvider = StateProvider<int>((ref) => 0);
-final overlayEnabledProvider = StateProvider<bool>((ref) => true);
 final overlayOpenProvider = StateProvider<bool>((ref) => false);
 
 final shellSessionStatusProvider = Provider<({String label, bool online})>((
@@ -101,8 +105,8 @@ final effectiveLobbyProvider = Provider<LobbyState?>((ref) {
 });
 
 final overlayWindowVisibleProvider = Provider<bool>((ref) {
-  if (!ref.watch(overlayEnabledProvider)) return false;
   if (ref.watch(overlayLayoutProvider).editing) return true;
+  if (!ref.watch(overlayEnabledProvider)) return false;
   final game = ref.watch(effectiveGameProvider);
   return game != null && !game.gameEnded;
 });

@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:godsense/application/coach_controller.dart';
 import 'package:godsense/application/dependencies.dart';
+import 'package:godsense/application/native_speech_controller.dart';
+import 'package:godsense/infrastructure/speech/shared_preferences_speech_settings_repository.dart';
 import 'package:godsense/domain/companion_models.dart';
 import 'package:godsense/domain/identity/league_identity.dart';
 import 'package:godsense/domain/league/game_session.dart';
@@ -142,9 +144,24 @@ void main() {
 }
 
 Widget _app(CoachController controller) => ProviderScope(
-  overrides: [coachControllerProvider.overrideWith((_) => controller)],
+  overrides: [
+    coachControllerProvider.overrideWith((_) => controller),
+    nativeSpeechProvider.overrideWith((_) => _ReadySpeech()),
+  ],
   child: const MaterialApp(home: Scaffold(body: CoachPage())),
 );
+
+class _ReadySpeech extends NativeSpeechController {
+  _ReadySpeech()
+    : super(repository: SharedPreferencesSpeechSettingsRepository()) {
+    state = const NativeSpeechState(
+      loading: false,
+      modelsChecked: true,
+      speechModelInstalled: true,
+      ttsModelInstalled: true,
+    );
+  }
+}
 
 CoachController _controller(CoachInputs inputs) {
   final controller = CoachController(

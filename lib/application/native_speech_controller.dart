@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../domain/native_speech_settings.dart';
 import '../infrastructure/speech/global_push_to_talk_hotkey.dart';
+import '../infrastructure/speech/microphone_test_service.dart';
 import '../infrastructure/speech/shared_preferences_speech_settings_repository.dart';
 import '../infrastructure/speech/speech/live_captions_service.dart';
 import '../infrastructure/speech/tts/tts_model_catalog.dart';
@@ -25,6 +26,7 @@ class NativeSpeechState {
     this.transcript = '',
     this.lastTranscriptAt,
     this.error,
+    this.microphoneTest = const MicrophoneTestState(),
   });
 
   final bool loading;
@@ -39,6 +41,7 @@ class NativeSpeechState {
   final String transcript;
   final DateTime? lastTranscriptAt;
   final String? error;
+  final MicrophoneTestState microphoneTest;
 
   NativeSpeechState copyWith({
     bool? loading,
@@ -54,6 +57,7 @@ class NativeSpeechState {
     DateTime? lastTranscriptAt,
     String? error,
     bool clearError = false,
+    MicrophoneTestState? microphoneTest,
   }) => NativeSpeechState(
     loading: loading ?? this.loading,
     settings: settings ?? this.settings,
@@ -67,6 +71,7 @@ class NativeSpeechState {
     transcript: transcript ?? this.transcript,
     lastTranscriptAt: lastTranscriptAt ?? this.lastTranscriptAt,
     error: clearError ? null : error ?? this.error,
+    microphoneTest: microphoneTest ?? this.microphoneTest,
   );
 }
 
@@ -91,25 +96,34 @@ class NativeSpeechController extends StateNotifier<NativeSpeechState> {
     LiveCaptionsService? speech,
     TtsService? tts,
     PushToTalkHotkey? hotkey,
+    MicrophoneTestService? microphoneTest,
   }) : _repository = repository,
        _speech = speech ?? LiveCaptionsService(),
        _tts = tts ?? TtsService(),
        _hotkey = hotkey ?? GlobalPushToTalkHotkey(),
+       _microphoneTest = microphoneTest ?? MicrophoneTestService(),
        super(const NativeSpeechState());
 
   final NativeSpeechSettingsRepository _repository;
   final LiveCaptionsService _speech;
   final TtsService _tts;
   final PushToTalkHotkey _hotkey;
+  final MicrophoneTestService _microphoneTest;
   final _transcripts = StreamController<String>.broadcast();
   final List<StreamSubscription<dynamic>> _subscriptions = [];
   Future<void>? _pressOperation;
   bool _holding = false;
   bool _disposed = false;
+  bool _testingMicrophone = false;
 
   Stream<String> get transcripts => _transcripts.stream;
 
   Future<void> initialize() async {
+    _subscriptions.add(
+      _microphoneTest.states.listen((test) {
+        if (!_disposed) state = state.copyWith(microphoneTest: test);
+      }),
+    );
     _subscriptions.add(
       _speech.states.listen((speech) {
         if (!_disposed) state = state.copyWith(speech: speech);
@@ -213,7 +227,12 @@ class NativeSpeechController extends StateNotifier<NativeSpeechState> {
   }
 
   Future<void> pressPushToTalk() async {
-    if (_disposed || _holding || !state.settings.pushToTalkEnabled) return;
+    if (_disposed ||
+        _holding ||
+        _testingMicrophone ||
+        !state.settings.pushToTalkEnabled) {
+      return;
+    }
     _holding = true;
     state = state.copyWith(
       pushToTalkPressed: true,
@@ -282,17 +301,52 @@ class NativeSpeechController extends StateNotifier<NativeSpeechState> {
   }
 
   void speak(String text) {
-    if (!state.settings.ttsEnabled) return;
+    if (_disposed || _testingMicrophone || !state.settings.ttsEnabled) return;
     _tts.speak(text);
   }
 
   Future<void> testTts([
     String text = 'GodSense está listo para ayudarte.',
   ]) async {
-    if (!state.ttsModelInstalled) return;
+    if (_disposed || _testingMicrophone || !state.ttsModelInstalled) return;
     await _configureTts(state.settings.copyWith(ttsEnabled: true));
     _tts.speak(text);
   }
+
+  Future<void> stopSpeaking() async {
+    try {
+      await _tts.stop();
+      if (!_disposed) state = state.copyWith(ttsBusy: _tts.isBusy);
+    } catch (error) {
+      if (!_disposed) {
+        state = state.copyWith(error: 'No se pudo detener la reproducción.');
+      }
+    }
+  }
+
+  Future<void> testMicrophone() async {
+    if (_disposed ||
+        _holding ||
+        _pressOperation != null ||
+        _testingMicrophone ||
+        state.speech.isListening) {
+      return;
+    }
+    _testingMicrophone = true;
+    try {
+      await _microphoneTest.run(
+        prepare: () async {
+          if (_tts.isBusy || state.ttsBusy) {
+            await _tts.stop();
+          }
+        },
+      );
+    } finally {
+      _testingMicrophone = false;
+    }
+  }
+
+  Future<void> cancelMicrophoneTest() => _microphoneTest.cancel();
 
   void _configureHotkey(NativeSpeechSettings settings) => _hotkey.configure(
     enabled: settings.pushToTalkEnabled,
@@ -321,6 +375,7 @@ class NativeSpeechController extends StateNotifier<NativeSpeechState> {
     _subscriptions.clear();
     unawaited(_speech.dispose());
     unawaited(_tts.dispose());
+    unawaited(_microphoneTest.dispose());
     unawaited(_transcripts.close());
   }
 

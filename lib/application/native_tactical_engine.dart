@@ -48,6 +48,9 @@ class NativeTacticalEngine {
   bool supportsQuestion(String question) {
     final normalized = _normalize(question);
     return _containsAny(normalized, const [
+      'que hago ahora',
+      'consejo ahora',
+      'que deberia hacer',
       'compro',
       'comprar',
       'compra',
@@ -875,7 +878,7 @@ class NativeTacticalEngine {
           'Controla visión de los accesos y la entrada del jungla rival.',
         ],
         rationale: '$label está vivo según el estado derivado de Live Client.',
-      ttsText: '$label disponible ahora. Comprueba prioridad.',
+        ttsText: '$label disponible ahora. Comprueba prioridad.',
         priority: 90,
         evidence: [
           question,

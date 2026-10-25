@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../application/coach_controller.dart';
 import '../../application/dependencies.dart';
+import '../../application/native_speech_controller.dart';
+import '../shared/speech_readiness.dart';
 import '../../domain/league/draft_models.dart';
 import 'draft/composition_breakdown_card.dart';
 import 'draft/draft_matrix_card.dart';
@@ -27,6 +29,8 @@ class CoachPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(coachControllerProvider);
+    final speech = ref.watch(nativeSpeechProvider);
+    final voiceReadiness = speechReadiness(speech);
     final controller = ref.read(coachControllerProvider.notifier);
     final importing =
         state.importFeedback.status == CoachImportStatus.importing;
@@ -93,6 +97,19 @@ class CoachPage extends ConsumerWidget {
                 VoiceCoachCard(
                   processing: state.voiceProcessing,
                   history: state.voiceHistory,
+                  speaking: speech.ttsBusy,
+                  onStopSpeaking: () =>
+                      ref.read(nativeSpeechProvider.notifier).stopSpeaking(),
+                  statusMessage: !voiceReadiness.ready
+                      ? voiceReadiness.detail
+                      : !speech.settings.ttsEnabled
+                      ? 'Las respuestas habladas están desactivadas. Los consejos siguen disponibles como texto.'
+                      : speech.modelsChecked && !speech.ttsModelInstalled
+                      ? 'Descarga una voz en Ajustes para escuchar las respuestas.'
+                      : null,
+                  onAdviceRequested: () => ref
+                      .read(nativeVoiceCoachProvider.notifier)
+                      .handleQuestion('¿Qué hago ahora?'),
                 ),
                 const AiCoachChatCard(),
               ],

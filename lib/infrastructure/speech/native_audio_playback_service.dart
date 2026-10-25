@@ -45,6 +45,7 @@ class NativeAudioPlaybackService {
 
   Future<void> _playWindows(File file, {required Duration timeout}) async {
     final playback = Completer<void>();
+    Timer? completionTimer;
     _activePlayback = playback;
     final sound = file.absolute.path.toNativeUtf16();
     try {
@@ -57,9 +58,11 @@ class NativeAudioPlaybackService {
         throw StateError('Windows could not play ${file.path}.');
       }
       final duration = await _wavDuration(file);
-      _completionTimer = Timer(duration, () {
+      if (!identical(_activePlayback, playback)) return;
+      completionTimer = Timer(duration, () {
         if (!playback.isCompleted) playback.complete();
       });
+      _completionTimer = completionTimer;
       try {
         await playback.future.timeout(timeout);
       } on TimeoutException {
@@ -68,8 +71,8 @@ class NativeAudioPlaybackService {
       }
     } finally {
       calloc.free(sound);
-      _completionTimer?.cancel();
-      _completionTimer = null;
+      completionTimer?.cancel();
+      if (identical(_completionTimer, completionTimer)) _completionTimer = null;
       if (identical(_activePlayback, playback)) _activePlayback = null;
     }
   }

@@ -1,6 +1,6 @@
 # Native architecture implementation status
 
-- Updated: 2026-10-24
+- Updated: 2026-10-25
 - Scope: Native product foundation plus optional local AI runtime integration
 - Core runtime target: Flutter/Dart/C++ on Windows, without Python, Node.js or
   Electron. AI coaching may start one isolated, private OpenCode-compatible
@@ -61,6 +61,14 @@
 - Real installed Canary/Supertonic models and the Kilo runtime passed local
   smoke checks. Final live-match acceptance and Store product identity remain
   separate from the generated local candidate.
+- Quality-of-life follow-up: persisted overlay enablement with ordered writes,
+  editing while disabled without changing that preference, an explicit local
+  instant-advice action, and accurate language/fullscreen guidance. The interface
+  remains Spanish; speech recognition and synthesis have independent languages.
+- Voice controls now include bounded local microphone diagnostics with playback
+  and temporary-file cleanup, PTT exclusion during testing, and a stop action
+  that clears pending speech without changing enabled preferences. Late cancelled
+  synthesis cannot resume audio. HUD reset requires explicit confirmation.
 
 ### September 4 closure
 

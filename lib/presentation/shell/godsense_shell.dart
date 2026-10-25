@@ -90,12 +90,44 @@ class _GodSenseHomeState extends ConsumerState<GodSenseHome> {
     }
   }
 
+  Future<void> _resetPanels() async {
+    // The editing overlay is topmost; hide it so the main-window dialog can
+    // receive clicks, then restore the current desired visibility on either path.
+    await overlayWindowManager.hide();
+    if (!mounted) return;
+    try {
+      if (await confirmHudReset(context) && mounted) {
+        await ref.read(overlayLayoutProvider.notifier).reset();
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'No se pudo guardar la distribución del HUD. Vuelve a intentarlo.',
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        await overlayWindowManager.setVisible(
+          context,
+          ref.read(overlayWindowVisibleProvider),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final selectedPage = ref.watch(selectedPageProvider);
     final session = ref.watch(shellSessionStatusProvider);
     final overlayEditing = ref.watch(
       overlayLayoutProvider.select((layout) => layout.editing),
+    );
+    final speaking = ref.watch(
+      nativeSpeechProvider.select((state) => state.ttsBusy),
     );
 
     ref.listen<bool>(overlayWindowVisibleProvider, (previous, visible) {
@@ -165,8 +197,10 @@ class _GodSenseHomeState extends ConsumerState<GodSenseHome> {
                     ref.read(selectedPageProvider.notifier).state = page,
                 overlayEditing: overlayEditing,
                 onToggleEditing: _onToggleEditing,
-                onResetPanels: overlayEditing
-                    ? () => ref.read(overlayLayoutProvider.notifier).reset()
+                onResetPanels: overlayEditing ? _resetPanels : null,
+                onStopSpeaking: speaking
+                    ? () =>
+                          ref.read(nativeSpeechProvider.notifier).stopSpeaking()
                     : null,
                 onHelp: () async {
                   final destination = await showGettingStartedGuide(context);
@@ -205,6 +239,7 @@ class _GodSenseCustomTitleBar extends StatelessWidget {
     required this.overlayEditing,
     required this.onToggleEditing,
     required this.onResetPanels,
+    this.onStopSpeaking,
     required this.onHelp,
     required this.sessionLabel,
     required this.isOnline,
@@ -214,6 +249,7 @@ class _GodSenseCustomTitleBar extends StatelessWidget {
   final bool overlayEditing;
   final VoidCallback onToggleEditing;
   final VoidCallback? onResetPanels;
+  final VoidCallback? onStopSpeaking;
   final VoidCallback onHelp;
   final String sessionLabel;
   final bool isOnline;
@@ -404,6 +440,13 @@ class _GodSenseCustomTitleBar extends StatelessWidget {
                     ),
                   ),
                 ),
+                if (onStopSpeaking != null)
+                  GsIconButton(
+                    icon: Icons.stop_circle_outlined,
+                    tooltip: 'Detener voz',
+                    onPressed: onStopSpeaking,
+                    variant: GsButtonVariant.ghost,
+                  ),
                 if (overlayEditing)
                   GsIconButton(
                     icon: Icons.restart_alt_rounded,

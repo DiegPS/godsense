@@ -91,7 +91,9 @@ class GettingStartedGuide extends StatelessWidget {
             body:
                 'Usa Editar HUD en la barra superior, coloca los paneles y '
                 'termina la edición antes de jugar. La información aparecerá '
-                'automáticamente cuando la partida esté activa.',
+                'automáticamente cuando la partida esté activa. En League, '
+                'elige Vídeo → Modo de ventana → Sin bordes: el overlay '
+                'puede no mostrarse sobre pantalla completa exclusiva.',
           ),
           _GuideStep(
             title: '5. Revisa el coaching',

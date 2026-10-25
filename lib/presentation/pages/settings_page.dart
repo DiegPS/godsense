@@ -12,6 +12,21 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   bool _dataOperationInProgress = false;
   String? _dataNotice;
 
+  Future<void> _setOverlayEnabled(bool enabled) async {
+    try {
+      await ref.read(overlayEnabledProvider.notifier).setEnabled(enabled);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'El cambio se aplicó, pero no se pudo guardar para el próximo inicio.',
+          ),
+        ),
+      );
+    }
+  }
+
   Future<void> _exportData() async {
     final date = DateTime.now().toIso8601String().split('T').first;
     final location = await getSaveLocation(
@@ -116,7 +131,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     final nativeCalibration = ref.watch(nativeCalibrationProvider);
     final calibration = nativeCalibration.calibration;
     final meta = settings?.meta ?? const <String, dynamic>{};
-    final locks = meta['locks'] is Map ? meta['locks'] as Map : const {};
     const panels = {
       'matchup_info': 'Enfrentamiento',
       'builds': 'Objetos recomendados',
@@ -149,33 +163,19 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               children: [
                 GsToggleSwitch(
                   title: 'Mostrar el overlay durante la partida',
-                  subtitle: 'Presenta alertas y consejos encima del juego.',
+                  subtitle: 'Se recuerda al reiniciar. Si no aparece, usa el modo Sin bordes de League.',
                   icon: Icons.layers_outlined,
                   value: overlayEnabled,
-                  onChanged: (value) {
-                    ref.read(overlayEnabledProvider.notifier).state = value;
-                  },
+                  onChanged: _setOverlayEnabled,
                 ),
                 const Divider(height: 1, color: Color(0x14FFFFFF)),
                 _SettingsSelectRow(
                   icon: Icons.language_rounded,
-                  title: 'Idioma del asistente',
-                  subtitle: 'Idioma de los textos, alertas y recomendaciones.',
-                  control: GsSelect<String>(
-                    compact: true,
-                    width: 150,
-                    value: settings?.language ?? 'auto',
-                    items: const {
-                      'auto': 'Automático',
-                      'en': 'Inglés',
-                      'es': 'Español',
-                    },
-                    onChanged:
-                        locks.containsKey('language') || operationInProgress
-                        ? null
-                        : (value) => ref
-                              .read(companionControllerProvider.notifier)
-                              .updateSettings({'language': value}),
+                  title: 'Idioma de la interfaz',
+                  subtitle: 'Español. El idioma del reconocimiento y de la voz se configura por separado más abajo.',
+                  control: const Text(
+                    'Español',
+                    style: TextStyle(color: GsColors.textSecondary),
                   ),
                 ),
                 const Divider(height: 1, color: Color(0x14FFFFFF)),
@@ -337,14 +337,13 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 _ReadinessRow(
                   title: 'Overlay de partida',
                   detail: overlayEnabled
-                      ? 'Se mostrará automáticamente cuando lo necesites.'
+                      ? 'Usa Sin bordes en League para mostrarlo sobre el juego.'
                       : 'Está desactivado y no aparecerá durante la partida.',
                   ready: overlayEnabled,
                   actionLabel: overlayEnabled ? null : 'Activar',
                   onAction: overlayEnabled
                       ? null
-                      : () => ref.read(overlayEnabledProvider.notifier).state =
-                            true,
+                      : () => _setOverlayEnabled(true),
                 ),
                 const Divider(height: 1, color: Color(0x14FFFFFF)),
                 _ReadinessRow(

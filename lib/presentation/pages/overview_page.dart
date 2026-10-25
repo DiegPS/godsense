@@ -23,9 +23,7 @@ class OverviewPage extends ConsumerWidget {
         (state) => (error: state.error, hasFrame: state.frame != null),
       ),
     );
-    final speechSettings = ref.watch(
-      nativeSpeechProvider.select((state) => state.settings),
-    );
+    final voice = speechReadiness(ref.watch(nativeSpeechProvider));
 
     final isLeagueActive = game != null || lobby?.lcuConnected == true;
 
@@ -84,14 +82,10 @@ class OverviewPage extends ConsumerWidget {
             ),
             _OverviewServiceCard(
               title: 'Preguntas por voz',
-              status: speechSettings.pushToTalkEnabled
-                  ? 'Activadas'
-                  : 'Desactivadas',
-              detail: speechSettings.pushToTalkEnabled
-                  ? 'Mantén ${speechSettings.pushToTalkKey.toUpperCase()} para hablar'
-                  : 'Configúralas en Ajustes',
+              status: voice.status,
+              detail: voice.detail,
               icon: Icons.mic_none_rounded,
-              isOnline: speechSettings.pushToTalkEnabled,
+              isOnline: voice.ready,
             ),
           ],
         ),

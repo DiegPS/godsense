@@ -11,6 +11,8 @@ import '../infrastructure/speech/speech/speech_model_catalog.dart';
 import '../infrastructure/speech/tts_service.dart';
 import '../infrastructure/speech/tts/tts_model_catalog.dart';
 import 'shared/gs_slider.dart';
+import 'shared/microphone_test_panel.dart';
+import 'shared/speech_readiness.dart';
 
 class NativeSpeechSettingsCard extends ConsumerWidget {
   const NativeSpeechSettingsCard({super.key});
@@ -41,6 +43,15 @@ class NativeSpeechSettingsCard extends ConsumerWidget {
                 ? null
                 : (value) =>
                       update(settings.copyWith(pushToTalkEnabled: value)),
+          ),
+          MicrophoneTestPanel(
+            state: state.microphoneTest,
+            enabled:
+                !state.loading &&
+                !state.pushToTalkPressed &&
+                !state.speech.isListening,
+            onStart: controller.testMicrophone,
+            onCancel: controller.cancelMicrophoneTest,
           ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
@@ -398,7 +409,10 @@ class NativeSpeechSettingsCard extends ConsumerWidget {
                     icon: Icons.volume_up_rounded,
                     variant: GsButtonVariant.secondary,
                     compact: true,
-                    onPressed: state.tts.isLoading || state.ttsBusy
+                    onPressed:
+                        state.tts.isLoading ||
+                            state.ttsBusy ||
+                            state.microphoneTest.active
                         ? null
                         : controller.testTts,
                   ),
@@ -412,6 +426,14 @@ class NativeSpeechSettingsCard extends ConsumerWidget {
                         : () => controller.removeTtsModel(selectedModel.id),
                   ),
                 ],
+                if (state.ttsBusy)
+                  GsButton(
+                    label: 'Detener voz',
+                    icon: Icons.stop_circle_outlined,
+                    variant: GsButtonVariant.secondary,
+                    compact: true,
+                    onPressed: controller.stopSpeaking,
+                  ),
               ],
             ),
           ),
@@ -477,10 +499,8 @@ class NativeSpeechSettingsCard extends ConsumerWidget {
   }
 
   String _speechStatus(NativeSpeechState state) {
-    if (!state.modelsChecked) return 'Comprobando el reconocimiento de voz…';
-    if (!state.speechModelInstalled) {
-      return 'Necesita una descarga antes de poder escucharte.';
-    }
+    final readiness = speechReadiness(state);
+    if (!readiness.ready) return readiness.detail;
     if (state.pushToTalkPressed) return 'Suelta la tecla para transcribir.';
     return switch (state.speech.phase) {
       LiveCaptionsPhase.missingModel =>
@@ -496,6 +516,9 @@ class NativeSpeechSettingsCard extends ConsumerWidget {
   }
 
   String _ttsStatus(NativeSpeechState state) {
+    if (!state.settings.ttsEnabled) {
+      return 'Las respuestas habladas están desactivadas.';
+    }
     if (!state.modelsChecked) return 'Comprobando las voces disponibles…';
     if (!state.ttsModelInstalled) {
       return 'Descarga esta voz para escuchar las respuestas.';

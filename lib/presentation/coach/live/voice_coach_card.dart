@@ -8,10 +8,18 @@ class VoiceCoachCard extends StatelessWidget {
     super.key,
     required this.processing,
     required this.history,
+    this.onAdviceRequested,
+    this.onStopSpeaking,
+    this.speaking = false,
+    this.statusMessage,
   });
 
   final bool processing;
   final List<VoiceCoachEntry> history;
+  final VoidCallback? onAdviceRequested;
+  final VoidCallback? onStopSpeaking;
+  final bool speaking;
+  final String? statusMessage;
 
   @override
   Widget build(BuildContext context) {
@@ -21,13 +29,46 @@ class VoiceCoachCard extends StatelessWidget {
       icon: Icons.mic_none_rounded,
       child: Column(
         children: [
+          if (speaking && onStopSpeaking != null)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: OutlinedButton.icon(
+                onPressed: onStopSpeaking,
+                icon: const Icon(Icons.stop_circle_outlined),
+                label: const Text('Detener voz'),
+              ),
+            ),
+          if (statusMessage != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Text(statusMessage!),
+            ),
+          if (onAdviceRequested != null) ...[
+            Align(
+              alignment: Alignment.centerLeft,
+              child: OutlinedButton.icon(
+                onPressed: processing ? null : onAdviceRequested,
+                icon: const Icon(Icons.bolt_rounded),
+                label: const Text('Consejo ahora'),
+              ),
+            ),
+            const Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Recomendación local con los datos de la partida, sin usar el micrófono.',
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
           if (processing) ...[
             const LinearProgressIndicator(),
             const SizedBox(height: 12),
           ],
           if (history.isEmpty)
-            const CoachEmptyState(
-              message: 'Mantén Push-to-Talk y formula una pregunta táctica.',
+            CoachEmptyState(
+              message: statusMessage == null
+                  ? 'Mantén Push-to-Talk y formula una pregunta táctica.'
+                  : 'Puedes pedir un consejo local con Consejo ahora.',
             )
           else
             for (final entry in history.take(6))

@@ -8,6 +8,20 @@ void main() {
 
   setUp(() => engine = NativeTacticalEngine(now: () => observedAt));
 
+  test('instant advice stays local and uses the current game directive', () {
+    const question = '¿Qué hago ahora?';
+    expect(engine.supportsQuestion(question), isTrue);
+    final game = _game(
+      allies: List.generate(5, (i) => {'is_dead': i == 0}),
+      enemies: List.generate(5, (_) => {'is_dead': false}),
+    );
+    expect(
+      engine.answer(question: question, game: game).ttsText,
+      engine.directives(game).first.ttsText,
+    );
+    expect(engine.answer(question: question).id, 'voice_no_live_game');
+  });
+
   test('manual voice deadlines alert once and reset between games', () {
     final game = <String, dynamic>{'session_id': 'one', 'game_time': 1000};
     expect(

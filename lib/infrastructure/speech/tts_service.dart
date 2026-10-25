@@ -73,7 +73,9 @@ class TtsService {
   TtsLoadState _loadState = const TtsLoadState();
   Future<void>? _initialization;
   TtsDownloadCancellation? _downloadCancellation;
-  bool _processing = false;
+  Object? _queueRun;
+  bool get _processing => _queueRun != null;
+  Future<void>? _stopping;
   bool _busy = false;
   bool _disposed = false;
   int _generation = 0;
@@ -317,22 +319,34 @@ class TtsService {
 
   Future<void> _processQueue({bool allowDownload = false}) async {
     if (_disposed || _processing || _queue.isEmpty) return;
-    _processing = true;
+    final run = Object();
+    _queueRun = run;
+    final generation = _generation;
     try {
+      await _stopping;
+      if (_disposed || generation != _generation) return;
       await ensureReady(allowDownload: allowDownload);
+      if (_disposed || generation != _generation) return;
       if (!_engine.isReady) {
         _queue.clear();
         return;
       }
-      while (!_disposed && _queue.isNotEmpty && _engine.isReady) {
+      while (!_disposed &&
+          generation == _generation &&
+          _queue.isNotEmpty &&
+          _engine.isReady) {
         final text = _queue.removeFirst();
         await _generateAndPlay(text);
       }
     } catch (error, stack) {
-      AppLogger.error('TTS queue stopped', error: error, stackTrace: stack);
+      if (generation == _generation) {
+        AppLogger.error('TTS queue stopped', error: error, stackTrace: stack);
+      }
     } finally {
-      _processing = false;
-      _setBusy(_queue.isNotEmpty);
+      if (identical(_queueRun, run)) {
+        _queueRun = null;
+        _setBusy(_queue.isNotEmpty);
+      }
     }
   }
 
@@ -375,6 +389,7 @@ class TtsService {
         ),
       );
       await output.writeAsBytes(_wavBytes(audio), flush: true);
+      if (_disposed || generation != _generation) return;
       final timeout = audio.duration + _playbackPadding;
       await _audioPlayback.playFile(
         output,
@@ -383,6 +398,7 @@ class TtsService {
             : timeout,
       );
     } catch (error, stack) {
+      if (_disposed || generation != _generation) return;
       AppLogger.error(
         'TTS synthesis or playback failed',
         error: error,
@@ -432,14 +448,27 @@ class TtsService {
     return bytes;
   }
 
-  Future<void> stop({bool unload = false}) async {
+  Future<void> stop({bool unload = false}) {
     _generation++;
     _queue.clear();
     _downloadCancellation?.cancel();
-    await _audioPlayback.stop();
-    if (unload || _processing) await _engine.cancel();
-    _processing = false;
+    final wasProcessing = _processing;
+    _queueRun = null;
     _setBusy(false);
+    final previous = _stopping;
+    late final Future<void> stopping;
+    stopping =
+        (() async {
+          try {
+            await previous;
+          } catch (_) {}
+          await _audioPlayback.stop();
+          if (unload || wasProcessing) await _engine.cancel();
+        })().whenComplete(() {
+          if (identical(_stopping, stopping)) _stopping = null;
+        });
+    _stopping = stopping;
+    return stopping;
   }
 
   void _handleWorkerFailure(Object error) {
