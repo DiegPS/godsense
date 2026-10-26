@@ -10,6 +10,10 @@ $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
 Set-Location -LiteralPath $projectRoot
 $started = Get-Date
+$sdkJson = & flutter --version --machine
+if ($LASTEXITCODE -ne 0) { throw 'Cannot identify the Flutter toolchain for this run.' }
+$sdk = $sdkJson | ConvertFrom-Json |
+    Select-Object frameworkVersion, frameworkRevision, engineRevision, dartSdkVersion
 $runDirectory = Join-Path $projectRoot ('build/testing/runs/' + $started.ToString('yyyyMMdd-HHmmss'))
 New-Item -ItemType Directory -Path $runDirectory -Force | Out-Null
 $stages = [Collections.Generic.List[object]]::new()
@@ -100,6 +104,7 @@ $summary = [ordered]@{
     verification_source_sha256 = $verificationBefore
     changed_verification_inputs = $changedVerificationInputs
     target_coverage = $TargetCoverage
+    flutter_sdk = $sdk
     stages = $stages.ToArray()
     passed = @($stages | Where-Object { -not $_.passed }).Count -eq 0
 }
