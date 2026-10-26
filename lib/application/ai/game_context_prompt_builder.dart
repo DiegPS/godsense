@@ -65,7 +65,7 @@ class GameContextPromptBuilder {
 
     final gameTimeSec = (liveGame['game_time'] as num?)?.toDouble() ?? 0;
     final minutes = (gameTimeSec / 60).floor();
-    final seconds = (gameTimeSec % 60).round().toString().padLeft(2, '0');
+    final seconds = (gameTimeSec.floor() % 60).toString().padLeft(2, '0');
     buffer.writeln('- Tiempo de partida transcurrido: $minutes:$seconds');
 
     final goldDiff =

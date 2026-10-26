@@ -863,35 +863,39 @@ class MiniGoldBadgeHUD extends StatelessWidget {
       backgroundColor: const Color(0xE60B0E17),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       borderRadius: BorderRadius.circular(6),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(
-            Icons.monetization_on_rounded,
-            size: 15,
-            color: Color(0xFFFBBF24),
-          ),
-          const SizedBox(width: 5),
-          const Text(
-            'DIF. ORO',
-            style: TextStyle(
-              fontSize: 8.5,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.4,
-              color: Color(0xFF94A3B8),
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        alignment: Alignment.centerLeft,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.monetization_on_rounded,
+              size: 15,
+              color: Color(0xFFFBBF24),
             ),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            goldDifference == null ? '0' : _signedNumber(goldDifference!),
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w900,
-              color: valueColor,
-              fontFeatures: const [FontFeature.tabularFigures()],
+            const SizedBox(width: 5),
+            const Text(
+              'DIF. ORO',
+              style: TextStyle(
+                fontSize: 8.5,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.4,
+                color: Color(0xFF94A3B8),
+              ),
             ),
-          ),
-        ],
+            const SizedBox(width: 8),
+            Text(
+              goldDifference == null ? '0' : _signedNumber(goldDifference!),
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w900,
+                color: valueColor,
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
