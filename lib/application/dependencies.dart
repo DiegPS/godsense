@@ -101,7 +101,15 @@ final coachControllerProvider =
             accountKey: league.accountContext?.context?.account.puuid.value,
             gameflowPhase: league.gameflowPhase,
             session: league.gameSession,
-            liveGame: league.liveGame,
+            liveGame: league.liveGame == null
+                ? null
+                : {
+                    ...league.liveGame!,
+                    'gold_points':
+                        league.timeline['gold_points'] ??
+                        league.liveGame!['gold_points'] ??
+                        const [],
+                  },
             lobby: lobby,
             runes: league.runeRecommendations,
             items: league.itemRecommendations,
@@ -126,6 +134,7 @@ final coachControllerProvider =
             gameflowPhase: league.gameflowPhase,
             session: league.gameSession,
             liveGame: league.liveGame,
+            timeline: league.timeline,
             lobby: league.lobby,
             runes: league.runeRecommendations,
             items: league.itemRecommendations,

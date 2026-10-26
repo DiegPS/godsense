@@ -67,3 +67,43 @@ disponible; no se modificó esa calibración. Los logs de esta tanda están en
 
 El 82,4176 % anterior pertenece exclusivamente a la pasada congelada de
 `02b8eca`; estas pruebas posteriores requieren una nueva medición combinada.
+
+## Segunda pasada completa
+
+La revisión `6cc52f7` se verificó en
+`build/testing/runs/20261025-232433/`, con árbol limpio y cero cambios en los
+archivos inventariados durante la ejecución. Aprobaron las etapas Windows,
+runtimes instalados y herramientas. La base aprobó 466 pruebas con 24
+omisiones explícitas; se incluyeron además los 17 casos nativos del overlay.
+
+La cobertura combinada fue **13 004 / 15 562 líneas (83,5625 %)**, sin archivos
+de aplicación sin medir. El requisito global del 100 % siguió fallando.
+Este resultado sustituye al porcentaje anterior para `6cc52f7`; tampoco
+certifica modificaciones posteriores.
+
+## Transporte, almacenamiento en frío y League conectado a la interfaz
+
+Una tanda posterior aprobó 29 pruebas focalizadas y seis casos sobre el motor
+Windows. Comprueba respuestas HTTP 401/403/409, escrituras JSON y respuestas
+vacías, límites de tamaño, cuerpos detenidos después de los encabezados y
+recuperación tras fallos. El servidor HTTP es local y usa un puerto efímero.
+
+Las acciones de almacenamiento arrancan la fábrica de SQLite de producción
+en una carpeta temporal comprobada antes de escribir: historial vacío,
+exportación, retención, borrado, preguntas de voz, observaciones de visión y
+resolución de cuentas Scout sintéticas. Las referencias de los registros
+derivados y la deduplicación de observaciones se comprueban en la exportación.
+
+El recorrido conectado usa el controlador real de League, sus eventos y la
+conexión de proveedores de la interfaz; únicamente el transporte de League
+es sintético. Recorre selección, partida, interrupción, recuperación y
+postpartida. Detectó que el gráfico del Coach no recibía los puntos que ya
+tenía el controlador: la conexión ahora incorpora esa serie sin modificar el
+snapshot original. Se comprueban los puntos recibidos por el widget del gráfico.
+
+Las recomendaciones comprueban la variante elegida para importar, bloqueo de
+botones mientras se importa y ausencia de recomendaciones. Los títulos de
+grupos de objetos ahora se ajustan al ancho: antes se desbordaban con texto
+al 200 %. Los logs están en `build/testing/connected-boundaries-fixed.log` y
+`build/testing/connected-windows.log`. Estos cambios requieren otra pasada
+combinada; el porcentaje anterior sigue correspondiendo a `6cc52f7`.

@@ -102,13 +102,15 @@ class _ItemGroupSection extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 6),
-              Text(
-                group.title.toUpperCase(),
-                style: const TextStyle(
-                  color: Color(0xFF94A3B8),
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.6,
+              Expanded(
+                child: Text(
+                  group.title.toUpperCase(),
+                  style: const TextStyle(
+                    color: Color(0xFF94A3B8),
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.6,
+                  ),
                 ),
               ),
             ],
