@@ -155,6 +155,16 @@ class _ScoutPageState extends ConsumerState<ScoutPage> {
                       ),
                       const SizedBox(height: 16),
                     ],
+                    if (analytics != null &&
+                        analytics.recentOpponents.isNotEmpty) ...[
+                      _buildRelationshipTable(
+                        title: 'Rivales Recientes',
+                        subtitle: 'Enfrentamientos en partidas analizadas',
+                        icon: Icons.sports_kabaddi_outlined,
+                        relationships: analytics.recentOpponents,
+                      ),
+                      const SizedBox(height: 16),
+                    ],
                     _buildMatchHistorySection(matches, state),
                   ],
                 ),

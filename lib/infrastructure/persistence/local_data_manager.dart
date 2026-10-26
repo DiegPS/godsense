@@ -43,6 +43,7 @@ class LocalDataRetentionResult {
 }
 
 class LocalDataManager {
+  static const _largePayloadPageSize = 10;
   LocalDataManager(
     this.database, {
     this.policy = const LocalDataRetentionPolicy(),
@@ -218,6 +219,7 @@ class LocalDataManager {
           (limit, offset) => (database.select(
             database.matchDocuments,
           )..limit(limit, offset: offset)).get(),
+          pageSize: _largePayloadPageSize,
         );
         await _writePagedTable(
           sink,
@@ -239,6 +241,7 @@ class LocalDataManager {
           (limit, offset) => (database.select(
             database.sourceRecords,
           )..limit(limit, offset: offset)).get(),
+          pageSize: _largePayloadPageSize,
         );
         await _writePagedTable(
           sink,
@@ -246,6 +249,7 @@ class LocalDataManager {
           (limit, offset) => (database.select(
             database.domainEntries,
           )..limit(limit, offset: offset)).get(),
+          pageSize: _largePayloadPageSize,
         );
         await _writePagedTable(
           sink,
@@ -293,9 +297,9 @@ class LocalDataManager {
   Future<void> _writePagedTable<T extends DataClass>(
     IOSink sink,
     String name,
-    Future<List<T>> Function(int limit, int offset) loadPage,
-  ) async {
-    const pageSize = 100;
+    Future<List<T>> Function(int limit, int offset) loadPage, {
+    int pageSize = 100,
+  }) async {
     sink.write(',${jsonEncode(name)}:[');
     var first = true;
     for (var offset = 0; ; offset += pageSize) {

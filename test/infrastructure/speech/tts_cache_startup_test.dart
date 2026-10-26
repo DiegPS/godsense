@@ -3,6 +3,7 @@ import 'dart:isolate';
 
 import 'package:background_downloader/background_downloader.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/services.dart';
 import 'package:godsense/infrastructure/speech/tts/tts_model_catalog.dart';
 import 'package:godsense/infrastructure/speech/tts_model_cache.dart';
 
@@ -11,6 +12,13 @@ void main() {
   test('checking cached models does not initialize native downloader storage', () async {
     final directory = await Directory.systemTemp.createTemp(
       'godsense-cache-startup-',
+    );
+    const channel = MethodChannel('plugins.flutter.io/path_provider');
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (_) async => directory.path);
+    addTearDown(
+      () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, null),
     );
     addTearDown(() => directory.delete(recursive: true));
     final cache = TtsModelCache(rootDirectory: directory);
@@ -25,6 +33,7 @@ void main() {
     expect(await downloader.ready, true);
     expect(storage.initializations, 1);
     downloader.destroy();
+    await Future<void>.delayed(Duration.zero);
   });
 }
 

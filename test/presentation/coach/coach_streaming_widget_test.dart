@@ -121,6 +121,16 @@ void main() {
       );
       expect(controller.state.isBusy, isTrue);
       emit('session.idle', {});
+      await tester.pump();
+      expect(controller.state.isBusy, isTrue);
+      emit('message.updated', {
+        'info': {
+          'id': 'assistant-current',
+          'role': 'assistant',
+          'parentID': client.promptPayloads.last.messageId,
+          'finish': 'stop',
+        },
+      });
       await tester.pumpAndSettle();
       expect(controller.state.status, AiConversationStatus.idle);
       expect(find.byType(MarkdownBody), findsOneWidget);
@@ -130,6 +140,8 @@ void main() {
       );
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox.shrink());
+      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+      await tester.pump();
     },
   );
 }

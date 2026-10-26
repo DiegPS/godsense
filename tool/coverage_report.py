@@ -16,6 +16,20 @@ def directives_only(path):
     return bool(source.strip()) and re.fullmatch(rf"(?:\s*{directive})+\s*", source) is not None
 
 
+def interfaces_only(path):
+    source = "\n".join(line for line in path.read_text(encoding="utf-8-sig").splitlines()
+                       if line.strip() and not line.lstrip().startswith("//"))
+    directive = r'''(?:import|export)\s+(?:'[^'\\\n]+'|"[^"\\\n]+")(?:(?:\s+as\s+\w+)|(?:\s+(?:show|hide)\s+[\w,\s]+))*\s*;'''
+    source = re.sub(rf"^\s*(?:{directive}\s*)+", "", source)
+    interface = r"abstract\s+interface\s+class\s+\w+\s*\{([^{}]*)\}"
+    declarations = list(re.finditer(interface, source))
+    if not declarations or re.sub(interface, "", source).strip():
+        return False
+    method = r"[\w.<>,?\s]+\s+\w+\s*\([^{};=]*\)\s*;"
+    return all(re.fullmatch(rf"(?:\s*{method})*\s*", declaration[1]) is not None
+               for declaration in declarations)
+
+
 def collect(paths, root):
     coverage = {}
     for path in paths:
@@ -44,6 +58,7 @@ def collect(paths, root):
             "path": name,
             "measured": bool(rows),
             "directives_only": not rows and directives_only(path),
+            "interfaces_only": not rows and interfaces_only(path),
             "covered": sum(rows.values()),
             "total": len(rows),
             "missing": sorted(n for n, hit in rows.items() if not hit),
@@ -66,7 +81,7 @@ def main():
     covered = sum(row["covered"] for row in files)
     total = sum(row["total"] for row in files)
     percentage = covered * 100 / total if total else 0
-    unmeasured = [row["path"] for row in files if not row["measured"] and not row["directives_only"]]
+    unmeasured = [row["path"] for row in files if not row["measured"] and not row["directives_only"] and not row["interfaces_only"]]
     result = {
         "inputs": inputs,
         "scope": "lib/**/*.dart; excludes generated *.g.dart and *.freezed.dart only",
@@ -75,6 +90,7 @@ def main():
         "measured_line_percent": round(percentage, 4),
         "unmeasured_files": unmeasured,
         "non_executable_barrel_files": [row["path"] for row in files if row["directives_only"]],
+        "non_executable_interface_files": [row["path"] for row in files if row["interfaces_only"]],
         "target": options.minimum,
         "target_met": bool(total) and percentage >= options.minimum and not unmeasured,
         "files": files,

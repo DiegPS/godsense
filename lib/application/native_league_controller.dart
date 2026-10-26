@@ -872,6 +872,7 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
                   ...payload,
                   'id': existing['id'],
                 });
+          if (!mounted) return;
           result['runes'] = {
             'page_id': page is Map ? page['id'] : null,
             'page_name': 'GodSense',
@@ -887,6 +888,7 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
           final current = await _lcu.get(
             '/lol-item-sets/v1/item-sets/$summonerId/sets',
           );
+          if (!mounted) return;
           final envelope = current is Map
               ? current.map((key, value) => MapEntry(key.toString(), value))
               : <String, dynamic>{'accountId': summonerId, 'itemSets': []};
@@ -1225,7 +1227,12 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
   }
 
   void _ensureJungleRecommendationsLoaded(PatchKey? patch) {
-    if (patch == null || _jungleRequestPatch == patch.value) return;
+    if (patch == null) return;
+    if (_jungleRequestPatch == patch.value &&
+        (state.jungleRecommendationsLoading ||
+            state.jungleRecommendations?.patch == patch)) {
+      return;
+    }
     _jungleRequestPatch = patch.value;
     unawaited(loadJungleRecommendations(patch));
   }

@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:async';
 
 import 'package:godsense/infrastructure/speech/tts/sherpa_tts_engine.dart';
 import 'package:godsense/infrastructure/speech/tts_model_cache.dart';
@@ -18,6 +19,7 @@ void main() {
         final model = modelCase.model;
         final voice = model.voices.first;
         final engine = SherpaTtsEngine();
+        final heartbeat = _Heartbeat();
         try {
           await engine.initialize(
             TtsModelInstallation(model, Directory(directory!)),
@@ -33,7 +35,14 @@ void main() {
           );
           expect(audio.sampleRate, greaterThan(0));
           expect(audio.samples.length, greaterThan(audio.sampleRate ~/ 4));
+          heartbeat.stop();
+          expect(
+            heartbeat.maximumGap,
+            lessThan(const Duration(milliseconds: 250)),
+            reason: 'Native voice generation must keep the caller isolate responsive',
+          );
         } finally {
+          heartbeat.stop();
           if (engine.isReady) {
             await snapshotNativeWorkerCoverage('tts-${model.id}');
           }
@@ -54,6 +63,7 @@ void main() {
       () async {
         final voice = modelCase.model.voices.first;
         final engine = SherpaTtsEngine();
+        final heartbeat = _Heartbeat();
         final installation = TtsModelInstallation(
           modelCase.model,
           Directory(directory!),
@@ -88,7 +98,14 @@ void main() {
             referenceText: voice.referenceText,
           );
           expect(recovered.samples, isNotEmpty);
+          heartbeat.stop();
+          expect(
+            heartbeat.maximumGap,
+            lessThan(const Duration(milliseconds: 250)),
+            reason: 'Cancellation and recovery must keep the caller isolate responsive',
+          );
         } finally {
+          heartbeat.stop();
           if (engine.isReady) {
             await snapshotNativeWorkerCoverage(
               'tts-cancel-${modelCase.model.id}',
@@ -102,5 +119,29 @@ void main() {
           : false,
       timeout: const Timeout(Duration(minutes: 3)),
     );
+  }
+}
+
+class _Heartbeat {
+  _Heartbeat() {
+    _timer = Timer.periodic(const Duration(milliseconds: 10), (_) => _sample());
+  }
+  final _clock = Stopwatch()..start();
+  late final Timer _timer;
+  int _previous = 0;
+  Duration maximumGap = Duration.zero;
+  bool _stopped = false;
+  void _sample() {
+    final now = _clock.elapsedMicroseconds;
+    final gap = Duration(microseconds: now - _previous);
+    if (gap > maximumGap) maximumGap = gap;
+    _previous = now;
+  }
+
+  void stop() {
+    if (_stopped) return;
+    _sample();
+    _stopped = true;
+    _timer.cancel();
   }
 }

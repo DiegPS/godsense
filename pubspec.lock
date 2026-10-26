@@ -229,11 +229,11 @@ packages:
     dependency: "direct main"
     description:
       path: "."
-      ref: a2b064fd8f95f3d9c419b4280e516c6eb0c836ae
-      resolved-ref: a2b064fd8f95f3d9c419b4280e516c6eb0c836ae
+      ref: acd3f6811fe403a023ada5fd18de14d194cb3e43
+      resolved-ref: acd3f6811fe403a023ada5fd18de14d194cb3e43
       url: "https://github.com/DiegPS/dart_ai_runtime.git"
     source: git
-    version: "0.3.4"
+    version: "0.3.5"
   dart_style:
     dependency: transitive
     description:

@@ -72,6 +72,31 @@ class CoverageReportTests(unittest.TestCase):
             file.write_text(source, encoding="utf-8")
             self.assertFalse(REPORT.directives_only(file), source)
 
+    def test_pure_interface_contracts_remain_in_inventory_without_fabricated_hits(self):
+        (self.root / "lib/contract.dart").write_text("import 'app.dart';\nabstract interface class Repository { Future<void> save(String data); Future<String?> load(); }", encoding="utf-8")
+        data = self.lcov("a.info", "SF:lib/app.dart\nDA:1,1\nend_of_record\n")
+        rows = REPORT.collect([data], self.root)
+        self.assertTrue(rows[1]["interfaces_only"])
+        self.assertEqual(rows[1]["total"], 0)
+        self.assertEqual(rows[1]["covered"], 0)
+        process = subprocess.run([sys.executable, str(SCRIPT), str(data), "--root", str(self.root)], capture_output=True)
+        self.assertEqual(process.returncode, 0)
+        result = json.loads((self.root / "build/testing/coverage-report.json").read_text(encoding="utf-8"))
+        self.assertEqual(result["non_executable_interface_files"], ["lib/contract.dart"])
+
+    def test_interface_recognition_cannot_hide_executable_members(self):
+        path = self.root / "lib/app.dart"
+        for source in [
+            "abstract interface class X { int answer() => 42; }",
+            "abstract interface class X { static final value = run(); }",
+            "abstract interface class X { void run(); } void main() {}",
+            "abstract interface class X { factory X() = Concrete; }",
+            "const text = 'abstract interface class X { void run(); }';",
+            "abstract interface class X { void run([String value = 'default']); }",
+        ]:
+            path.write_text(source, encoding="utf-8")
+            self.assertFalse(REPORT.interfaces_only(path), source)
+
 
 if __name__ == "__main__":
     unittest.main()
