@@ -115,10 +115,30 @@ class NativeSpeechController extends StateNotifier<NativeSpeechState> {
   bool _holding = false;
   bool _disposed = false;
   bool _testingMicrophone = false;
+  int _settingsRevision = 0;
+  // Preserve the order of user selections even if an older write is slow.
+  Future<void> _settingsWrites = Future<void>.value();
+
+  bool _settingsCurrent(int revision) =>
+      !_disposed && revision == _settingsRevision;
+
+  Future<void> _saveSettings(int revision, NativeSpeechSettings settings) {
+    final writing = _settingsWrites.then((_) async {
+      // Finish an already requested save even if its UI owner has closed.
+      if (revision == _settingsRevision) await _repository.save(settings);
+    });
+    _settingsWrites = writing.then<void>(
+      (_) {},
+      onError: (Object _, StackTrace _) {},
+    );
+    return writing;
+  }
 
   Stream<String> get transcripts => _transcripts.stream;
 
   Future<void> initialize() async {
+    if (_disposed) return;
+    final revision = _settingsRevision;
     _subscriptions.add(
       _microphoneTest.states.listen((test) {
         if (!_disposed) state = state.copyWith(microphoneTest: test);
@@ -155,7 +175,7 @@ class NativeSpeechController extends StateNotifier<NativeSpeechState> {
     );
     try {
       final settings = await _repository.load();
-      if (_disposed) return;
+      if (!_settingsCurrent(revision)) return;
       state = state.copyWith(
         loading: false,
         settings: settings,
@@ -167,7 +187,7 @@ class NativeSpeechController extends StateNotifier<NativeSpeechState> {
         _speech.isModelInstalled(),
         _tts.isModelInstalled(settings.ttsModelId),
       ]);
-      if (_disposed) return;
+      if (!_settingsCurrent(revision)) return;
       state = state.copyWith(
         modelsChecked: true,
         speechModelInstalled: installed[0],
@@ -175,13 +195,15 @@ class NativeSpeechController extends StateNotifier<NativeSpeechState> {
       );
       await _configureTts(settings);
     } catch (error) {
-      if (!_disposed) {
+      if (_settingsCurrent(revision)) {
         state = state.copyWith(loading: false, error: error.toString());
       }
     }
   }
 
   Future<void> updateSettings(NativeSpeechSettings settings) async {
+    if (_disposed) return;
+    final revision = ++_settingsRevision;
     final previousState = state;
     final model = TtsModelCatalog.byId(settings.ttsModelId);
     final normalized = settings.copyWith(
@@ -197,12 +219,14 @@ class NativeSpeechController extends StateNotifier<NativeSpeechState> {
         normalized.ttsModelId != previousState.settings.ttsModelId;
     final needsInstallCheck = modelChanged || !previousState.modelsChecked;
     state = state.copyWith(
+      loading: false,
       settings: normalized,
       modelsChecked: needsInstallCheck ? false : previousState.modelsChecked,
       clearError: true,
     );
     try {
-      await _repository.save(normalized);
+      await _saveSettings(revision, normalized);
+      if (!_settingsCurrent(revision)) return;
       _configureHotkey(normalized);
       final installed = needsInstallCheck
           ? await Future.wait([
@@ -213,7 +237,7 @@ class NativeSpeechController extends StateNotifier<NativeSpeechState> {
               previousState.speechModelInstalled,
               previousState.ttsModelInstalled,
             ];
-      if (_disposed) return;
+      if (!_settingsCurrent(revision)) return;
       state = state.copyWith(
         modelsChecked: true,
         speechModelInstalled: installed[0],
@@ -221,7 +245,9 @@ class NativeSpeechController extends StateNotifier<NativeSpeechState> {
       );
       await _configureTts(normalized);
     } catch (error) {
-      state = state.copyWith(error: error.toString());
+      if (_settingsCurrent(revision)) {
+        state = state.copyWith(error: error.toString());
+      }
       rethrow;
     }
   }
@@ -277,21 +303,25 @@ class NativeSpeechController extends StateNotifier<NativeSpeechState> {
   }
 
   Future<void> downloadSpeechModel() async {
+    if (_disposed) return;
     await _speech.prepareModel();
+    if (_disposed) return;
+    final installed = await _speech.isModelInstalled();
     if (_disposed) return;
     state = state.copyWith(
       modelsChecked: true,
-      speechModelInstalled: await _speech.isModelInstalled(),
+      speechModelInstalled: installed,
     );
   }
 
   Future<void> downloadTtsModel() async {
-    await _tts.prepareModel();
     if (_disposed) return;
-    state = state.copyWith(
-      modelsChecked: true,
-      ttsModelInstalled: await _tts.isModelInstalled(state.settings.ttsModelId),
-    );
+    final modelId = state.settings.ttsModelId;
+    await _tts.prepareModel();
+    if (_disposed || modelId != state.settings.ttsModelId) return;
+    final installed = await _tts.isModelInstalled(modelId);
+    if (_disposed || modelId != state.settings.ttsModelId) return;
+    state = state.copyWith(modelsChecked: true, ttsModelInstalled: installed);
   }
 
   Future<void> removeTtsModel(String modelId) async {

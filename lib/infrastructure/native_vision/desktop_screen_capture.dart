@@ -41,6 +41,8 @@ class CaptureDisplay {
     required int regionWidth,
     required int regionHeight,
   }) =>
+      regionWidth > 0 &&
+      regionHeight > 0 &&
       regionLeft >= left &&
       regionTop >= top &&
       regionLeft + regionWidth <= left + width &&
@@ -122,11 +124,15 @@ class DesktopScreenCapture implements ScreenCaptureSource {
     if (values == null || values.isEmpty) {
       throw StateError('Windows no informó ninguna pantalla disponible.');
     }
-    return values
+    final displays = values
         .whereType<Map<Object?, Object?>>()
         .map(CaptureDisplay.fromMap)
         .where((display) => display.width > 0 && display.height > 0)
         .toList(growable: false);
+    if (displays.isEmpty) {
+      throw StateError('Windows no informó ninguna pantalla utilizable.');
+    }
+    return displays;
   }
 
   @override
@@ -161,7 +167,9 @@ class DesktopScreenCapture implements ScreenCaptureSource {
     final captureWidth = (response['captureWidth'] as num?)?.round() ?? width;
     final captureHeight =
         (response['captureHeight'] as num?)?.round() ?? height;
-    if (pixels is! Uint8List ||
+    if (captureWidth <= 0 ||
+        captureHeight <= 0 ||
+        pixels is! Uint8List ||
         pixels.length != captureWidth * captureHeight * 4) {
       throw StateError('DXGI devolvió un frame BGRA incompleto.');
     }
@@ -226,6 +234,18 @@ class DesktopScreenCapture implements ScreenCaptureSource {
     final resolvedTop = requestedId == selected.id && localTop != null
         ? selected.top + localTop
         : top;
+    if (!selected.contains(
+      regionLeft: resolvedLeft,
+      regionTop: resolvedTop,
+      regionWidth: width,
+      regionHeight: height,
+    )) {
+      throw ArgumentError.value(
+        bounds,
+        'bounds',
+        'The calibrated region no longer fits inside its display.',
+      );
+    }
     return selected.enrichBounds(
       regionLeft: resolvedLeft,
       regionTop: resolvedTop,

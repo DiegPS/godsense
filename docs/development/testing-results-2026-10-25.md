@@ -1,5 +1,63 @@
 # Registro de pruebas del 25 y 26 de octubre de 2026
 
+La última pasada completa corresponde a `7678388`, en
+`build/testing/runs/20261026-163512/`: **13 414 / 15 593 líneas (86,0258 %)**,
+sin archivos sin medir, sin cambios en los archivos inventariados y con árbol
+limpio. Aprobaron todas las etapas funcionales: analizador, 527 pruebas de base
+(24 omisiones explícitas), 16 pruebas de visión nativa, 60 recorridos/casos de
+interfaz Windows, arranque y compilación release, procesos/catálogos de IA,
+streaming, conversación y chat reales, reconocimiento de voz y los ocho motores
+de síntesis con cancelación y reinicialización. También aprobaron las ocho
+pruebas Python y los cuatro escenarios PowerShell de las herramientas.
+La puerta global sigue en fallo únicamente por no alcanzar el 100 % de cobertura;
+este resultado no certifica una partida real ni dispositivos de audio físicos.
+
+La navegación en profile midió p95 de 52,707 ms en frío, 13,081 ms tras la
+carga inicial y 14,383 ms con captura. El refresco del catálogo dejó un intervalo
+máximo del hilo de eventos de 21,091 ms. El streaming real recibió 138 fragmentos
+de texto antes de completar la respuesta, sin timeout. Informe de fluidez:
+`build/performance/navigation-1bc4efe3e06a48d5a1ffd34d26c85f6d.json`.
+Estos resultados corresponden exclusivamente a esa revisión y a este equipo.
+
+Después de esa pasada se reprodujeron y corrigieron carreras en calibración y
+voz. Un resultado antiguo podía restaurar una calibración borrada, sustituir
+una selección de voz más reciente o actualizar un controlador ya cerrado.
+Las escrituras solicitadas se ordenan y terminan aunque se cierre su dueño;
+los resultados internos obsoletos no escriben ni modifican la interfaz. Las
+lecturas esperan las escrituras sin cancelar un borrado, y los errores de una
+operación anterior no bloquean ni marcan como fallida la siguiente.
+
+También se corrigió la caché de objetos: conserva el contexto de parche,
+región y versión del cliente, evita solicitudes duplicadas y rechaza respuestas
+antiguas que podían reemplazar precios nuevos. La captura rechaza dimensiones
+inválidas y regiones que ya no caben en su pantalla identificada, sin sustituir
+una pantalla desconectada por otra.
+
+Aprobaron 571 pruebas de base (24 omisiones por entorno), 46 casos específicos
+de esta tanda y el analizador sin incidencias. En Windows nativo aprobaron los
+12 casos de Scout, seis del ciclo conectado de League y 20 de ajustes, incluidos
+los resultados tardíos de voz. Scout comprueba carga pendiente, fallo,
+reintento, deduplicación y reapertura desde caché con su controlador real.
+La prueba de imágenes utiliza respuestas locales simuladas y datos ficticios.
+Evidencia: `build/testing/async-safety-base-final.log`,
+`build/testing/async-safety-final-focused.log`,
+`build/testing/async-safety-native-*.log` y
+`build/testing/async-safety-analysis-final.log`. Los logs `async-safety-red.log`,
+`queued-intent-red.log` y `calibration-refresh-red.log` conservan los fallos
+previos a sus correcciones; uno de los fallos iniciales era la limpieza de una
+variable de depuración en la propia prueba de imágenes, también corregida.
+El 86,0258 % anterior no certifica estas modificaciones posteriores; su siguiente
+pasada global permanece pendiente.
+
+El arranque de producción en debug y la recarga en caliente también aprobaron,
+sin excepciones de ejecución reportadas por Flutter. La compilación release y
+su prueba de arranque de ocho segundos aprobaron; evidencia en
+`build/testing/async-safety-release.log` y `async-safety-release-smoke.log`.
+El servicio de visión conserva y reintenta una calibración cuya pantalla no
+está disponible: ese error controlado sigue en los logs. Se comprobó que la
+identidad guardada es una identidad de dispositivo Windows; no se borró esa
+calibración ni se reasignó a otra pantalla.
+
 La pasada `build/testing/runs/20261026-005531/`, iniciada en `3018199`,
 quedó incompleta: aprobaron 519 pruebas de base (24 omisiones), pero el
 recorrido de escritorio se interrumpió y Flutter informó que faltaba su
@@ -7,8 +65,8 @@ directorio temporal de escucha. Las compilaciones posteriores también
 fallaron y no se generó resumen global. No se certifica esta pasada ni se
 atribuye una causa definitiva a la desaparición de los temporales.
 El reintento aislado del recorrido de escritorio aprobó sus nueve casos;
-evidencia: `build/testing/desktop-resume.log`. Esto no sustituye las otras
-etapas pendientes de la pasada global.
+evidencia: `build/testing/desktop-resume.log`. Ese reintento no completa las
+etapas que quedaron sin terminar en aquella ejecución.
 
 La ampliación posterior de Scout encontró desbordamientos en tarjetas y
 equipos al usar texto al 200 %. La cabecera ahora distribuye su contenido
@@ -22,10 +80,10 @@ conserva la expansión ni la paginación anterior. Utilizan datos ficticios y
 no solicitan imágenes externas. Anchos: 640, 800, 1280 y 1600; escalas: 100 %
 y 200 %. Evidencia: `build/testing/scout-history-red.log`,
 `build/testing/scout-history-expanded.log`, `build/testing/scout-history-native.log`
-y `build/testing/scout-history-analysis.log`. La cobertura global anterior
-no se atribuye a esta revisión modificada.
+y `build/testing/scout-history-analysis.log`. La pasada completa `7678388`
+ya incluye esta corrección y sus pruebas.
 
-La última pasada completa registrada es `d96d91a`, en
+La pasada completa anterior corresponde a `d96d91a`, en
 `build/testing/runs/20261025-235441/`: **13 229 / 15 569 líneas (84,9701 %)**,
 sin archivos sin medir y con los archivos inventariados sin cambios durante
 la ejecución. Aprobaron 495 pruebas de base, las integraciones Windows,
@@ -37,8 +95,8 @@ Se reprodujo después un timeout local mientras seguían llegando fragmentos.
 `dart_ai_runtime` 0.3.6 distingue inactividad de progreso, mantiene un límite
 total y retira los turnos agotados. Aprobaron sus 67 pruebas y el analizador.
 La repetición real de streaming en GodSense aprobó con 15 deltas de razonamiento
-y 58 de texto; el razonamiento no se mostró como respuesta. Es una corrección
-posterior, todavía pendiente de otra pasada global.
+y 58 de texto; el razonamiento no se mostró como respuesta. La corrección
+posterior quedó incluida y aprobada en la pasada completa `7678388`.
 
 El reintento del chat real desde la interfaz también aprobó. La tanda de
 seguridad aprobó 24 casos; el overlay aprobó 23 casos en Windows y los ajustes,

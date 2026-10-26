@@ -256,7 +256,10 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
   int? _localSummonerId;
   Map<int, Map<String, dynamic>> _itemCatalog = const {};
   final Map<String, List<Map<String, dynamic>>> _championAbilities = {};
-  bool _itemCatalogLoading = false;
+  String? _itemCatalogContext;
+  String? _itemCatalogRequestedContext;
+  Future<void>? _itemCatalogLoad;
+  int _itemCatalogGeneration = 0;
   bool _championAbilitiesLoading = false;
   DateTime? _lastItemCatalogAttempt;
   DateTime? _lastChampionAbilitiesAttempt;
@@ -577,7 +580,7 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
       _ensureJungleRecommendationsLoaded(
         foundationState?.account.context?.account.patchKey,
       );
-      if (liveData != null && _itemCatalog.isEmpty) {
+      if (liveData != null) {
         _ensureItemCatalogLoaded();
       }
       if (liveData != null) {
@@ -1134,6 +1137,7 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
     required LeaguePosition position,
   }) async {
     if (!mounted) return;
+    _refreshItemCatalogContext();
     final generation = ++_itemLoadGeneration;
     state = state.copyWith(
       itemRecommendationsLoading: true,
@@ -1331,37 +1335,94 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
     );
   }
 
-  Future<void> _loadItemCatalog() async {
+  String? _currentItemCatalogContext() {
+    final account = foundation?.state.account.context?.account;
+    final patch = account?.patchKey;
+    if (account == null || patch == null) return null;
+    return '${patch.value}|${account.platformId.value}|${account.clientVersion ?? ''}';
+  }
+
+  void _refreshItemCatalogContext() {
+    final context = _currentItemCatalogContext();
+    if (_itemCatalogContext == context) return;
+    _itemCatalogContext = context;
+    _itemCatalogGeneration++;
+    _itemCatalog = const {};
+    _lastItemCatalogAttempt = null;
+    _itemRecommendationRequestKey = null;
+    _itemLoadGeneration++;
+    state = state.copyWith(
+      clearItemRecommendations: true,
+      itemRecommendationsLoading: false,
+      clearItemRecommendationsError: true,
+    );
+  }
+
+  Future<void> _loadItemCatalog() {
+    if (!mounted) return Future<void>.value();
+    _refreshItemCatalogContext();
+    final account = foundation?.state.account.context?.account;
+    final patch = account?.patchKey;
+    final context = _itemCatalogContext;
+    if (account == null ||
+        patch == null ||
+        context == null ||
+        _itemCatalog.isNotEmpty) {
+      return Future<void>.value();
+    }
+    final pending = _itemCatalogLoad;
+    if (pending != null && _itemCatalogRequestedContext == context) {
+      return pending;
+    }
+    final generation = ++_itemCatalogGeneration;
+    _itemCatalogRequestedContext = context;
+    _lastItemCatalogAttempt = DateTime.now();
+    return _itemCatalogLoad = _readItemCatalog(account, context, generation);
+  }
+
+  Future<void> _readItemCatalog(
+    LeagueAccountProfile account,
+    String context,
+    int generation,
+  ) async {
     try {
-      final account = foundation?.state.account.context?.account;
-      final patch = account?.patchKey;
-      if (patch == null) return;
       dataDragonCatalog ??= await DataDragonCatalogService.createDefault();
-      _itemCatalog = await dataDragonCatalog!.loadItems(
-        patch: patch,
-        platformId: account?.platformId ?? PlatformId('LA1'),
-        clientVersion: account?.clientVersion == null
+      final items = await dataDragonCatalog!.loadItems(
+        patch: account.patchKey!,
+        platformId: account.platformId,
+        clientVersion: account.clientVersion == null
             ? null
-            : ClientVersion(account!.clientVersion!),
+            : ClientVersion(account.clientVersion!),
       );
+      if (mounted &&
+          generation == _itemCatalogGeneration &&
+          context == _currentItemCatalogContext()) {
+        _itemCatalog = items;
+      }
     } catch (_) {
-      _itemCatalog = const {};
+      if (mounted && generation == _itemCatalogGeneration) {
+        _itemCatalog = const {};
+      }
+    } finally {
+      if (generation == _itemCatalogGeneration) {
+        _itemCatalogLoad = null;
+        _itemCatalogRequestedContext = null;
+      }
     }
   }
 
   void _ensureItemCatalogLoaded() {
+    _refreshItemCatalogContext();
+    if (_itemCatalogContext == null || _itemCatalog.isNotEmpty) return;
     final now = DateTime.now();
-    if (_itemCatalogLoading ||
+    if ((_itemCatalogLoad != null &&
+            _itemCatalogRequestedContext == _itemCatalogContext) ||
         (_lastItemCatalogAttempt != null &&
             now.difference(_lastItemCatalogAttempt!) <
                 const Duration(minutes: 5))) {
       return;
     }
-    _itemCatalogLoading = true;
-    _lastItemCatalogAttempt = now;
-    unawaited(
-      _loadItemCatalog().whenComplete(() => _itemCatalogLoading = false),
-    );
+    unawaited(_loadItemCatalog());
   }
 
   void _ensureChampionPortraitsLoaded() {

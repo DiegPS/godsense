@@ -73,6 +73,25 @@ class NativeCalibrationController
   bool _refreshing = false;
   bool _disposed = false;
   int _revision = 0;
+  int _loadRevision = 0;
+  // Keep an in-flight save ahead of any later clear on disk.
+  Future<void> _writes = Future<void>.value();
+
+  bool _isCurrent(int revision) => !_disposed && revision == _revision;
+
+  Future<void> _persist(
+    int revision,
+    Future<void> Function() action, {
+    bool userRequested = false,
+  }) {
+    final writing = _writes.then((_) async {
+      if (revision == _revision && (userRequested || !_disposed)) {
+        await action();
+      }
+    });
+    _writes = writing.then<void>((_) {}, onError: (Object _, StackTrace _) {});
+    return writing;
+  }
 
   Future<void> refreshContext() async {
     if (_disposed ||
@@ -84,17 +103,18 @@ class NativeCalibrationController
     }
     _refreshing = true;
     final revision = _revision;
+    final loadRevision = _loadRevision;
     try {
       final calibration = await _repository.load();
-      if (!_disposed &&
-          revision == _revision &&
+      if (_isCurrent(revision) &&
+          loadRevision == _loadRevision &&
           calibration != null &&
           calibration.recalibrationSuggested !=
               state.calibration?.recalibrationSuggested) {
         state = state.copyWith(calibration: calibration);
       }
     } catch (error) {
-      if (!_disposed) {
+      if (_isCurrent(revision) && loadRevision == _loadRevision) {
         state = state.copyWith(
           error: 'No se pudo comprobar la configuración: $error',
         );
@@ -113,14 +133,22 @@ class NativeCalibrationController
   }
 
   Future<void> load() async {
-    state = state.copyWith(loading: true, clearError: true);
+    if (_disposed) return;
+    final revision = _revision;
+    final loadRevision = ++_loadRevision;
+    bool current() => _isCurrent(revision) && loadRevision == _loadRevision;
+    state = state.copyWith(loading: true, saving: false, clearError: true);
     try {
+      await _writes;
+      if (!current()) return;
       var calibration = await _repository.load();
+      if (!current()) return;
       if (calibration?.bounds != null) {
         try {
           final described = await _screenCapture.describeBounds(
             calibration!.bounds!,
           );
+          if (!current()) return;
           if (!mapEquals(described, calibration.bounds)) {
             calibration = CalibrationState(
               calibrated: calibration.calibrated,
@@ -133,14 +161,17 @@ class NativeCalibrationController
               defaultTrustworthy: calibration.defaultTrustworthy,
               provenance: calibration.provenance,
             );
-            await _repository.save(calibration);
+            final normalized = calibration;
+            await _persist(revision, () async {
+              if (current()) await _repository.save(normalized);
+            });
           }
         } catch (_) {
           // A disconnected monitor may return later. Keep the stable saved
           // identity and let the continuous capture retry without data loss.
         }
       }
-      if (_disposed) return;
+      if (!current()) return;
       state = state.copyWith(
         loading: false,
         calibration: calibration,
@@ -148,7 +179,7 @@ class NativeCalibrationController
         clearError: true,
       );
     } catch (error) {
-      if (_disposed) return;
+      if (!current()) return;
       state = state.copyWith(loading: false, error: error.toString());
     }
   }
@@ -164,8 +195,10 @@ class NativeCalibrationController
     int? iconSize,
     double confidence = 1,
   }) async {
-    _revision++;
+    if (_disposed) return;
     final validated = _validateBounds(bounds);
+    final revision = ++_revision;
+    state = state.copyWith(saving: true, loading: false, clearError: true);
     Map<String, dynamic> normalized = validated;
     if ((validated['display_id']?.toString() ?? '').isEmpty) {
       try {
@@ -175,6 +208,7 @@ class NativeCalibrationController
         // next native capture resolves its display and can enrich a later save.
       }
     }
+    if (revision != _revision) return;
     final resolvedIconSize =
         iconSize ??
         ((normalized['width'] as int) * 0.088).round().clamp(16, 64);
@@ -188,37 +222,44 @@ class NativeCalibrationController
       defaultIconSize: null,
       defaultTrustworthy: false,
     );
-    state = state.copyWith(saving: true, clearError: true);
     try {
-      await _repository.save(calibration);
+      await _persist(
+        revision,
+        () => _repository.save(calibration),
+        userRequested: true,
+      );
+      if (!_isCurrent(revision)) return;
       final restored = await _repository.load();
-      if (_disposed) return;
+      if (!_isCurrent(revision)) return;
       state = state.copyWith(
         saving: false,
         calibration: restored ?? calibration,
         clearError: true,
       );
     } catch (error) {
-      if (_disposed) return;
-      state = state.copyWith(saving: false, error: error.toString());
+      if (_isCurrent(revision)) {
+        state = state.copyWith(saving: false, error: error.toString());
+      }
       rethrow;
     }
   }
 
   Future<void> clear() async {
-    _revision++;
-    state = state.copyWith(saving: true, clearError: true);
+    if (_disposed) return;
+    final revision = ++_revision;
+    state = state.copyWith(saving: true, loading: false, clearError: true);
     try {
-      await _repository.clear();
-      if (_disposed) return;
+      await _persist(revision, _repository.clear, userRequested: true);
+      if (!_isCurrent(revision)) return;
       state = state.copyWith(
         saving: false,
         clearCalibration: true,
         clearError: true,
       );
     } catch (error) {
-      if (_disposed) return;
-      state = state.copyWith(saving: false, error: error.toString());
+      if (_isCurrent(revision)) {
+        state = state.copyWith(saving: false, error: error.toString());
+      }
       rethrow;
     }
   }
