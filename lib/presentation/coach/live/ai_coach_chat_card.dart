@@ -463,6 +463,13 @@ class _ChatBubble extends StatelessWidget {
               )
             else
               CoachMessageBody(text: message.content),
+            if (message.isCancelled) ...[
+              const SizedBox(height: 4),
+              const Text(
+                'Cancelado',
+                style: TextStyle(fontSize: 11, color: CoachColors.mutedText),
+              ),
+            ],
           ],
         ),
       ),

@@ -49,6 +49,37 @@ void main() {
     expect(await database.select(database.rankedSnapshots).get(), hasLength(1));
   });
 
+  test(
+    'retention preserves an active journal match before Scout has a document',
+    () async {
+      final recent = now
+          .subtract(const Duration(minutes: 5))
+          .microsecondsSinceEpoch;
+      await database.customStatement(
+        'UPDATE matches SET started_at_us = ?, ended_at_us = NULL',
+        [recent],
+      );
+      await database.customStatement(
+        'UPDATE source_records SET received_at_us = ?',
+        [recent],
+      );
+      await database.customStatement('DELETE FROM match_documents');
+      await manager.applyRetention(now: now);
+      await manager.applyRetention(now: now);
+      expect(
+        (await database.select(database.matches).get()).map(
+          (match) => match.gameId,
+        ),
+        [10],
+      );
+      expect(
+        await database.select(database.accountMatches).get(),
+        hasLength(1),
+      );
+      expect(await database.select(database.sourceRecords).get(), hasLength(2));
+    },
+  );
+
   test('exports every local table with binary payloads encoded', () async {
     final directory = await Directory.systemTemp.createTemp(
       'godsense-export-test-',
@@ -115,6 +146,41 @@ void main() {
       'preserved configuration',
     );
     expect(File(AppLogger.logFilePath!).existsSync(), isFalse);
+  });
+
+  test('failed database export preserves the previous file and removes partial output', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'godsense-failed-export-',
+    );
+    addTearDown(() => directory.delete(recursive: true));
+    final destination = File('${directory.path}/export.json');
+    await destination.writeAsString('previous complete export');
+    // Fail near the end of the snapshot, after other tables have been written.
+    await database.customStatement('DROP TABLE snapshot_cursors');
+    await expectLater(manager.exportTo(destination), throwsA(anything));
+    expect(await destination.readAsString(), 'previous complete export');
+    final remaining = directory.listSync().whereType<File>().toList();
+    expect(remaining, hasLength(1));
+    expect(
+      await FileSystemEntity.identical(remaining.single.path, destination.path),
+      true,
+    );
+  });
+
+  test('an occupied directory cannot be overwritten by an export', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'godsense-export-destination-',
+    );
+    addTearDown(() => directory.delete(recursive: true));
+    final occupied = await Directory('${directory.path}/occupied').create();
+    final protected = File('${occupied.path}/keep.txt');
+    await protected.writeAsString('keep');
+    await expectLater(
+      manager.exportTo(File(occupied.path)),
+      throwsA(isA<FileSystemException>()),
+    );
+    expect(await protected.readAsString(), 'keep');
+    expect(directory.listSync().whereType<File>(), isEmpty);
   });
 }
 

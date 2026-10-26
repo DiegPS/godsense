@@ -75,6 +75,40 @@ class FakeAiConversationNotifier extends StateNotifier<AiConversationState>
 }
 
 void main() {
+  testWidgets('cancelled history stays visible with an explicit label', (
+    tester,
+  ) async {
+    final controller = FakeAiConversationNotifier(
+      AiConversationState(
+        messages: [
+          AiChatMessage(
+            id: 'cancelled',
+            role: 'user',
+            content: 'Pregunta cancelada',
+            timestamp: DateTime.utc(2026),
+            isCancelled: true,
+          ),
+        ],
+      ),
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          aiModelSelectionProvider.overrideWith((_) => ReadyModelSelection()),
+          aiRuntimeSupervisorProvider.overrideWithValue(FakeSupervisor()),
+          aiRuntimeSupervisorStateProvider.overrideWith(
+            (_) => Stream.value(FakeSupervisor().state),
+          ),
+          aiConversationProvider.overrideWith((_) => controller),
+        ],
+        child: const MaterialApp(home: Scaffold(body: AiCoachChatCard())),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Pregunta cancelada'), findsOneWidget);
+    expect(find.text('Cancelado'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
   testWidgets('AiCoachChatCard renders idle state with suggestion chips', (
     tester,
   ) async {

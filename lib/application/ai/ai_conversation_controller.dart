@@ -66,6 +66,11 @@ class AiConversationState {
 
 /// Riverpod adapter over dart_ai_runtime's persistent multi-turn controller.
 class AiConversationController extends StateNotifier<AiConversationState> {
+  static const defaultSystemPrompt =
+      'Eres el asistente táctico de League of Legends de GodSense. '
+      'Responde en español de forma clara y concisa usando solo el contexto '
+      'disponible. Si faltan datos de la partida, dilo sin inventarlos.';
+
   AiConversationController({
     required runtime.AiRuntimeSupervisor supervisor,
     required runtime.AiRuntimeClient Function() clientFactory,
@@ -87,6 +92,8 @@ class AiConversationController extends StateNotifier<AiConversationState> {
 
   final runtime.AiConversationController _core;
   final runtime.AiModelInfo? Function()? _modelSelection;
+  static String _systemPrompt(String? value) =>
+      value == null || value.trim().isEmpty ? defaultSystemPrompt : value;
   late final StreamSubscription<runtime.AiConversationState> _subscription;
   bool _disposed = false;
 
@@ -98,7 +105,7 @@ class AiConversationController extends StateNotifier<AiConversationState> {
         text: promptText,
         providerId: selection.providerId,
         modelId: selection.modelId,
-        systemPrompt: systemPrompt ?? '',
+        systemPrompt: _systemPrompt(systemPrompt),
       );
     } catch (error) {
       if (_disposed) return;
@@ -120,7 +127,7 @@ class AiConversationController extends StateNotifier<AiConversationState> {
         text: promptText,
         providerId: selection.providerId,
         modelId: selection.modelId,
-        systemPrompt: systemPrompt ?? '',
+        systemPrompt: _systemPrompt(systemPrompt),
         timeout: timeout,
       );
     } catch (error) {
@@ -262,6 +269,7 @@ List<AiChatMessage> decodeAiConversationHistory(String encoded) {
           id: map['id']?.toString() ?? '',
           role: map['role']?.toString() == 'assistant' ? 'assistant' : 'user',
           content: map['content']?.toString() ?? '',
+          isCancelled: map['cancelled'] == true,
           timestamp:
               DateTime.tryParse(map['timestamp']?.toString() ?? '') ??
               DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
@@ -278,6 +286,7 @@ String encodeAiConversationHistory(List<AiChatMessage> messages) => jsonEncode(
           'id': message.id,
           'role': message.role,
           'content': message.content,
+          'cancelled': message.isCancelled,
           'timestamp': message.timestamp.toUtc().toIso8601String(),
         },
       )

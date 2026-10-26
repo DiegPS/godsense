@@ -89,6 +89,9 @@ final shellSessionStatusProvider = Provider<({String label, bool online})>((
 
 final appProviderContainer = ProviderContainer();
 final overlayWindowManager = OverlayWindowManager(appProviderContainer);
+final overlayWindowManagerProvider = Provider<OverlayWindowManager>(
+  (_) => overlayWindowManager,
+);
 final effectiveGameProvider = Provider<GameSnapshot?>((ref) {
   final liveGame = ref.watch(
     nativeLeagueProvider.select((state) => state.liveGame),
@@ -111,17 +114,16 @@ final overlayWindowVisibleProvider = Provider<bool>((ref) {
   return game != null && !game.gameEnded;
 });
 
-void runGodSense() {
+void runGodSense({ProviderContainer? container}) {
+  final providers = container ?? appProviderContainer;
   LicenseRegistry.addLicense(() async* {
     final license = await rootBundle.loadString('assets/fonts/inter/OFL.txt');
     yield LicenseEntryWithLineBreaks(const ['Inter'], license);
   });
   runMultiApp(
     home: (_, _) => const GodSenseApp(),
-    globalScope: (child) => UncontrolledProviderScope(
-      container: appProviderContainer,
-      child: child,
-    ),
+    globalScope: (child) =>
+        UncontrolledProviderScope(container: providers, child: child),
     config: MultiAppConfig(
       generalParams: const MultiPlatformParams(
         closeMode: CloseMode.destroy,
@@ -135,7 +137,7 @@ void runGodSense() {
         titleBarStyle: TitleBarStyle.hidden,
         windowButtonVisibility: false,
       ),
-      observers: [overlayWindowManager],
+      observers: [providers.read(overlayWindowManagerProvider)],
     ),
   );
 }

@@ -3,12 +3,22 @@ param(
     [switch]$SkipIntegration,
     [switch]$SkipBuild,
     [switch]$ProfileUI,
+    [switch]$ContinueOnFailure,
     [double]$MinimumCoverage = 65
 )
 
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
 Set-Location -LiteralPath $projectRoot
+$verificationFailures = [Collections.Generic.List[string]]::new()
+$lastFlutterStepPassed = $false
+
+function Register-VerificationFailure {
+    param([string]$Message)
+    if (-not $ContinueOnFailure) { throw $Message }
+    $verificationFailures.Add($Message)
+    Write-Warning $Message
+}
 
 function Invoke-FlutterStep {
     param(
@@ -17,9 +27,15 @@ function Invoke-FlutterStep {
     )
 
     Write-Host "`n==> $Name" -ForegroundColor Cyan
-    & flutter @FlutterArguments
-    if ($LASTEXITCODE -ne 0) {
-        throw "Step '$Name' failed with exit code $LASTEXITCODE."
+    $script:lastFlutterStepPassed = $false
+    try {
+        & flutter @FlutterArguments
+        if ($LASTEXITCODE -ne 0) {
+            throw "Step '$Name' failed with exit code $LASTEXITCODE."
+        }
+        $script:lastFlutterStepPassed = $true
+    } catch {
+        Register-VerificationFailure $_.Exception.Message
     }
 }
 
@@ -64,12 +80,16 @@ Invoke-FlutterStep 'Unit and widget tests with coverage' @(
     'compact'
 )
 
-$coverage = Get-ProjectCoverage -LcovPath (
-    Join-Path $projectRoot 'coverage\lcov.info'
-)
-Write-Host "Application coverage: $coverage%" -ForegroundColor Green
-if ($coverage -lt $MinimumCoverage) {
-    throw "Coverage $coverage% is below the local floor of $MinimumCoverage%."
+try {
+    $coverage = Get-ProjectCoverage -LcovPath (
+        Join-Path $projectRoot 'coverage\lcov.info'
+    )
+    Write-Host "Application coverage: $coverage%" -ForegroundColor Green
+    if ($coverage -lt $MinimumCoverage) {
+        throw "Coverage $coverage% is below the local floor of $MinimumCoverage%."
+    }
+} catch {
+    Register-VerificationFailure $_.Exception.Message
 }
 
 $nativeCvTests = @(
@@ -82,6 +102,9 @@ foreach ($nativeTest in $nativeCvTests) {
     Invoke-FlutterStep "Native DartCV: $nativeTest" @(
         'test',
         $nativeTest,
+        '--coverage',
+        '--coverage-path',
+        ('build/testing/native-' + [IO.Path]::GetFileNameWithoutExtension($nativeTest) + '.info'),
         '--reporter',
         'compact'
     )
@@ -90,20 +113,29 @@ foreach ($nativeTest in $nativeCvTests) {
 if (-not $SkipIntegration) {
     $integrationTests = Get-ChildItem -LiteralPath (
         Join-Path $projectRoot 'integration_test'
-    ) -Filter '*_test.dart' -File | Sort-Object Name
+    ) -Filter '*_test.dart' -File -Recurse | Sort-Object FullName
     foreach ($testFile in $integrationTests) {
-        $relativePath = 'integration_test/' + $testFile.Name
-        Invoke-FlutterStep "Integration: $($testFile.Name)" @(
+        $relativePath = $testFile.FullName.Substring($projectRoot.Length + 1).Replace('\', '/')
+        $deviceArguments = @()
+        if ($relativePath.StartsWith('integration_test/ui/')) {
+            $deviceArguments = @('-d', 'windows', '--coverage', '--coverage-path',
+                ('build/testing/ui-' + $testFile.BaseName + '.info'))
+        }
+        Invoke-FlutterStep -Name "Integration: $($testFile.Name)" -FlutterArguments (@(
             'test',
             $relativePath,
             '--reporter',
             'compact'
-        )
+        ) + $deviceArguments)
     }
 }
 
 if ($ProfileUI) {
-    & (Join-Path $PSScriptRoot 'profile_windows.ps1')
+    try {
+        & (Join-Path $PSScriptRoot 'profile_windows.ps1')
+    } catch {
+        Register-VerificationFailure $_.Exception.Message
+    }
 }
 
 if (-not $SkipBuild) {
@@ -112,20 +144,28 @@ if (-not $SkipBuild) {
         'windows',
         '--release'
     )
-    $releaseDirectory = Join-Path $projectRoot 'build\windows\x64\runner\Release'
-    $smoke = Start-Process -FilePath (Join-Path $releaseDirectory 'godsense.exe') `
-        -WorkingDirectory $releaseDirectory -WindowStyle Hidden -PassThru
-    try {
-        if ($smoke.WaitForExit(8000)) {
-            throw "Release exited during startup with code $($smoke.ExitCode)."
+    if ($lastFlutterStepPassed) {
+        $releaseDirectory = Join-Path $projectRoot 'build\windows\x64\runner\Release'
+        $smoke = $null
+        try {
+            $smoke = Start-Process -FilePath (Join-Path $releaseDirectory 'godsense.exe') `
+                -WorkingDirectory $releaseDirectory -WindowStyle Hidden -PassThru
+            if ($smoke.WaitForExit(8000)) {
+                throw "Release exited during startup with code $($smoke.ExitCode)."
+            }
+            Write-Host 'Windows release startup passed.' -ForegroundColor Green
+        } catch {
+            Register-VerificationFailure $_.Exception.Message
+        } finally {
+            if ($null -ne $smoke) {
+                if (-not $smoke.HasExited) { Stop-Process -Id $smoke.Id }
+                $smoke.Dispose()
+            }
         }
-        Write-Host 'Windows release startup passed.' -ForegroundColor Green
-    } finally {
-        if (-not $smoke.HasExited) {
-            Stop-Process -Id $smoke.Id
-        }
-        $smoke.Dispose()
     }
 }
 
+if ($verificationFailures.Count) {
+    throw ('Windows verification failed: ' + ($verificationFailures -join '; '))
+}
 Write-Host "`nGodSense local verification passed." -ForegroundColor Green

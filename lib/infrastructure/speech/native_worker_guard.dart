@@ -55,7 +55,14 @@ class NativeWorkerGuard {
   }
 
   Future<void> dispose({required bool expectedExit}) async {
-    if (expectedExit) _expectedExit = true;
+    if (expectedExit) {
+      _expectedExit = true;
+      if (!_ready && !_failure.isCompleted) {
+        // Startup waits for either a command port or this value. Closing both
+        // receive ports alone leaves that wait alive until its two-minute timeout.
+        _failure.complete(StateError('$label initialization cancelled.'));
+      }
+    }
     final inFlight = _disposeFuture;
     if (inFlight != null) return inFlight;
     final operation = _disposePorts();

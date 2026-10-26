@@ -72,10 +72,9 @@ class _GodSenseHomeState extends ConsumerState<GodSenseHome> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       unawaited(
-        overlayWindowManager.setVisible(
-          context,
-          ref.read(overlayWindowVisibleProvider),
-        ),
+        ref
+            .read(overlayWindowManagerProvider)
+            .setVisible(context, ref.read(overlayWindowVisibleProvider)),
       );
     });
   }
@@ -93,7 +92,7 @@ class _GodSenseHomeState extends ConsumerState<GodSenseHome> {
   Future<void> _resetPanels() async {
     // The editing overlay is topmost; hide it so the main-window dialog can
     // receive clicks, then restore the current desired visibility on either path.
-    await overlayWindowManager.hide();
+    await ref.read(overlayWindowManagerProvider).hide();
     if (!mounted) return;
     try {
       if (await confirmHudReset(context) && mounted) {
@@ -111,10 +110,9 @@ class _GodSenseHomeState extends ConsumerState<GodSenseHome> {
       }
     } finally {
       if (mounted) {
-        await overlayWindowManager.setVisible(
-          context,
-          ref.read(overlayWindowVisibleProvider),
-        );
+        await ref
+            .read(overlayWindowManagerProvider)
+            .setVisible(context, ref.read(overlayWindowVisibleProvider));
       }
     }
   }
@@ -132,7 +130,9 @@ class _GodSenseHomeState extends ConsumerState<GodSenseHome> {
 
     ref.listen<bool>(overlayWindowVisibleProvider, (previous, visible) {
       if (previous == visible) return;
-      unawaited(overlayWindowManager.setVisible(context, visible));
+      unawaited(
+        ref.read(overlayWindowManagerProvider).setVisible(context, visible),
+      );
     });
 
     ref.listen(nativeVisionProvider, (previous, next) {

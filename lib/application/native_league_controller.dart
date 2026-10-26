@@ -282,6 +282,9 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
   final Map<int, Set<String>> _draftChampionPositions = {};
   bool _forceAccountSync = false;
   bool _forceCapabilityProbe = false;
+  int _runeLoadGeneration = 0;
+  int _jungleLoadGeneration = 0;
+  int _itemLoadGeneration = 0;
   DateTime? _lastPollStarted;
 
   int? get localSummonerId => _localSummonerId;
@@ -300,6 +303,7 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
     await (foundation ??= NativeLeagueFoundation(
       client: _lcu,
     )).deleteAllLocalData();
+    if (!mounted) return;
     state = NativeLeagueState(
       lcuConnected: state.lcuConnected,
       lcuEventConnected: state.lcuEventConnected,
@@ -421,9 +425,10 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
   }
 
   void start() {
-    if (_timer != null) return;
+    if (!mounted || _timer != null) return;
     _eventSubscription = _lcuEvents.events.listen(_onLcuEvent);
     _eventStateSubscription = _lcuEvents.states.listen((connection) {
+      if (!mounted) return;
       state = state.copyWith(
         lcuEventConnected: connection == LcuEventConnectionState.connected,
       );
@@ -437,6 +442,7 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
   }
 
   void _onLcuEvent(LcuApiEvent event) {
+    if (!mounted) return;
     if (event.uri.startsWith('/lol-summoner/')) {
       _forceAccountSync = true;
       _localSummonerId = null;
@@ -453,7 +459,7 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
   }
 
   Future<void> _poll({bool eventDriven = false}) async {
-    if (_polling) return;
+    if (!mounted || _polling) return;
     final now = DateTime.now();
     if (!eventDriven &&
         _lastPollStarted != null &&
@@ -468,9 +474,11 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
       var lobby = const <String, dynamic>{};
       Object? champSelectSession;
       final credentials = await _lcu.discover();
+      if (!mounted) return;
       if (credentials != null) {
         try {
           final phaseRaw = await _lcu.get('/lol-gameflow/v1/gameflow-phase');
+          if (!mounted) return;
           phase = phaseRaw?.toString() ?? 'None';
           lcuConnected = true;
           _updatePhaseScopedCaches(phase);
@@ -481,6 +489,7 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
               final summoner = await _lcu.get(
                 '/lol-summoner/v1/current-summoner',
               );
+              if (!mounted) return;
               if (summoner is Map) {
                 _localSummonerId = (summoner['summonerId'] as num?)?.toInt();
                 draftPuuid = summoner['puuid']?.toString();
@@ -488,9 +497,11 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
             }
             _ensureDraftPoolLoaded(draftPuuid);
             final session = await _lcu.get('/lol-champ-select/v1/session');
+            if (!mounted) return;
             champSelectSession = session;
             if (session is Map) {
               lobby = await _normalizeLobby(session);
+              if (!mounted) return;
               _ensureRuneRecommendationsLoaded(lobby);
               _ensureItemRecommendationsLoaded(lobby);
             }
@@ -512,6 +523,7 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
         }
       }
       NativeLeagueFoundationState? foundationState;
+      if (!mounted) return;
       try {
         foundationState =
             await (foundation ??= NativeLeagueFoundation(
@@ -524,12 +536,14 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
               forceAccountSync: _takeForcedAccountSync(),
               forceCapabilityProbe: _takeForcedCapabilityProbe(),
             );
+        if (!mounted) return;
         _localSummonerId =
             foundationState.account.context?.account.summonerId ??
             _localSummonerId;
       } catch (_) {
         // Persistence and account enrichment must never interrupt live data.
       }
+      if (!mounted) return;
       Map<String, dynamic>? liveData;
       var liveLatency = state.liveApiLatencyMilliseconds;
       final liveProbed = _shouldProbeLiveClient(phase);
@@ -537,6 +551,7 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
         _lastLiveProbe = DateTime.now();
         final liveStopwatch = Stopwatch()..start();
         liveData = await _live.allGameData();
+        if (!mounted) return;
         liveLatency = liveStopwatch.elapsedMicroseconds / 1000;
       }
       if (!liveProbed) {
@@ -557,6 +572,7 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
         allGameData: liveData,
         gameId: int.tryParse(_currentGameId ?? ''),
       );
+      if (!mounted) return;
       foundationState = foundation?.state ?? foundationState;
       _ensureJungleRecommendationsLoaded(
         foundationState?.account.context?.account.patchKey,
@@ -645,7 +661,7 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
         gameSession: foundationState?.gameSession,
       );
     } catch (error) {
-      state = state.copyWith(lastError: error.toString());
+      if (mounted) state = state.copyWith(lastError: error.toString());
     } finally {
       _polling = false;
     }
@@ -810,6 +826,7 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
   }
 
   Future<void> importRecommendedSetup(Map<String, dynamic> builds) async {
+    if (!mounted || state.operationInProgress) return;
     state = state.copyWith(operationInProgress: true, clearError: true);
     final result = <String, dynamic>{};
     try {
@@ -828,20 +845,33 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
       if (perkIds.isNotEmpty) {
         try {
           final pages = await _lcu.get('/lol-perks/v1/pages');
-          if (pages is List) {
-            for (final page in pages.whereType<Map>()) {
-              if (page['name'] == 'GodSense' && page['isDeletable'] == true) {
-                await _lcu.delete('/lol-perks/v1/pages/${page['id']}');
-              }
-            }
-          }
-          final page = await _lcu.post('/lol-perks/v1/pages', {
+          if (!mounted) return;
+          final existing = pages is List
+              ? pages
+                    .whereType<Map>()
+                    .where(
+                      (page) =>
+                          page['name'] == 'GodSense' &&
+                          page['isDeletable'] == true &&
+                          page['id'] is num,
+                    )
+                    .firstOrNull
+              : null;
+          final payload = {
             'name': 'GodSense',
             'primaryStyleId': runes['primary_tree_id'],
             'subStyleId': runes['secondary_tree_id'],
             'selectedPerkIds': perkIds,
             'current': true,
-          });
+          };
+          // Update in place so a rejected request cannot destroy the last
+          // working page. Personal and protected pages are never replaced.
+          final page = existing == null
+              ? await _lcu.post('/lol-perks/v1/pages', payload)
+              : await _lcu.put('/lol-perks/v1/pages/${existing['id']}', {
+                  ...payload,
+                  'id': existing['id'],
+                });
           result['runes'] = {
             'page_id': page is Map ? page['id'] : null,
             'page_name': 'GodSense',
@@ -917,11 +947,13 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
           result['build_error'] = error.toString();
         }
       }
+      if (!mounted) return;
       state = state.copyWith(
         operationInProgress: false,
         lastOperationResult: result,
       );
     } catch (error) {
+      if (!mounted) return;
       state = state.copyWith(
         operationInProgress: false,
         lastError: error.toString(),
@@ -1031,8 +1063,11 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
     required LeaguePosition position,
     int mapId = 11,
   }) async {
+    if (!mounted) return;
+    final generation = ++_runeLoadGeneration;
     state = state.copyWith(
       runeRecommendationsLoading: true,
+      clearRuneRecommendations: true,
       clearRuneRecommendationsError: true,
     );
     try {
@@ -1046,12 +1081,14 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
             : ClientVersion(account!.clientVersion!),
         patch: account?.patchKey,
       );
+      if (!mounted || generation != _runeLoadGeneration) return;
       state = state.copyWith(
         runeRecommendations: bundle,
         runeRecommendationsLoading: false,
         clearRuneRecommendationsError: true,
       );
     } catch (error) {
+      if (!mounted || generation != _runeLoadGeneration) return;
       _runeRequestKey = null;
       state = state.copyWith(
         runeRecommendationsLoading: false,
@@ -1065,18 +1102,22 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
   ) => importRecommendedSetup({'runes': recommendation.toImportJson()});
 
   Future<void> loadJungleRecommendations(PatchKey patch) async {
+    if (!mounted) return;
+    final generation = ++_jungleLoadGeneration;
     state = state.copyWith(
       jungleRecommendationsLoading: true,
       clearJungleRecommendationsError: true,
     );
     try {
       final bundle = await _jungleRecommendationSource.load(patch);
+      if (!mounted || generation != _jungleLoadGeneration) return;
       state = state.copyWith(
         jungleRecommendations: bundle,
         jungleRecommendationsLoading: false,
         clearJungleRecommendationsError: true,
       );
     } catch (error) {
+      if (!mounted || generation != _jungleLoadGeneration) return;
       _jungleRequestPatch = null;
       state = state.copyWith(
         jungleRecommendationsLoading: false,
@@ -1090,6 +1131,8 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
     required String championAlias,
     required LeaguePosition position,
   }) async {
+    if (!mounted) return;
+    final generation = ++_itemLoadGeneration;
     state = state.copyWith(
       itemRecommendationsLoading: true,
       clearItemRecommendations: true,
@@ -1104,6 +1147,7 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
         );
       }
       if (_itemCatalog.isEmpty) await _loadItemCatalog();
+      if (!mounted || generation != _itemLoadGeneration) return;
       final bundle = await _itemRecommendationSource.load(
         championId: championId,
         championAlias: championAlias,
@@ -1111,6 +1155,7 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
         patch: patch,
         itemCatalog: _itemCatalog,
       );
+      if (!mounted || generation != _itemLoadGeneration) return;
       state = state.copyWith(
         itemRecommendations: bundle,
         itemRecommendationsLoading: false,
@@ -1120,6 +1165,7 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
             : {...state.lobby, 'builds': bundle.toBuildJson()},
       );
     } catch (error) {
+      if (!mounted || generation != _itemLoadGeneration) return;
       _itemRecommendationRequestKey = null;
       state = state.copyWith(
         itemRecommendationsLoading: false,

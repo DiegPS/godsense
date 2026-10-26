@@ -11,14 +11,15 @@ import '../../application/artifacts/artifact_downloader.dart';
 class BackgroundArtifactDownloader implements ControllableArtifactDownloader {
   factory BackgroundArtifactDownloader() => _shared;
 
+  BackgroundArtifactDownloader._();
+
   BackgroundArtifactDownloader.withDownloader(FileDownloader downloader)
-    : _downloader = downloader;
+    : _downloaderInstance = downloader;
 
-  static final _shared = BackgroundArtifactDownloader.withDownloader(
-    FileDownloader(),
-  );
+  static final _shared = BackgroundArtifactDownloader._();
 
-  final FileDownloader _downloader;
+  FileDownloader? _downloaderInstance;
+  FileDownloader get _downloader => _downloaderInstance ??= FileDownloader();
   final _registeredGroups = <String>{};
   final _pending = <String, _PendingDownload>{};
   final _tasksByRequestId = <String, DownloadTask>{};
@@ -65,7 +66,7 @@ class BackgroundArtifactDownloader implements ControllableArtifactDownloader {
       if (!finished) unawaited(cancel(request.id));
     });
     try {
-      await (_startFuture ??= _downloader.start(autoCleanDatabase: true));
+      await _ensureStarted();
       cancellation?.throwIfCancelled();
       final record = await _downloader.database.recordForId(task.taskId);
       if (record?.status == TaskStatus.complete && await destination.exists()) {
@@ -234,10 +235,19 @@ class BackgroundArtifactDownloader implements ControllableArtifactDownloader {
   Future<DownloadTask?> _findTask(String requestId) async {
     final current = _tasksByRequestId[requestId];
     if (current != null) return current;
-    await (_startFuture ??= _downloader.start(autoCleanDatabase: true));
+    await _ensureStarted();
     final record = await _downloader.database.recordForId(_taskId(requestId));
     return record?.task is DownloadTask ? record!.task as DownloadTask : null;
   }
+
+  Future<void> _ensureStarted() => _startFuture ??= _downloader
+      .start(autoCleanDatabase: true)
+      .catchError((Object error, StackTrace stackTrace) {
+        // A transient plugin/database failure must not poison every later
+        // download and pause/resume request for the lifetime of the app.
+        _startFuture = null;
+        Error.throwWithStackTrace(error, stackTrace);
+      });
 
   static String _taskId(String value) {
     final safe = value.replaceAll(RegExp('[^a-zA-Z0-9_-]'), '-');

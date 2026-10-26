@@ -116,6 +116,7 @@ class LiveCaptionsService {
   int _revision = 0;
   final List<String> _utteranceCaptions = [];
   Completer<void>? _flushCompleter;
+  Future<void>? _stopping;
 
   Stream<LiveCaptionsState> get states async* {
     yield _state;
@@ -154,7 +155,7 @@ class LiveCaptionsService {
       await stop();
       return;
     }
-    if (changed) await stop(emitIdle: false);
+    if (changed || _stopping != null) await stop(emitIdle: false);
     if (revision != _revision) return;
     final installation = await _modelCache.installed(model.package);
     if (revision != _revision) return;
@@ -380,6 +381,16 @@ class LiveCaptionsService {
   }
 
   Future<void> stop({bool emitIdle = true}) async {
+    final operation = _stopping ??= _stopWorker();
+    try {
+      await operation;
+    } finally {
+      if (identical(_stopping, operation)) _stopping = null;
+    }
+    if (emitIdle) _emit(const LiveCaptionsState());
+  }
+
+  Future<void> _stopWorker() async {
     _downloadCancellation?.cancel();
     await _audioSubscription?.cancel();
     _audioSubscription = null;
@@ -396,10 +407,23 @@ class LiveCaptionsService {
     final guard = _workerGuard;
     _workerGuard = null;
     await guard?.dispose(expectedExit: true);
-    if (commands != null) commands.send({'type': 'dispose'});
-    _worker?.kill(priority: Isolate.beforeNextEvent);
+    final worker = _worker;
     _worker = null;
-    if (emitIdle) _emit(const LiveCaptionsState());
+    if (commands == null) {
+      worker?.kill(priority: Isolate.beforeNextEvent);
+    } else {
+      final released = ReceivePort();
+      try {
+        commands.send({'type': 'dispose', 'reply': released.sendPort});
+        // Let VAD, denoiser and recognizer release their native models before
+        // falling back to terminating an unresponsive worker.
+        await released.first.timeout(const Duration(seconds: 3));
+      } catch (_) {
+        worker?.kill(priority: Isolate.beforeNextEvent);
+      } finally {
+        released.close();
+      }
+    }
   }
 
   Future<void> dispose() async {
@@ -563,6 +587,7 @@ class LiveCaptionsService {
             // One second of silence closes a pending Silero segment. The
             // acknowledgement is emitted after Canary finishes decoding.
             vad!.acceptWaveform(Float32List(16000));
+            vad!.flush();
             events?.send({'speechDetected': vad!.isDetected()});
             while (!vad!.isEmpty()) {
               final segment = vad!.front();
@@ -591,6 +616,7 @@ class LiveCaptionsService {
             vad = null;
             denoiser = null;
             recognizer = null;
+            (message['reply'] as SendPort?)?.send(true);
             commands.close();
             return;
         }

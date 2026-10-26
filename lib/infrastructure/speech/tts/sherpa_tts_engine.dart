@@ -14,6 +14,7 @@ import '../tts_model_cache.dart';
 import '../sherpa_cpu_thread_policy.dart';
 import '../native_worker_guard.dart';
 import 'tts_model_catalog.dart';
+import 'tts_text_chunks.dart';
 
 class TtsAudio {
   final Float32List samples;
@@ -442,37 +443,43 @@ class SherpaTtsEngine {
                   reference.sampleRate <= 0)) {
             throw StateError('Unable to read reference WAV: $referencePath');
           }
-          final audio = tts!.generateWithConfig(
-            text: message['text'] as String,
-            config: sherpa.OfflineTtsGenerationConfig(
-              sid: message['speakerId'] as int,
-              speed: message['speed'] as double,
-              numSteps: message['steps'] as int,
-              silenceScale: model['silenceScale'] as double,
-              referenceAudio: reference?.samples,
-              referenceSampleRate: reference?.sampleRate ?? 0,
-              referenceText: message['referenceText'] as String? ?? '',
-              extra: family == TtsModelFamily.supertonic.name
-                  ? {'lang': message['language'] as String}
-                  : family == TtsModelFamily.zipvoice.name
-                  ? const {'min_char_in_sentence': 1}
-                  : const {},
-            ),
-            onProgress: (_, __) =>
-                Pointer<Uint8>.fromAddress(message['cancelAddress'] as int)
-                        .value ==
-                    0
-                ? 1
-                : 0,
+          final samples = BytesBuilder(copy: false);
+          final cancellation = Pointer<Uint8>.fromAddress(
+            message['cancelAddress'] as int,
           );
-          reply.send({
-            'samples': TransferableTypedData.fromList([
+          final sampleRate = tts!.sampleRate;
+          for (final chunk in ttsTextChunks(message['text'] as String)) {
+            if (cancellation.value != 0) break;
+            // Some models invoke progress only after a complete text batch.
+            // Bound each call so cancellation does not wait for a long reply.
+            final audio = tts!.generateWithConfig(
+              text: chunk,
+              config: sherpa.OfflineTtsGenerationConfig(
+                sid: message['speakerId'] as int,
+                speed: message['speed'] as double,
+                numSteps: message['steps'] as int,
+                silenceScale: model['silenceScale'] as double,
+                referenceAudio: reference?.samples,
+                referenceSampleRate: reference?.sampleRate ?? 0,
+                referenceText: message['referenceText'] as String? ?? '',
+                extra: family == TtsModelFamily.supertonic.name
+                    ? {'lang': message['language'] as String}
+                    : family == TtsModelFamily.zipvoice.name
+                    ? const {'min_char_in_sentence': 1}
+                    : const {},
+              ),
+              onProgress: (_, __) => cancellation.value == 0 ? 1 : 0,
+            );
+            samples.add(
               audio.samples.buffer.asUint8List(
                 audio.samples.offsetInBytes,
                 audio.samples.lengthInBytes,
               ),
-            ]),
-            'sampleRate': audio.sampleRate,
+            );
+          }
+          reply.send({
+            'samples': TransferableTypedData.fromList([samples.takeBytes()]),
+            'sampleRate': sampleRate,
           });
         } catch (error, stack) {
           reply.send({'error': '$error\n$stack'});

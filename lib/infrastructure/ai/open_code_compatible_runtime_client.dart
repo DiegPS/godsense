@@ -9,11 +9,13 @@ export 'package:dart_ai_runtime/dart_ai_runtime.dart'
 // providers. Fetch, decode and construct the shared DTOs away from the UI.
 class BackgroundCatalogRuntimeClient
     extends runtime.OpenCodeCompatibleRuntimeClient {
+  static const defaultRequestTimeout = Duration(seconds: 30);
+
   BackgroundCatalogRuntimeClient({
     required super.endpoint,
     required super.workspaceDirectory,
     super.systemPromptService,
-    super.requestTimeout,
+    super.requestTimeout = defaultRequestTimeout,
   });
 
   Future<List<runtime.AiProviderInfo>>? _catalog;

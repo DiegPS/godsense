@@ -31,7 +31,7 @@ dependencies:
   dart_ai_runtime:
     git:
       url: https://github.com/DiegPS/dart_ai_runtime.git
-      ref: v0.3.0
+      ref: a2b064fd8f95f3d9c419b4280e516c6eb0c836ae
   flutter:
     sdk: flutter
 
@@ -78,6 +78,7 @@ dev_dependencies:
   freezed: ^4.0.1
   json_serializable: ^6.14.1
   drift_dev: ^2.34.5
+  coverage: ^1.16.0
 
 hooks:
   user_defines:

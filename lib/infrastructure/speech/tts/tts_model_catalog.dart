@@ -388,7 +388,7 @@ class TtsModelCatalog {
 
   static final TtsModelDefinition matcha = TtsModelDefinition(
     id: 'matcha-ljspeech-en',
-    version: '2026-07-16',
+    version: '2026-10-24',
     name: 'Matcha-TTS',
     description: 'English LJSpeech acoustic model with Vocos vocoder',
     family: TtsModelFamily.matcha,
@@ -396,9 +396,9 @@ class TtsModelCatalog {
       TtsModelDownload(
         uri: _ttsAsset('matcha-icefall-en_US-ljspeech.tar.bz2'),
         fileName: 'matcha-icefall-en_US-ljspeech.tar.bz2',
-        bytes: 76741121,
+        bytes: 76713558,
         sha256:
-            'ea75702da7456a8b1874728278a835220dc8a26f4e8bd93c83bf53dc27679845',
+            '7c251d9ad3fda3d21a0f8a71a0e0b1f59574c4b1cfce6eb7e3c537b6e3b4e1e8',
         isArchive: true,
       ),
       TtsModelDownload(
@@ -456,8 +456,9 @@ class TtsModelCatalog {
       'lm_main.int8.onnx',
       'encoder.onnx',
       'decoder.int8.onnx',
-      'tokens.txt',
-      'espeak-ng-data',
+      'text_conditioner.onnx',
+      'vocab.json',
+      'token_scores.json',
       'test_wavs/bria.wav',
     ],
     modelFiles: const {
@@ -465,8 +466,9 @@ class TtsModelCatalog {
       'lmMain': 'lm_main.int8.onnx',
       'encoder': 'encoder.onnx',
       'decoder': 'decoder.int8.onnx',
-      'tokens': 'tokens.txt',
-      'dataDir': 'espeak-ng-data',
+      'textConditioner': 'text_conditioner.onnx',
+      'vocabJson': 'vocab.json',
+      'tokenScoresJson': 'token_scores.json',
     },
     languages: const [TtsLanguageOption('en', 'English')],
     voices: const [
@@ -485,7 +487,7 @@ class TtsModelCatalog {
 
   static final TtsModelDefinition zipVoice = TtsModelDefinition(
     id: 'zipvoice-distill-int8-zh-en',
-    version: '2026-06-18',
+    version: '2026-10-25',
     name: 'ZipVoice',
     description: 'Chinese and English voice cloning with a transcript',
     family: TtsModelFamily.zipvoice,
@@ -495,9 +497,9 @@ class TtsModelCatalog {
           'sherpa-onnx-zipvoice-distill-int8-zh-en-emilia.tar.bz2',
         ),
         fileName: 'sherpa-onnx-zipvoice-distill-int8-zh-en-emilia.tar.bz2',
-        bytes: 147573432,
+        bytes: 109162785,
         sha256:
-            '6be8482431cb7f1bfa9bf17b6a1209b5526d17dfd1ec676be981d39235cb994f',
+            '77219c8b40f4ee8d73a7f902305ff6c1128ef9b54461c41b4ca6ed890b6c2803',
         isArchive: true,
       ),
       TtsModelDownload(

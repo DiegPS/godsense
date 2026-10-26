@@ -1,5 +1,18 @@
 part of '../../app/godsense_app.dart';
 
+final localDataExportDestinationProvider =
+    Provider<Future<File?> Function(String suggestedName)>((ref) {
+      return (suggestedName) async {
+        final location = await getSaveLocation(
+          acceptedTypeGroups: const [
+            XTypeGroup(label: 'JSON', extensions: ['json']),
+          ],
+          suggestedName: suggestedName,
+        );
+        return location == null ? null : File(location.path);
+      };
+    });
+
 class SettingsPage extends ConsumerStatefulWidget {
   const SettingsPage({super.key});
 
@@ -29,18 +42,15 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
   Future<void> _exportData() async {
     final date = DateTime.now().toIso8601String().split('T').first;
-    final location = await getSaveLocation(
-      acceptedTypeGroups: const [
-        XTypeGroup(label: 'JSON', extensions: ['json']),
-      ],
-      suggestedName: 'godsense-data-$date.json',
-    );
-    if (location == null || !mounted) return;
     await _runDataOperation(() async {
+      final destination = await ref.read(localDataExportDestinationProvider)(
+        'godsense-data-$date.json',
+      );
+      if (destination == null || !mounted) return null;
       await ref
           .read(nativeLeagueProvider.notifier)
-          .exportLocalData(File(location.path));
-      return 'Datos exportados en ${location.path}';
+          .exportLocalData(destination);
+      return 'Datos exportados en ${destination.path}';
     });
   }
 
@@ -87,7 +97,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     });
   }
 
-  Future<void> _runDataOperation(Future<String> Function() operation) async {
+  Future<void> _runDataOperation(Future<String?> Function() operation) async {
     if (_dataOperationInProgress) return;
     setState(() {
       _dataOperationInProgress = true;

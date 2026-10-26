@@ -21,6 +21,19 @@ class MockAiRuntimeClient implements AiRuntimeClient {
 
   void emitEvent(AiRuntimeEvent event) => _eventController.add(event);
 
+  void beginAssistant(String id) => emitEvent(
+    AiRuntimeEvent.fromJson({
+      'type': 'message.updated',
+      'properties': {
+        'info': {
+          'id': id,
+          'role': 'assistant',
+          'parentID': promptPayloads.last.messageId,
+        },
+      },
+    }),
+  );
+
   @override
   Stream<AiRuntimeEvent> events() => _eventController.stream;
 
@@ -99,6 +112,47 @@ class FakeSupervisor implements AiRuntimeSupervisor {
 }
 
 void main() {
+  test('history preserves cancellation metadata and accepts older records', () {
+    final history = [
+      AiChatMessage(
+        id: 'cancelled',
+        role: 'user',
+        content: 'Synthetic cancelled question',
+        timestamp: DateTime.utc(2026),
+        isCancelled: true,
+      ),
+    ];
+    final restored = decodeAiConversationHistory(
+      encodeAiConversationHistory(history),
+    );
+    expect(restored.single.isCancelled, true);
+    expect(restored.single.content, history.single.content);
+    final legacy = decodeAiConversationHistory(
+      '[{"id":"old","role":"user","content":"Legacy question","timestamp":"2026-01-01T00:00:00Z"}]',
+    );
+    expect(legacy.single.isCancelled, false);
+  });
+  for (final systemPrompt in <String?>[null, '', ' \n ']) {
+    test(
+      'empty system instructions use a valid tactical fallback: $systemPrompt',
+      () async {
+        final client = MockAiRuntimeClient();
+        final controller = AiConversationController(
+          supervisor: FakeSupervisor(),
+          clientFactory: () => client,
+        );
+        addTearDown(controller.dispose);
+        await controller.sendMessage('Hola', systemPrompt: systemPrompt);
+        expect(
+          client.promptPayloads.single.system,
+          AiConversationController.defaultSystemPrompt,
+        );
+        expect(controller.state.status, isNot(AiConversationStatus.error));
+        await controller.abort();
+      },
+    );
+  }
+
   test(
     'selected model identifiers reach the prompt without Kilo hardcoding',
     () async {
@@ -184,7 +238,7 @@ void main() {
         'info': {
           'id': 'assistant-new',
           'role': 'assistant',
-          'parentID': 'user-new',
+          'parentID': mockClient.promptPayloads.last.messageId,
         },
       });
       emit('message.part.updated', {
@@ -233,6 +287,21 @@ void main() {
       await pumpEventQueue();
       expect(controller.state.streamedText, '**Controla la visión**.');
       emit('session.idle', {'sessionID': 'mock-session-1'});
+      await pumpEventQueue();
+      expect(
+        controller.state.isBusy,
+        true,
+        reason: 'Session-wide idle cannot identify the completed turn',
+      );
+      emit('message.updated', {
+        'sessionID': 'mock-session-1',
+        'info': {
+          'id': 'assistant-new',
+          'role': 'assistant',
+          'parentID': mockClient.promptPayloads.last.messageId,
+          'finish': 'stop',
+        },
+      });
       await pumpEventQueue();
       expect(controller.state.messages.last.content, '**Controla la visión**.');
     },
@@ -631,6 +700,7 @@ void main() {
     expect(controller.state.streamedText, isEmpty);
 
     // 2. Ahora llega la respuesta verdadera de pregunta 2
+    mockClient.beginAssistant('assistant-msg-2');
     mockClient.emitEvent(
       const AiRuntimeEvent(
         type: 'message.part.delta',
@@ -706,6 +776,7 @@ void main() {
     expect(controller.state.streamedText, isEmpty);
 
     // 3. Luego llega el delta legítimo del asistente con otro messageId
+    mockClient.beginAssistant('assistant-reply-msg');
     mockClient.emitEvent(
       const AiRuntimeEvent(
         type: 'message.part.delta',

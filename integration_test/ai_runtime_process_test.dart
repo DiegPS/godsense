@@ -49,7 +49,7 @@ void main() {
               timeout: const Duration(seconds: 25),
             );
             expect(result.healthy, isTrue, reason: result.message);
-            final client = OpenCodeCompatibleRuntimeClient(
+            final client = BackgroundCatalogRuntimeClient(
               endpoint: process.endpoint,
               workspaceDirectory: storage.workspace(fixture.$1).path,
               systemPromptService: service.systemPromptService,
@@ -119,7 +119,7 @@ void main() {
             timeout: const Duration(seconds: 25),
           );
           expect(ready.healthy, isTrue, reason: ready.message);
-          final client = OpenCodeCompatibleRuntimeClient(
+          final client = BackgroundCatalogRuntimeClient(
             endpoint: process.endpoint,
             workspaceDirectory: storage.workspace(AiRuntimeKind.kilo).path,
             systemPromptService: service.systemPromptService,

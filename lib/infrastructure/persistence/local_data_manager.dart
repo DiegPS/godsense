@@ -107,6 +107,11 @@ class LocalDataManager {
             AND d.platform_id = account_matches.platform_id
             AND d.game_id = account_matches.game_id
         )
+        AND NOT EXISTS (
+          SELECT 1 FROM source_records sr
+          WHERE sr.platform_id = account_matches.platform_id
+            AND sr.game_id = account_matches.game_id
+        )
         ''',
         updates: {database.accountMatches},
       );
@@ -117,6 +122,11 @@ class LocalDataManager {
           SELECT 1 FROM account_matches am
           WHERE am.platform_id = matches.platform_id
             AND am.game_id = matches.game_id
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM source_records sr
+          WHERE sr.platform_id = matches.platform_id
+            AND sr.game_id = matches.game_id
         )
         ''',
         updates: {database.matches},

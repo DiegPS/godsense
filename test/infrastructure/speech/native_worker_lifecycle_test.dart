@@ -12,6 +12,111 @@ import 'package:godsense/infrastructure/speech/tts_model_cache.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test(
+    'caption shutdown waits for worker resource cleanup acknowledgement',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'captions-cleanup-test-',
+      );
+      final cleaned = ReceivePort();
+      final capture = _FakeSpeechAudioCapture();
+      final cache = _InstalledModelCache(directory);
+      final service = LiveCaptionsService(
+        modelCache: cache,
+        audioCapture: capture,
+        workerEntrypoint: _cleanupWorker(cleaned.sendPort),
+      );
+      try {
+        await service.updateConfig(
+          enabled: true,
+          sourceLanguage: 'es',
+          targetLanguage: 'es',
+          denoise: true,
+        );
+        final observedCleanup = cleaned.first.timeout(
+          const Duration(seconds: 2),
+        );
+        await Future.wait([service.stop(), service.stop(), service.stop()]);
+        expect(await observedCleanup, true);
+        expect(service.currentState.phase, LiveCaptionsPhase.idle);
+      } finally {
+        cleaned.close();
+        await service.dispose();
+        cache.dispose();
+        await directory.delete(recursive: true);
+      }
+    },
+  );
+  test(
+    'disabling captions while its worker loads completes the pending start',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'captions-start-cancel-',
+      );
+      final started = ReceivePort();
+      final capture = _FakeSpeechAudioCapture();
+      final cache = _InstalledModelCache(directory);
+      final service = LiveCaptionsService(
+        modelCache: cache,
+        audioCapture: capture,
+        workerEntrypoint: _loadingWorker(started.sendPort),
+      );
+      try {
+        final starting = service.updateConfig(
+          enabled: true,
+          sourceLanguage: 'es',
+          targetLanguage: 'es',
+          denoise: true,
+        );
+        await started.first.timeout(const Duration(seconds: 2));
+        await service.updateConfig(
+          enabled: false,
+          sourceLanguage: 'es',
+          targetLanguage: 'es',
+          denoise: true,
+        );
+        await expectLater(
+          starting.timeout(const Duration(seconds: 2)),
+          completes,
+        );
+        expect(service.currentState.phase, LiveCaptionsPhase.idle);
+        expect(capture.startCalls, 0);
+      } finally {
+        started.close();
+        await service.dispose();
+        cache.dispose();
+        await directory.delete(recursive: true);
+      }
+    },
+  );
+
+  test('unloading TTS while its worker loads rejects the pending initialization promptly', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'tts-start-cancel-',
+    );
+    final started = ReceivePort();
+    final engine = SherpaTtsEngine(
+      workerEntrypoint: _loadingWorker(started.sendPort),
+    );
+    try {
+      final initializing = engine.initialize(
+        TtsModelInstallation(TtsModelCatalog.supertonic, directory),
+      );
+      final outcome = expectLater(
+        initializing.timeout(const Duration(seconds: 2)),
+        throwsStateError,
+      );
+      await started.first.timeout(const Duration(seconds: 2));
+      await engine.unload();
+      await outcome;
+      expect(engine.isReady, false);
+    } finally {
+      started.close();
+      await engine.dispose();
+      await directory.delete(recursive: true);
+    }
+  });
+
   test('TTS synthesis fails immediately when a ready worker exits', () async {
     final directory = await Directory.systemTemp.createTemp('tts-worker-test-');
     final engine = SherpaTtsEngine(workerEntrypoint: _exitingTtsWorker);
@@ -143,6 +248,30 @@ void main() {
   });
 }
 
+void Function(Map<String, Object>) _loadingWorker(
+  SendPort started,
+) => (startup) {
+  // Simulate a native model initialization that has not produced its command
+  // port yet. No microphone, model files or native callback is involved.
+  final keepAlive = ReceivePort();
+  keepAlive.listen((_) {});
+  started.send(true);
+};
+
+void Function(Map<String, Object>) _cleanupWorker(SendPort cleaned) =>
+    (startup) {
+      final commands = ReceivePort();
+      (startup['reply'] as SendPort).send(commands.sendPort);
+      commands.listen((dynamic message) async {
+        if (message is Map && message['type'] == 'dispose') {
+          await Future<void>.delayed(const Duration(milliseconds: 50));
+          cleaned.send(true);
+          (message['reply'] as SendPort).send(true);
+          commands.close();
+        }
+      });
+    };
+
 void _exitingTtsWorker(Map<String, Object> startup) {
   final owner = startup['reply']! as SendPort;
   final commands = ReceivePort();
@@ -200,19 +329,24 @@ void _flushingCaptionsWorker(Map<String, Object> startup) {
       });
       events?.send({'flushDone': true, 'speechDetected': false});
     } else if (message['type'] == 'dispose') {
+      (message['reply'] as SendPort?)?.send(true);
       commands.close();
     }
   });
 }
 
 class _FakeSpeechAudioCapture implements SpeechAudioCapture {
-  final _audio = StreamController<Uint8List>();
+  final _audio = StreamController<Uint8List>.broadcast();
   int stopCalls = 0;
+  int startCalls = 0;
 
   void add(Uint8List bytes) => _audio.add(bytes);
 
   @override
-  Future<Stream<Uint8List>> start() async => _audio.stream;
+  Future<Stream<Uint8List>> start() async {
+    startCalls++;
+    return _audio.stream;
+  }
 
   @override
   Future<void> stop() async {

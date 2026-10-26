@@ -33,31 +33,10 @@ class AiProviderConnections extends ConsumerWidget {
     }
 
     Future<void> apiKey(AiAuthMethod method) async {
-      final input = TextEditingController();
       final value = await showDialog<String>(
         context: context,
-        builder: (context) => AlertDialog(
-          title: Text('Conectar ${method.providerId}'),
-          content: TextField(
-            controller: input,
-            autofocus: true,
-            obscureText: true,
-            decoration: const InputDecoration(labelText: 'API key'),
-            onSubmitted: (value) => Navigator.pop(context, value),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancelar'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, input.text),
-              child: const Text('Conectar'),
-            ),
-          ],
-        ),
+        builder: (_) => _ApiKeyDialog(providerId: method.providerId),
       );
-      input.dispose();
       if (!context.mounted || value?.trim().isEmpty != false) return;
       await controller.connectApiKey(method.providerId, value!);
       await refreshModels();
@@ -206,4 +185,47 @@ class AiProviderConnections extends ConsumerWidget {
       ],
     );
   }
+}
+
+class _ApiKeyDialog extends StatefulWidget {
+  const _ApiKeyDialog({required this.providerId});
+  final String providerId;
+
+  @override
+  State<_ApiKeyDialog> createState() => _ApiKeyDialogState();
+}
+
+class _ApiKeyDialogState extends State<_ApiKeyDialog> {
+  final _input = TextEditingController();
+
+  @override
+  void dispose() {
+    _input.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: Text('Conectar ${widget.providerId}'),
+    content: TextField(
+      controller: _input,
+      autofocus: true,
+      obscureText: true,
+      autocorrect: false,
+      enableSuggestions: false,
+      textInputAction: TextInputAction.done,
+      decoration: const InputDecoration(labelText: 'API key'),
+      onSubmitted: (value) => Navigator.pop(context, value),
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: const Text('Cancelar'),
+      ),
+      FilledButton(
+        onPressed: () => Navigator.pop(context, _input.text),
+        child: const Text('Conectar'),
+      ),
+    ],
+  );
 }
