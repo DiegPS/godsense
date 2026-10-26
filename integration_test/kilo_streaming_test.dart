@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:dart_ai_runtime/dart_ai_runtime.dart'
@@ -24,6 +25,8 @@ class StreamingOnlyClient extends OpenCodeCompatibleRuntimeClient {
   int reads = 0;
   final seenTypes = <String>{};
   int deltas = 0;
+  final partKinds = <String, String>{};
+  final deltaKinds = <String, int>{};
 
   @override
   Future<List<Map<String, dynamic>>> messages(String sessionId) {
@@ -36,7 +39,31 @@ class StreamingOnlyClient extends OpenCodeCompatibleRuntimeClient {
   Future<Stream<AiRuntimeEvent>> connectEvents() async {
     final stream = await super.connectEvents();
     return stream.map((event) {
-      if (event.textDelta != null) deltas++;
+      final part = event.properties['part'];
+      if (part is Map && part['type'] is String && event.partId != null) {
+        partKinds[event.partId!] = part['type'] as String;
+      }
+      if (event.textDelta != null) {
+        deltas++;
+        final kind = partKinds[event.partId] ?? 'unknown';
+        deltaKinds.update(kind, (value) => value + 1, ifAbsent: () => 1);
+      }
+      if (event.type == 'message.updated') {
+        final info = event.properties['info'];
+        if (info is Map) {
+          // Protocol metadata only: no prompts, reasoning or response content.
+          // ignore: avoid_print
+          print(
+            jsonEncode({
+              'message_id': info['id'],
+              'parent_id': info['parentID'],
+              'role': info['role'],
+              'finish': info['finish'],
+              'completed': event.isCompleted,
+            }),
+          );
+        }
+      }
       if (seenTypes.add(event.type)) {
         // Synthetic test conversation only; never log production chat here.
         // ignore: avoid_print
@@ -93,14 +120,15 @@ void main() {
           'Explica en español en 180 palabras cómo practicar ajedrez. '
           'Incluye un título Markdown, palabras en negrita y una lista numerada.',
         );
-        final deadline = DateTime.now().add(const Duration(seconds: 75));
+        final deadline = DateTime.now().add(const Duration(seconds: 220));
         while (controller.state.isBusy && DateTime.now().isBefore(deadline)) {
           await Future<void>.delayed(const Duration(milliseconds: 100));
         }
         // ignore: avoid_print
         print(
           'STREAM RESULT: deltas=${client.deltas} partials=${partials.length} '
-          'status=${controller.state.status} error=${controller.state.errorMessage}',
+          'status=${controller.state.status} error=${controller.state.errorMessage} '
+          'delta_kinds=${jsonEncode(client.deltaKinds)}',
         );
         expect(partials.length, greaterThan(2));
         expect(client.deltas, greaterThan(2));
@@ -124,6 +152,6 @@ void main() {
     skip:
         executable == null ||
         Platform.environment['GODSENSE_TEST_KILO_AUTO_FREE'] != 'true',
-    timeout: const Timeout(Duration(minutes: 2)),
+    timeout: const Timeout(Duration(minutes: 4)),
   );
 }

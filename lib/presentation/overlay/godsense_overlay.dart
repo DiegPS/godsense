@@ -249,10 +249,12 @@ class _GodSenseOverlayState extends ConsumerState<GodSenseOverlay> {
                     : null,
               ),
             ),
-          if (gank != null && calibration?.bounds != null)
+          if ((gank != null || nativeGank != null) &&
+              calibration?.bounds != null)
             _CalibrationDangerRing(
               bounds: calibration!.bounds!,
-              danger: gank.raw['threat_level'] == 'DANGER',
+              danger:
+                  nativeGank != null || gank?.raw['threat_level'] == 'DANGER',
               devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
             ),
           if (!hiddenPanels.contains('gold_chart'))

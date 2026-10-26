@@ -205,8 +205,12 @@ void desktopJourneys({bool nativeWindow = false, bool realAi = false}) {
     await tester.pumpAndSettle();
   }
 
-  Future<void> waitForAi(WidgetTester tester, bool Function() complete) async {
-    final deadline = DateTime.now().add(const Duration(seconds: 90));
+  Future<void> waitForAi(
+    WidgetTester tester,
+    bool Function() complete, {
+    Duration timeout = const Duration(seconds: 90),
+  }) async {
+    final deadline = DateTime.now().add(timeout);
     while (!complete() && DateTime.now().isBefore(deadline)) {
       final conversation = container.read(aiConversationProvider);
       expect(conversation.errorMessage, isNull);
@@ -261,7 +265,7 @@ void desktopJourneys({bool nativeWindow = false, bool realAi = false}) {
         return !state.isBusy &&
             state.messages.length == 2 &&
             state.messages.last.role == 'assistant';
-      });
+      }, timeout: const Duration(seconds: 220));
       final answer = container
           .read(aiConversationProvider)
           .messages

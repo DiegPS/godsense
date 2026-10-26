@@ -833,8 +833,10 @@ class NativeTacticalEngine {
     final objectives = _map(_map(game['derived'])['objectives']);
     final requested = _requestedObjectiveKey(normalizedQuestion);
     MapEntry<String, dynamic>? selected;
-    if (requested != null && objectives.containsKey(requested)) {
-      selected = MapEntry(requested, objectives[requested]);
+    if (requested != null) {
+      if (objectives.containsKey(requested)) {
+        selected = MapEntry(requested, objectives[requested]);
+      }
     } else {
       final candidates = objectives.entries.where((entry) {
         final value = _map(entry.value);
@@ -853,7 +855,13 @@ class NativeTacticalEngine {
       });
       selected = candidates.firstOrNull;
     }
-    if (selected == null) {
+    final value = _map(selected?.value);
+    final status = value['status']?.toString() ?? '';
+    if (selected == null ||
+        !(status == 'alive' ||
+            value['respawn_in'] is num ||
+            status == 'unavailable' ||
+            status == 'slain')) {
       return TacticalAdvice(
         id: 'voice_objective_unknown',
         title: 'Objetivo sin estado confirmado',
@@ -865,9 +873,7 @@ class NativeTacticalEngine {
       );
     }
     final key = selected.key;
-    final value = _map(selected.value);
     final label = _objectiveLabel(key);
-    final status = value['status']?.toString() ?? '';
     final seconds = (value['respawn_in'] as num?)?.toDouble().round();
     if (status == 'alive') {
       return TacticalAdvice(

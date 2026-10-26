@@ -1,4 +1,34 @@
-# Resultado de la pasada completa del 25 de octubre de 2026
+# Registro de pruebas del 25 y 26 de octubre de 2026
+
+La última pasada completa registrada es `d96d91a`, en
+`build/testing/runs/20261025-235441/`: **13 229 / 15 569 líneas (84,9701 %)**,
+sin archivos sin medir y con los archivos inventariados sin cambios durante
+la ejecución. Aprobaron 495 pruebas de base, las integraciones Windows,
+visión, voz, fluidez y arranque release. Hubo 24 omisiones explícitas en la base.
+Fallaron las pruebas reales de streaming y chat por timeout; el objetivo
+del 100 % también falló. Esta revisión no tiene un resultado global aprobado.
+
+Se reprodujo después un timeout local mientras seguían llegando fragmentos.
+`dart_ai_runtime` 0.3.6 distingue inactividad de progreso, mantiene un límite
+total y retira los turnos agotados. Aprobaron sus 67 pruebas y el analizador.
+La repetición real de streaming en GodSense aprobó con 15 deltas de razonamiento
+y 58 de texto; el razonamiento no se mostró como respuesta. Es una corrección
+posterior, todavía pendiente de otra pasada global.
+
+El reintento del chat real desde la interfaz también aprobó. La tanda de
+seguridad aprobó 24 casos; el overlay aprobó 23 casos en Windows y los ajustes,
+nueve. Se corrigieron dos fallos adicionales reproducidos por esos casos:
+una consulta específica sobre dragón podía contestar con Barón si faltaba
+su estado, y los ganks nativos no activaban el borde de peligro del minimapa.
+El borde se comprueba mediante píxeles renderizados a escalas 100 %/200 %;
+una observación ordinaria o un aviso caducado no debe pintarlo. Los estados
+desconocidos de objetivos tampoco se anuncian como retiradas definitivas.
+Los controles del motor comprueban preferencias de inicio automático,
+bloqueo de operaciones simultáneas, resultados tardíos y recuperación de fallos.
+La evidencia está en `build/testing/safety-boundaries-expanded.log`,
+`build/testing/stream-progress-live.log` y `build/testing/progress-*.log`.
+
+## Primera pasada completa
 
 Revisión comprobada: `02b8eca0242ed31a18785cd510cae8174cf6574b`.
 Evidencia local: `build/testing/runs/20261025-225725/`.
