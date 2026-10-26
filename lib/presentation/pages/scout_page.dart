@@ -1090,310 +1090,7 @@ class _ModernMatchCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(7),
         child: Column(
           children: [
-            // Collapsed Row
-            InkWell(
-              onTap: onToggleExpand,
-              child: SizedBox(
-                height: 76,
-                child: Row(
-                  children: [
-                    // Solid Left Accent Stripe
-                    Container(
-                      width: 4,
-                      height: double.infinity,
-                      color: accentColor,
-                    ),
-                    const SizedBox(width: 12),
-
-                    // Result & Queue Info
-                    SizedBox(
-                      width: 130,
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                isWin
-                                    ? Icons.check_circle_rounded
-                                    : Icons.cancel_rounded,
-                                size: 13,
-                                color: isWin
-                                    ? GsColors.emerald
-                                    : GsColors.crimson,
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                isWin ? 'VICTORIA' : 'DERROTA',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: 0.3,
-                                  color: isWin
-                                      ? GsColors.emerald
-                                      : GsColors.crimson,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            match.queueLabel,
-                            style: const TextStyle(
-                              fontSize: 10,
-                              color: GsColors.textMuted,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          Text(
-                            '${match.durationMinutes.toStringAsFixed(0)} min',
-                            style: const TextStyle(
-                              fontSize: 10,
-                              color: GsColors.textSecondary,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    // Champion Portrait with Level
-                    Stack(
-                      clipBehavior: Clip.none,
-                      alignment: Alignment.bottomRight,
-                      children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: _NetworkPortrait(
-                            url: match.championIconUrl,
-                            size: 42,
-                          ),
-                        ),
-                        if (match.championLevel != null)
-                          Positioned(
-                            bottom: -2,
-                            right: -2,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 3,
-                                vertical: 1,
-                              ),
-                              decoration: BoxDecoration(
-                                color: GsColors.canvas,
-                                borderRadius: BorderRadius.circular(3),
-                              ),
-                              child: Text(
-                                '${match.championLevel}',
-                                style: const TextStyle(
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.bold,
-                                  color: GsColors.textPrimary,
-                                ),
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                    const SizedBox(width: 12),
-
-                    // Spells / Loadout
-                    if (match.spell1IconUrl != null ||
-                        match.spell2IconUrl != null)
-                      Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          if (match.spell1IconUrl != null)
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(3),
-                              child: _NetworkPortrait(
-                                url: match.spell1IconUrl,
-                                size: 16,
-                              ),
-                            ),
-                          const SizedBox(height: 2),
-                          if (match.spell2IconUrl != null)
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(3),
-                              child: _NetworkPortrait(
-                                url: match.spell2IconUrl,
-                                size: 16,
-                              ),
-                            ),
-                        ],
-                      ),
-                    const SizedBox(width: 12),
-
-                    // KDA & Main Stats
-                    Expanded(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Text(
-                                '${match.kills} / ',
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w700,
-                                  color: GsColors.textPrimary,
-                                ),
-                              ),
-                              Text(
-                                '${match.deaths}',
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w700,
-                                  color: GsColors.crimson,
-                                ),
-                              ),
-                              Text(
-                                ' / ${match.assists}',
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w700,
-                                  color: GsColors.textPrimary,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                '${match.kdaRatio.toStringAsFixed(2)} KDA',
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
-                                  color: GsColors.cyan,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 3),
-                          Wrap(
-                            spacing: 8,
-                            children: [
-                              Text(
-                                '${match.cs} CS (${match.csm} CS/m)',
-                                style: const TextStyle(
-                                  fontSize: 10,
-                                  color: GsColors.textSecondary,
-                                ),
-                              ),
-                              if (match.killParticipation != null)
-                                Text(
-                                  '${match.killParticipation}% KP',
-                                  style: const TextStyle(
-                                    fontSize: 10,
-                                    color: GsColors.textSecondary,
-                                  ),
-                                ),
-                              if (match.damage != null)
-                                Text(
-                                  '${(match.damage! / 1000).toStringAsFixed(1)}K DMG',
-                                  style: const TextStyle(
-                                    fontSize: 10,
-                                    color: GsColors.textSecondary,
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    // 7-Item Build Row
-                    Wrap(
-                      spacing: 3,
-                      children: match.items.map((itemId) {
-                        return Container(
-                          width: 22,
-                          height: 22,
-                          decoration: BoxDecoration(
-                            color: GsColors.surfaceElevated,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: itemId > 0
-                              ? ClipRRect(
-                                  borderRadius: BorderRadius.circular(4),
-                                  child: _NetworkPortrait(
-                                    url: match.patch == null
-                                        ? null
-                                        : 'https://ddragon.leagueoflegends.com/cdn/${match.patch}/img/item/$itemId.png',
-                                    size: 22,
-                                  ),
-                                )
-                              : null,
-                        );
-                      }).toList(),
-                    ),
-                    const SizedBox(width: 14),
-
-                    // Performance Score Badge
-                    Tooltip(
-                      message:
-                          match.performanceScore?.heuristicLabel ??
-                          'GodSense Rating',
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: score >= 70
-                              ? GsColors.emeraldGlow
-                              : score >= 50
-                              ? GsColors.cyanGlow
-                              : GsColors.crimsonGlow,
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              '$score',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                                color: score >= 70
-                                    ? GsColors.emerald
-                                    : score >= 50
-                                    ? GsColors.cyan
-                                    : GsColors.crimson,
-                              ),
-                            ),
-                            const Text(
-                              'SCORE',
-                              style: TextStyle(
-                                fontSize: 8,
-                                fontWeight: FontWeight.w700,
-                                color: GsColors.textMuted,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-
-                    // Expand / Collapse Chevron Button
-                    Tooltip(
-                      message: isExpanded
-                          ? 'Ocultar equipos'
-                          : 'Abrir detalle de partida',
-                      child: Padding(
-                        padding: const EdgeInsets.only(right: 12),
-                        child: Icon(
-                          isExpanded
-                              ? Icons.keyboard_arrow_up_rounded
-                              : Icons.keyboard_arrow_down_rounded,
-                          size: 20,
-                          color: GsColors.textMuted,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+            _buildSummary(context, score, accentColor),
 
             // Expanded 5v5 Scoreboard
             if (isExpanded) ...[
@@ -1449,6 +1146,309 @@ class _ModernMatchCard extends StatelessWidget {
     );
   }
 
+  Widget _buildSummary(BuildContext context, int score, Color accentColor) {
+    final isWin = match.isWin;
+    final result = Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              isWin ? Icons.check_circle_rounded : Icons.cancel_rounded,
+              size: 13,
+              color: isWin ? GsColors.emerald : GsColors.crimson,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              isWin ? 'VICTORIA' : 'DERROTA',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.3,
+                color: isWin ? GsColors.emerald : GsColors.crimson,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 2),
+        Text(
+          match.queueLabel,
+          style: const TextStyle(fontSize: 10, color: GsColors.textMuted),
+          overflow: TextOverflow.ellipsis,
+        ),
+        Text(
+          '${match.durationMinutes.toStringAsFixed(0)} min',
+          style: const TextStyle(fontSize: 10, color: GsColors.textSecondary),
+        ),
+      ],
+    );
+    final portrait = Stack(
+      clipBehavior: Clip.none,
+      alignment: Alignment.bottomRight,
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: _NetworkPortrait(url: match.championIconUrl, size: 42),
+        ),
+        if (match.championLevel != null)
+          Positioned(
+            bottom: -2,
+            right: -2,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
+              decoration: BoxDecoration(
+                color: GsColors.canvas,
+                borderRadius: BorderRadius.circular(3),
+              ),
+              child: Text(
+                '${match.championLevel}',
+                style: const TextStyle(
+                  fontSize: 9,
+                  fontWeight: FontWeight.bold,
+                  color: GsColors.textPrimary,
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+    final spells = Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        if (match.spell1IconUrl != null)
+          ClipRRect(
+            borderRadius: BorderRadius.circular(3),
+            child: _NetworkPortrait(url: match.spell1IconUrl, size: 16),
+          ),
+        const SizedBox(height: 2),
+        if (match.spell2IconUrl != null)
+          ClipRRect(
+            borderRadius: BorderRadius.circular(3),
+            child: _NetworkPortrait(url: match.spell2IconUrl, size: 16),
+          ),
+      ],
+    );
+    final stats = Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Wrap(
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            Text(
+              '${match.kills} / ',
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: GsColors.textPrimary,
+              ),
+            ),
+            Text(
+              '${match.deaths}',
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: GsColors.crimson,
+              ),
+            ),
+            Text(
+              ' / ${match.assists}',
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: GsColors.textPrimary,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              '${match.kdaRatio.toStringAsFixed(2)} KDA',
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: GsColors.cyan,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 3),
+        Wrap(
+          spacing: 8,
+          children: [
+            Text(
+              '${match.cs} CS (${match.csm} CS/m)',
+              style: const TextStyle(
+                fontSize: 10,
+                color: GsColors.textSecondary,
+              ),
+            ),
+            if (match.killParticipation != null)
+              Text(
+                '${match.killParticipation}% KP',
+                style: const TextStyle(
+                  fontSize: 10,
+                  color: GsColors.textSecondary,
+                ),
+              ),
+            if (match.damage != null)
+              Text(
+                '${(match.damage! / 1000).toStringAsFixed(1)}K DMG',
+                style: const TextStyle(
+                  fontSize: 10,
+                  color: GsColors.textSecondary,
+                ),
+              ),
+          ],
+        ),
+      ],
+    );
+    final items = Wrap(
+      spacing: 3,
+      children: match.items.map((itemId) {
+        return Container(
+          width: 22,
+          height: 22,
+          decoration: BoxDecoration(
+            color: GsColors.surfaceElevated,
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: itemId > 0
+              ? ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: _NetworkPortrait(
+                    url: match.patch == null
+                        ? null
+                        : 'https://ddragon.leagueoflegends.com/cdn/${match.patch}/img/item/$itemId.png',
+                    size: 22,
+                  ),
+                )
+              : null,
+        );
+      }).toList(),
+    );
+    final rating = Tooltip(
+      message: match.performanceScore?.heuristicLabel ?? 'GodSense Rating',
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        decoration: BoxDecoration(
+          color: score >= 70
+              ? GsColors.emeraldGlow
+              : score >= 50
+              ? GsColors.cyanGlow
+              : GsColors.crimsonGlow,
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              '$score',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: score >= 70
+                    ? GsColors.emerald
+                    : score >= 50
+                    ? GsColors.cyan
+                    : GsColors.crimson,
+              ),
+            ),
+            const Text(
+              'SCORE',
+              style: TextStyle(
+                fontSize: 8,
+                fontWeight: FontWeight.w700,
+                color: GsColors.textMuted,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    final chevron = Tooltip(
+      message: isExpanded ? 'Ocultar equipos' : 'Abrir detalle de partida',
+      child: Padding(
+        padding: const EdgeInsets.only(right: 12),
+        child: Icon(
+          isExpanded
+              ? Icons.keyboard_arrow_up_rounded
+              : Icons.keyboard_arrow_down_rounded,
+          size: 20,
+          color: GsColors.textMuted,
+        ),
+      ),
+    );
+    final loadout = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        portrait,
+        if (match.spell1IconUrl != null || match.spell2IconUrl != null) ...[
+          const SizedBox(width: 8),
+          spells,
+        ],
+      ],
+    );
+    return InkWell(
+      onTap: onToggleExpand,
+      child: Container(
+        constraints: const BoxConstraints(minHeight: 76),
+        decoration: BoxDecoration(
+          border: Border(left: BorderSide(color: accentColor, width: 4)),
+        ),
+        padding: const EdgeInsets.all(12),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final compact =
+                constraints.maxWidth < 760 ||
+                MediaQuery.textScalerOf(context).scale(14) > 18;
+            if (compact) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(child: result),
+                      const SizedBox(width: 12),
+                      rating,
+                      const SizedBox(width: 10),
+                      chevron,
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      loadout,
+                      const SizedBox(width: 12),
+                      Expanded(child: stats),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  items,
+                ],
+              );
+            }
+            return Row(
+              children: [
+                SizedBox(width: 130, child: result),
+                loadout,
+                const SizedBox(width: 12),
+                Expanded(child: stats),
+                const SizedBox(width: 12),
+                items,
+                const SizedBox(width: 14),
+                rating,
+                const SizedBox(width: 10),
+                chevron,
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+
   Widget _buildExpandedScoreboard(
     BuildContext context,
     ScoutMatchSummary match,
@@ -1475,12 +1475,14 @@ class _ModernMatchCard extends StatelessWidget {
                   color: isWin ? GsColors.emerald : GsColors.crimson,
                 ),
                 const SizedBox(width: 6),
-                Text(
-                  '$title · ${isWin ? 'VICTORIA' : 'DERROTA'}',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: isWin ? GsColors.emerald : GsColors.crimson,
+                Expanded(
+                  child: Text(
+                    '$title · ${isWin ? 'VICTORIA' : 'DERROTA'}',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: isWin ? GsColors.emerald : GsColors.crimson,
+                    ),
                   ),
                 ),
               ],
@@ -1553,15 +1555,30 @@ class _ModernMatchCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(child: teamColumn('Tu Equipo', allies, match.isWin)),
-              const SizedBox(width: 12),
-              Expanded(
-                child: teamColumn('Equipo Rival', enemies, !match.isWin),
-              ),
-            ],
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final ownTeam = teamColumn('Tu Equipo', allies, match.isWin);
+              final rivalTeam = teamColumn(
+                'Equipo Rival',
+                enemies,
+                !match.isWin,
+              );
+              if (constraints.maxWidth < 900 ||
+                  MediaQuery.textScalerOf(context).scale(11) > 16) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [ownTeam, const SizedBox(height: 12), rivalTeam],
+                );
+              }
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: ownTeam),
+                  const SizedBox(width: 12),
+                  Expanded(child: rivalTeam),
+                ],
+              );
+            },
           ),
           if (match.goldTimeline.isNotEmpty ||
               match.timelineEvents.isNotEmpty) ...[

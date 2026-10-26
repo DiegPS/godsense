@@ -1,5 +1,30 @@
 # Registro de pruebas del 25 y 26 de octubre de 2026
 
+La pasada `build/testing/runs/20261026-005531/`, iniciada en `3018199`,
+quedó incompleta: aprobaron 519 pruebas de base (24 omisiones), pero el
+recorrido de escritorio se interrumpió y Flutter informó que faltaba su
+directorio temporal de escucha. Las compilaciones posteriores también
+fallaron y no se generó resumen global. No se certifica esta pasada ni se
+atribuye una causa definitiva a la desaparición de los temporales.
+El reintento aislado del recorrido de escritorio aprobó sus nueve casos;
+evidencia: `build/testing/desktop-resume.log`. Esto no sustituye las otras
+etapas pendientes de la pasada global.
+
+La ampliación posterior de Scout encontró desbordamientos en tarjetas y
+equipos al usar texto al 200 %. La cabecera ahora distribuye su contenido
+en varias filas cuando falta espacio, permite crecer en altura y apila los
+equipos en ventanas estrechas o con texto grande. Aprobaron once casos de
+Scout tanto en widgets como en Windows nativo, además del analizador sin
+incidencias. Los ocho casos nuevos recorren siete partidas con paginación,
+apertura/cierre de diez participantes, eventos y gráfica de oro, y cambio de
+cuenta con los mismos identificadores de partida para comprobar que no
+conserva la expansión ni la paginación anterior. Utilizan datos ficticios y
+no solicitan imágenes externas. Anchos: 640, 800, 1280 y 1600; escalas: 100 %
+y 200 %. Evidencia: `build/testing/scout-history-red.log`,
+`build/testing/scout-history-expanded.log`, `build/testing/scout-history-native.log`
+y `build/testing/scout-history-analysis.log`. La cobertura global anterior
+no se atribuye a esta revisión modificada.
+
 La última pasada completa registrada es `d96d91a`, en
 `build/testing/runs/20261025-235441/`: **13 229 / 15 569 líneas (84,9701 %)**,
 sin archivos sin medir y con los archivos inventariados sin cambios durante
