@@ -1,6 +1,45 @@
 # Registro de pruebas del 25 y 26 de octubre de 2026
 
-La última pasada completa corresponde a `7678388`, en
+La última pasada completa corresponde a `8eab7df`, en
+`build/testing/runs/20261026-173842/`: **13 549 / 15 676 líneas (86,4315 %)**.
+Aprobaron Windows y motores instalados, sin archivos sin medir ni cambios en
+los archivos inventariados; el árbol estaba limpio. La base aprobó 573 pruebas,
+con 24 omisiones explícitas; visión nativa, 16; interfaz Windows, 72. Aprobaron
+arranque release, fluidez, IA real, reconocimiento y los ocho sintetizadores,
+además de ocho pruebas Python y cuatro escenarios PowerShell. El resultado
+global sigue en fallo por no alcanzar el 100 % de cobertura. El streaming recibió
+140 fragmentos de texto, sin timeout. Navegación con captura: p95 de 10,711 ms;
+el intervalo máximo del hilo de eventos durante el catálogo fue de 21,839 ms.
+Informe: `build/performance/navigation-d097127a84c543189b950b4593d6b16e.json`.
+
+Las pruebas posteriores de Coach reprodujeron respuestas de importación que
+intentaban actualizar un controlador cerrado, operaciones simultáneas y una
+importación conjunta que podía seguir con los objetos de otra cuenta o campeón.
+El controlador ahora conserva el contexto de la solicitud, serializa la
+operación conjunta y descarta resultados obsoletos; una actualización equivalente
+de recomendaciones no cancela la solicitud. También se verificaron los informes
+por cuenta, recuperación de escritura fallida, metadatos y versiones de recursos,
+enriquecimiento de League y captura con backoff. Una comprobación adicional
+reprodujo un elogio de participación sólida con KDA vacío o 0/0/0; ahora necesita
+evidencia positiva y ofrece una revisión general cuando no la hay.
+La prueba de recuperación de captura se corrigió para admitir que, tras el primer
+frame exitoso, vuelve la frecuencia normal. Evidencia inicial y corregida:
+`build/testing/coach-lifecycle-red.log` y `coach-lifecycle-fixed.log`.
+Aprobaron 602 pruebas de base (24 omisiones explícitas), 29 casos específicos,
+17 casos en Windows nativo para League/Coach y el analizador sin incidencias.
+La mejora del ejecutor evita las compilaciones duplicadas de integraciones
+que se probaban sin entorno y se repetían después con los motores preparados;
+mantiene la ejecución independiente y pasó seis escenarios PowerShell.
+Evidencia: `build/testing/coach-lifecycle-base.log`,
+`coach-lifecycle-final-focused.log`, `coach-lifecycle-native.log`,
+`coach-empty-report-red.log`, `coach-lifecycle-analysis-final.log` y
+`runner-inventory-regressions.log`. La base completa se ejecutó antes del último
+ajuste del informe vacío; sus seis casos de informes sí se repitieron después.
+Estas modificaciones posteriores requieren su propia validación global.
+El arranque debug y la recarga en caliente aprobaron, sin excepciones reportadas
+por Flutter; se mantuvo el aviso controlado de la pantalla calibrada ausente.
+
+La pasada completa anterior corresponde a `7678388`, en
 `build/testing/runs/20261026-163512/`: **13 414 / 15 593 líneas (86,0258 %)**,
 sin archivos sin medir, sin cambios en los archivos inventariados y con árbol
 limpio. Aprobaron todas las etapas funcionales: analizador, 527 pruebas de base
@@ -46,8 +85,8 @@ Evidencia: `build/testing/async-safety-base-final.log`,
 `queued-intent-red.log` y `calibration-refresh-red.log` conservan los fallos
 previos a sus correcciones; uno de los fallos iniciales era la limpieza de una
 variable de depuración en la propia prueba de imágenes, también corregida.
-El 86,0258 % anterior no certifica estas modificaciones posteriores; su siguiente
-pasada global permanece pendiente.
+La pasada completa `8eab7df` ya incluye estas correcciones y registra el
+86,4315 % indicado al comienzo del informe.
 
 El arranque de producción en debug y la recarga en caliente también aprobaron,
 sin excepciones de ejecución reportadas por Flutter. La compilación release y

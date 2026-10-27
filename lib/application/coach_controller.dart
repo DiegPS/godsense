@@ -421,8 +421,41 @@ class CoachController extends StateNotifier<CoachState> {
   Map<String, dynamic>? _lastLiveGame;
   CoachPhase? _manualPhase;
   DateTime? _lastVoiceAnswer;
+  String? _setupKey;
+  int _setupRevision = 0;
+  bool _importing = false;
 
   void synchronize(CoachInputs inputs) {
+    if (!mounted) return;
+    final setupKey = jsonEncode({
+      'account': inputs.accountKey,
+      'runes': inputs.runes == null
+          ? null
+          : {
+              'champion': inputs.runes!.championId,
+              'position': inputs.runes!.position.lcuValue,
+              'patch': inputs.runes!.patch?.value,
+              'variants': [
+                for (final variant in inputs.runes!.variants)
+                  variant.toImportJson(),
+              ],
+            },
+      'items': inputs.items == null
+          ? null
+          : {
+              'champion': inputs.items!.championId,
+              'position': inputs.items!.position.lcuValue,
+              'patch': inputs.items!.patch.value,
+              'map': inputs.items!.mapId,
+              'mode': inputs.items!.mode,
+              'groups': inputs.items!.toImportGroups(),
+            },
+    });
+    final setupChanged = setupKey != _setupKey;
+    if (setupChanged) {
+      _setupKey = setupKey;
+      _setupRevision++;
+    }
     _lastLiveGame = inputs.liveGame;
     if (inputs.accountKey != _accountKey) {
       _accountKey = inputs.accountKey;
@@ -555,6 +588,9 @@ class CoachController extends StateNotifier<CoachState> {
       lastCompletedSession: inputs.session.lastCompleted,
       postGameReport:
           _postGameReport(completedSnapshot) ?? state.postGameReport,
+      importFeedback: setupChanged
+          ? const CoachImportFeedback()
+          : state.importFeedback,
     );
     if (selectionChanged) _notifyEnemySelection(selectedEnemy);
   }
@@ -626,18 +662,27 @@ class CoachController extends StateNotifier<CoachState> {
       _runImport('Set de objetos importado en League.', _importItems);
 
   Future<void> importCurrentSetup() async {
+    if (!mounted || _importing) return;
     final runes = state.runeRecommendations.firstOrNull;
-    if (runes != null) {
-      await importRune(runes.variant);
-      if (state.importFeedback.status == CoachImportStatus.failed) return;
-    }
-    if (state.itemRecommendationGroups.isNotEmpty) await importItemSet();
+    final hasItems = state.itemRecommendationGroups.isNotEmpty;
+    if (runes == null && !hasItems) return;
+    final revision = _setupRevision;
+    await _runImport('Configuración importada en League.', () async {
+      if (runes != null) await _importRunes(runes.variant);
+      // The callback imports the native controller's current item set. Never
+      // continue an older request after its account or recommendation changed.
+      if (!mounted || revision != _setupRevision) return;
+      if (hasItems) await _importItems();
+    });
   }
 
   Future<void> _runImport(
     String successMessage,
     Future<void> Function() operation,
   ) async {
+    if (!mounted || _importing) return;
+    _importing = true;
+    final revision = _setupRevision;
     state = state.copyWith(
       importFeedback: const CoachImportFeedback(
         status: CoachImportStatus.importing,
@@ -646,6 +691,7 @@ class CoachController extends StateNotifier<CoachState> {
     );
     try {
       await operation();
+      if (!mounted || revision != _setupRevision) return;
       state = state.copyWith(
         importFeedback: CoachImportFeedback(
           status: CoachImportStatus.succeeded,
@@ -653,12 +699,15 @@ class CoachController extends StateNotifier<CoachState> {
         ),
       );
     } catch (error) {
+      if (!mounted || revision != _setupRevision) return;
       state = state.copyWith(
         importFeedback: CoachImportFeedback(
           status: CoachImportStatus.failed,
           message: 'No se pudo importar: $error',
         ),
       );
+    } finally {
+      _importing = false;
     }
   }
 }
@@ -842,7 +891,7 @@ PostGameReport? _postGameReport(Map<String, dynamic>? game) {
     if (duration > 0 && cs / (duration / 60) < 5) 'La generación de recursos quedó por debajo de 5 CS/min; prioriza oleadas seguras antes de rotar.',
     if (deaths >= 7)
       'Hubo $deaths muertes: revisa las entradas sin visión y conserva una ruta de salida.',
-    if (kills + assists >= deaths * 3) 'La participación individual fue sólida; busca convertir esas ventajas en objetivos.',
+    if (kills + assists > 0 && kills + assists >= deaths * 3) 'La participación individual fue sólida; busca convertir esas ventajas en objetivos.',
     if ((dragons['enemy'] as num?)?.toInt() case final enemy? when enemy >= 3)
       'El rival acumuló $enemy dragones; prepara visión y prioridad con más antelación.',
     if (goldDifference.abs() >= 2000)

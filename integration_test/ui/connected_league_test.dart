@@ -1,5 +1,7 @@
 import 'package:integration_test/integration_test.dart';
 
+import '../../test/application/coach_import_lifecycle_test.dart' as imports;
+
 import '../../test/presentation/connected_league_ui_journey_test.dart'
     as connected;
 import '../../test/presentation/coach/setup_recommendations_interaction_test.dart'
@@ -9,4 +11,5 @@ void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   connected.main();
   setup.main();
+  imports.main();
 }

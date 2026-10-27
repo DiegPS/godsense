@@ -20,6 +20,7 @@ function flutter {
 try {
     New-Item -ItemType Directory -Path (Join-Path $temporaryRoot 'tool'), (Join-Path $temporaryRoot 'coverage') -Force | Out-Null
     Copy-Item -LiteralPath (Join-Path (Split-Path -Parent $PSScriptRoot) 'verify_windows.ps1') -Destination (Join-Path $temporaryRoot 'tool/verify_windows.ps1')
+    Copy-Item -LiteralPath (Join-Path (Split-Path -Parent $PSScriptRoot) 'testing_targets.ps1') -Destination (Join-Path $temporaryRoot 'tool/testing_targets.ps1')
     $scriptPath = Join-Path $temporaryRoot 'tool/verify_windows.ps1'
     foreach ($scenario in @(
         @{ name = 'success'; fail = $false; low = $false; keepGoing = $true; expectedCalls = 7; expectedFailure = $false },
@@ -37,6 +38,33 @@ try {
             throw "Verification runner regression: $($scenario.name), failed=$caught, calls=$($calls.Count), expected=$($scenario.expectedCalls)."
         }
         Write-Host "Passed verification runner scenario: $($scenario.name)"
+    }
+    . (Join-Path (Split-Path -Parent $PSScriptRoot) 'testing_targets.ps1')
+    $runtimeTargets = @(Get-GodSenseInstalledRuntimeTests | Where-Object { $_.StartsWith('integration_test/') })
+    $otherTargets = @('integration_test/new_future_test.dart', 'integration_test/ui/general_fixture_test.dart')
+    foreach ($target in ($runtimeTargets + $otherTargets)) {
+        $absolute = Join-Path $temporaryRoot $target
+        New-Item -ItemType Directory -Path (Split-Path -Parent $absolute) -Force | Out-Null
+        Set-Content -LiteralPath $absolute -Value '// Disposable target fixture.'
+    }
+    $failAnalysis = $false
+    $lowCoverage = $false
+    foreach ($defer in @($false, $true)) {
+        $calls.Clear()
+        & $scriptPath -SkipBuild -InstalledRuntimesSeparately:$defer *> $null
+        $executed = @($calls | Where-Object { $_ -match '^test integration_test/' })
+        $expected = if ($defer) { $otherTargets } else { $runtimeTargets + $otherTargets }
+        if ($executed.Count -ne $expected.Count) { throw "Incorrect integration count: deferred=$defer" }
+        foreach ($target in $expected) {
+            if (-not ($executed | Where-Object { $_.StartsWith('test ' + $target + ' ') })) {
+                throw "Expected integration was not executed: $target"
+            }
+        }
+        foreach ($target in $runtimeTargets) {
+            $found = @($executed | Where-Object { $_.StartsWith('test ' + $target + ' ') }).Count
+            if ($found -ne [int](-not $defer)) { throw "Runtime deferral regression: $target" }
+        }
+        Write-Host "Passed integration inventory scenario: deferred=$defer"
     }
 } finally {
     Set-Location -LiteralPath $originalLocation.Path

@@ -2,12 +2,14 @@
 param(
     [switch]$SkipIntegration,
     [switch]$SkipBuild,
+    [switch]$InstalledRuntimesSeparately,
     [switch]$ProfileUI,
     [switch]$ContinueOnFailure,
     [double]$MinimumCoverage = 65
 )
 
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'testing_targets.ps1')
 $projectRoot = Split-Path -Parent $PSScriptRoot
 Set-Location -LiteralPath $projectRoot
 $verificationFailures = [Collections.Generic.List[string]]::new()
@@ -116,6 +118,10 @@ if (-not $SkipIntegration) {
     ) -Filter '*_test.dart' -File -Recurse | Sort-Object FullName
     foreach ($testFile in $integrationTests) {
         $relativePath = $testFile.FullName.Substring($projectRoot.Length + 1).Replace('\', '/')
+        if ($InstalledRuntimesSeparately -and $relativePath -in (Get-GodSenseInstalledRuntimeTests)) {
+            Write-Host "Deferred to installed-runtimes stage: $relativePath"
+            continue
+        }
         $deviceArguments = @()
         if ($relativePath.StartsWith('integration_test/ui/')) {
             $deviceArguments = @('-d', 'windows', '--coverage', '--coverage-path',

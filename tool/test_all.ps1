@@ -55,7 +55,7 @@ function Invoke-TestingStage {
 # Native Windows builds are deliberately sequential: Flutter shares its runner
 # output directory across integration targets, profiling and release builds.
 Invoke-TestingStage 'windows-verification' {
-    & (Join-Path $PSScriptRoot 'verify_windows.ps1') -ProfileUI -ContinueOnFailure
+    & (Join-Path $PSScriptRoot 'verify_windows.ps1') -ProfileUI -ContinueOnFailure -InstalledRuntimesSeparately
 }
 Invoke-TestingStage 'installed-runtimes' {
     & (Join-Path $PSScriptRoot 'test_installed_runtimes.ps1') -RunFreeInference:$RunFreeInference -KiloExecutable $KiloExecutable -OpenCodeExecutable $OpenCodeExecutable

@@ -14,6 +14,13 @@ guardan sus logs y terminan con un informe conjunto. `-RunFreeInference` permite
 las consultas sintéticas al modelo gratuito de Kilo; no selecciona modelos de
 pago como alternativa.
 
+El flujo completo ejecuta las pruebas que requieren motores instalados una
+sola vez, en la etapa `installed-runtimes`, con sus variables y modelos de prueba.
+El inventario compartido está en `tool/testing_targets.ps1`. Evita compilar una
+primera copia que acabaría omitida por falta de entorno. La invocación
+independiente de `verify_windows.ps1` conserva sus integraciones habituales;
+las integraciones nuevas que no figuren en ese inventario también se ejecutan.
+
 La meta de cobertura combinada es **100 %**. El comando falla mientras no se
 alcance; no convierte omisiones en éxitos ni modifica el código para ocultar
 líneas sin cubrir. Cada ejecución guarda `summary.json`, logs, LCOV e informe
