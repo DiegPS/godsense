@@ -27,6 +27,17 @@ void main() {
       'uno dos tres cuatro',
     );
   });
+  test(
+    'small Kokoro batches preserve every word and punctuation in long speech',
+    () {
+      const sentence = 'GodSense is ready for your next live stream.';
+      final text = List.filled(80, sentence).join(' ');
+      final chunks = ttsTextChunks(text, maxRunes: 24).toList();
+      expect(chunks.join(' '), text);
+      expect(chunks.every((chunk) => chunk.runes.length <= 24), isTrue);
+      expect(chunks.first, 'GodSense is ready for');
+    },
+  );
   test('unicode code points and long unbroken words are preserved', () {
     final text = List.filled(21, '🦉').join();
     final chunks = ttsTextChunks(text, maxRunes: 8).toList();

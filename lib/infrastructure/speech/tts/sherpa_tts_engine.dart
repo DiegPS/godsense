@@ -448,7 +448,12 @@ class SherpaTtsEngine {
             message['cancelAddress'] as int,
           );
           final sampleRate = tts!.sampleRate;
-          for (final chunk in ttsTextChunks(message['text'] as String)) {
+          // Kokoro's progress callback may wait for a whole native text batch.
+          // Smaller batches bound the speech generated after a stop request.
+          for (final chunk in ttsTextChunks(
+            message['text'] as String,
+            maxRunes: family == TtsModelFamily.kokoro.name ? 24 : 160,
+          )) {
             if (cancellation.value != 0) break;
             // Some models invoke progress only after a complete text batch.
             // Bound each call so cancellation does not wait for a long reply.

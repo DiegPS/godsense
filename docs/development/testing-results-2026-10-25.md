@@ -1,6 +1,54 @@
 # Registro de pruebas del 25 y 26 de octubre de 2026
 
-La última pasada completa corresponde a `d95198d`, en
+La última pasada completa corresponde a `3fc67f2`, en
+`build/testing/runs/20261026-231944/`: **13 879 / 15 739 líneas (88,1822 %)**,
+sin archivos sin medir, árbol limpio y cero cambios en entradas inventariadas.
+Windows aprobó: 635 pruebas de base (24 omisiones explícitas), 16 de visión,
+99 casos de interfaz, profile y compilación/arranque release. IA real, catálogos,
+streaming, conversación con cancelación/reinicio, migración, chat y reconocimiento
+con reducción de ruido activada y desactivada también aprobaron. El streaming
+registró 58 deltas: 44 fragmentos de texto y 14 de metadatos de razonamiento;
+no se imprimió el contenido del razonamiento.
+
+La etapa de motores instalados **falló en la cancelación de Kokoro**: tardó
+6,030 segundos frente al límite estricto de cinco. Su síntesis corta pasó,
+pero ese caso no llegó a verificar la recuperación posterior. Los otros siete
+sintetizadores aprobaron síntesis, cancelación y recuperación. Las herramientas
+aprobaron ocho pruebas Python y seis escenarios PowerShell. La cobertura del
+100 % tampoco se alcanzó. Esta pasada no se presenta como verificación global
+aprobada ni como prueba de un MSIX actualizado.
+
+Profile midió navegación p95 de 40,987 ms en frío, 24,107 ms en caliente y
+23,778 ms con captura, e intervalo máximo del hilo de eventos de 31,874 ms
+durante el refresco del catálogo. Informe:
+`build/performance/navigation-599883f54a7449fc9b74c362ace9ab63.json`.
+
+La cancelación de Kokoro se reprodujo en tres ejecuciones aisladas: 5,921,
+6,045 y 6,069 segundos (`build/testing/kokoro-before-*.log`). Separar frases
+y reducir hilos no resolvió el problema; esos ajustes experimentales se retiraron.
+La corrección final limita los bloques nativos de Kokoro a 24 puntos de código,
+conservando todo el texto y los límites originales de otros motores. Los bloques
+más pequeños permiten consultar la señal de cancelación entre llamadas nativas.
+La protección del callback y su memoria sigue vigente hasta recibir confirmación.
+Tres comprobaciones posteriores aprobaron síntesis, cancelación y recuperación,
+con tiempos de 4,450, 4,607 y 4,629 segundos (`kokoro-bounded-24-*.log`).
+Las pruebas siguen exigiendo menos de cinco segundos y registran por separado
+la terminación de la generación nativa para diagnosticar futuras regresiones.
+La comprobación final de reconocimiento y los ocho sintetizadores también
+aprobó, con dos casos por voz (`build/testing/kokoro-final-all-voices.log`).
+Kokoro registró 4,454 segundos en esa tanda. Esa comprobación específica
+no cambia el estado fallido de la pasada global anterior ni su cobertura.
+La base final posterior aprobó **636 pruebas y 24 omisiones explícitas**
+(`build/testing/kokoro-base-confirmed.log`), con el analizador sin incidencias
+(`kokoro-analysis-final.log`). La ejecución previa `kokoro-base-final.log`
+no registró un resultado terminal y no se cuenta como aprobada.
+El 27 de octubre se verificó el arranque debug y la recarga en caliente
+(446 ms), sin excepciones de runtime reportadas por Dart MCP. Se conserva el
+aviso controlado de la pantalla calibrada ausente. La aplicación de prueba se
+cerró antes de pausar la meta a petición del usuario; no se inició otra tanda
+ni se modificó el envío de Microsoft Store.
+
+La pasada completa anterior corresponde a `d95198d`, en
 `build/testing/runs/20261026-180915/`: **13 737 / 15 709 líneas (87,4467 %)**.
 El árbol estaba limpio y no cambiaron los archivos inventariados. Aprobaron
 Windows, runtimes instalados y herramientas; el resultado global fue fallo

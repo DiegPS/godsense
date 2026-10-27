@@ -82,8 +82,17 @@ void main() {
           );
           await Future<void>.delayed(const Duration(milliseconds: 100));
           final stopwatch = Stopwatch()..start();
+          Duration? nativeFinished;
+          final observedGeneration = generation.then((_) {
+            nativeFinished = stopwatch.elapsed;
+          });
           await engine.cancel();
-          await generation;
+          await observedGeneration;
+          stdout.writeln(
+            'NATIVE TTS CANCELLATION: model=${modelCase.model.id} '
+            'elapsed_ms=${stopwatch.elapsedMilliseconds} '
+            'generation_completed_ms=${nativeFinished?.inMilliseconds}',
+          );
           expect(stopwatch.elapsed, lessThan(const Duration(seconds: 5)));
 
           await engine.initialize(installation);
