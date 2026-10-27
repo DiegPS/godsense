@@ -1,5 +1,43 @@
 # Registro de pruebas del 25 al 27 de octubre de 2026
 
+La pasada completa más reciente, `build/testing/runs/20261027-124009/`, verificó
+`80abaa6` con árbol limpio y cero cambios en las entradas inventariadas. Cerró
+con **13 926 / 15 761 líneas (88,3573 %)**, sin archivos sin medir. **No aprobó
+la verificación global ni la meta de cobertura del 100 %.**
+
+Windows aprobó 674 pruebas de base (24 omisiones explícitas), 16 de visión y
+127 casos de interfaz, además de profile y compilación/arranque release.
+El informe `build/performance/navigation-ee47ca61be334699928249c160ba17fd.json`
+registró p95 de navegación de 26,830 ms, de navegación con captura de 22,974 ms
+y un intervalo máximo del hilo de eventos de 32,034 ms al cargar el catálogo.
+Los regresores de herramientas Python y PowerShell también aprobaron.
+
+La etapa de motores instalados falló en tres comprobaciones:
+
+- El catálogo de OpenCode agotó su espera de 30 segundos. El catálogo de Kilo
+  aprobó con 333 modelos y 22 gratuitos; estos números dependen del proveedor.
+- Kokoro generó audio, pero su cancelación tardó 5,109 segundos y superó el
+  límite de 5 segundos. La reducción anterior a lotes de 24 caracteres no ha
+  demostrado una latencia consistentemente inferior al límite.
+- ZipVoice generó audio, pero su cancelación tardó 5,337 segundos. El caso de
+  recuperación posterior de esos dos motores no se cuenta como aprobado,
+  porque la aserción de tiempo interrumpió cada caso.
+
+Los otros seis motores aprobaron generación, cancelación y recuperación.
+También aprobaron los procesos reales OpenCode/Kilo, inferencia gratuita con
+Kilo, streaming, conversación, migración de modelos, chat desde Coach con
+navegación/borrado y cuatro casos de reconocimiento de voz. Esta evidencia
+no sustituye una partida real ni una prueba física de micrófono/altavoces.
+No se generó ni envió un MSIX nuevo a partir de esta ejecución.
+
+Una comprobación posterior aislada está investigando el arranque en frío de
+OpenCode sin cambiar los tiempos de producción: la salud global respondió
+en unos 1,8 segundos, pero la primera consulta del catálogo agotó 30 segundos
+y la siguiente respondió en 2,3 segundos. Otro directorio privado nuevo
+respondió en 28,1 segundos. Esto localiza la demora después de la salud global;
+todavía no demuestra qué operación interna es responsable. Evidencia local:
+`build/testing/catalog-cold-probe.log`. No se registran credenciales ni prompts.
+
 La ejecución `build/testing/runs/20261027-120827/`, iniciada con el árbol limpio
 en `4c95b19`, quedó **incompleta**. La etapa Windows terminó correctamente:
 661 pruebas de base y 24 omisiones, 16 de visión, 114 casos de interfaz,
@@ -33,7 +71,7 @@ El arranque debug y la recarga en caliente (414 ms) aprobaron; Dart MCP no
 reportó excepciones. La captura DXGI funcionó durante esa revisión. No se
 modificó la calibración guardada ni se verificó una partida real.
 
-La última pasada completa corresponde a `3fc67f2`, en
+La pasada completa anterior de `3fc67f2`, en
 `build/testing/runs/20261026-231944/`: **13 879 / 15 739 líneas (88,1822 %)**,
 sin archivos sin medir, árbol limpio y cero cambios en entradas inventariadas.
 Windows aprobó: 635 pruebas de base (24 omisiones explícitas), 16 de visión,
