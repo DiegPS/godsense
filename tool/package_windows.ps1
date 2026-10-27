@@ -9,7 +9,7 @@ if (-not $SkipVerification) {
 }
 
 $releaseRoot = Join-Path $projectRoot 'build\windows\x64\runner\Release'
-foreach ($required in @('godsense.exe', 'flutter_windows.dll', 'dartcv.dll', 'data\app.so')) {
+foreach ($required in @('godsense.exe', 'godsense_speech_worker.exe', 'flutter_windows.dll', 'dartcv.dll', 'data\app.so', 'data\licenses\LICENSE.sherpa-onnx')) {
     if (-not (Test-Path -LiteralPath (Join-Path $releaseRoot $required))) {
         throw "Release output is incomplete: $required is missing."
     }
@@ -88,7 +88,7 @@ try {
 }
 $inspection = [IO.Compression.ZipFile]::OpenRead($archive)
 try {
-    foreach ($required in @('godsense.exe', 'data/app.so', 'data/icudtl.dat', 'msvcp140.dll', 'vcruntime140.dll', 'vcruntime140_1.dll')) {
+    foreach ($required in @('godsense.exe', 'godsense_speech_worker.exe', 'data/licenses/LICENSE.sherpa-onnx', 'data/app.so', 'data/icudtl.dat', 'msvcp140.dll', 'vcruntime140.dll', 'vcruntime140_1.dll')) {
         if ($null -eq $inspection.GetEntry($required)) {
             throw "The ZIP is incomplete: $required is missing."
         }

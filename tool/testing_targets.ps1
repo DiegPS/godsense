@@ -20,6 +20,7 @@ function Get-GodSenseInstalledRuntimeTests {
         'integration_test/installed_model_migration_test.dart',
         'integration_test/ui/real_ai_chat_test.dart',
         'test/infrastructure/speech/sherpa_speech_integration_test.dart',
+        'test/infrastructure/speech/speech_process_integration_test.dart',
         'test/infrastructure/speech/sherpa_tts_integration_test.dart'
     )
 }

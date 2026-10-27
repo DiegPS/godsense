@@ -35,6 +35,8 @@ void main() {
           );
           expect(audio.sampleRate, greaterThan(0));
           expect(audio.samples.length, greaterThan(audio.sampleRate ~/ 4));
+          expect(audio.samples.every((sample) => sample.isFinite), isTrue);
+          expect(audio.samples.any((sample) => sample.abs() > 0.0001), isTrue);
           heartbeat.stop();
           expect(
             heartbeat.maximumGap,
@@ -107,6 +109,11 @@ void main() {
             referenceText: voice.referenceText,
           );
           expect(recovered.samples, isNotEmpty);
+          expect(recovered.samples.every((sample) => sample.isFinite), isTrue);
+          expect(
+            recovered.samples.any((sample) => sample.abs() > 0.0001),
+            isTrue,
+          );
           heartbeat.stop();
           expect(
             heartbeat.maximumGap,

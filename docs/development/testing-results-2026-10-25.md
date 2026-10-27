@@ -1,5 +1,50 @@
 # Registro de pruebas del 25 al 27 de octubre de 2026
 
+La nueva síntesis Windows usa un proceso auxiliar nativo de GodSense, con el
+protocolo/ensamblado PCM en un isolate y el objeto `Process` bajo control del
+isolate principal. La pérdida del intermediario termina el auxiliar; la prueba
+inicial detectó que confiar únicamente en cerrar tuberías al matar el isolate
+dejaba un proceso vivo. La corrección se verifica con un handle del proceso,
+sin confundir una salida real con un cambio de PID.
+
+Los 22 casos de protocolo/ciclo de vida aprobaron en
+`build/testing/speech-process-lifecycle-host-final2.log`. La base aprobó
+**688 casos con 30 omisiones explícitas**, en `speech-process-base-final.log`.
+Las seis pruebas nuevas que requieren el auxiliar se ejecutaron después con
+su entorno real y aprobaron. La etapa de voz final también aprobó cuatro casos
+de reconocimiento y los ocho motores de síntesis con cancelación y recuperación,
+incluyendo PCM finito y no silencioso. Cancelaciones: Supertonic 36 ms, Piper
+México/España 26/26 ms, Kitten 28 ms, Kokoro 31 ms, Matcha 35 ms, Pocket 40 ms
+y ZipVoice 25 ms. El límite sigue siendo de cinco segundos. Evidencia:
+`build/testing/speech-process-voices-host-final.log`. El analizador final
+quedó limpio (`speech-process-analysis-clean.log`).
+
+La compilación release inicial incluyó `godsense_speech_worker.exe` y su licencia
+Apache-2.0. Los empaquetadores locales comprueban la presencia del auxiliar y la
+licencia; el helper carga las DLL ya incluidas y no descarga software adicional.
+La documentación de arquitectura y límites está en
+[proceso de voz](native-speech-process.md). Los resultados amplios de interfaz,
+profile y la compilación final se registran al cerrar esa tanda. Todavía falta
+una nueva pasada global y su cobertura combinada; no se declara resuelta la
+meta del 100 % ni la certificación de Store.
+
+La interfaz posterior aprobó sus 127 casos en un proceso Windows
+(`speech-process-windows-ui.log`). Profile aprobó navegación fría p95 de
+65,057 ms, caliente de 22,773 ms y con captura de 27,258 ms, con 46 capturas
+y cero errores; el máximo intervalo del hilo de eventos durante el catálogo
+fue de 38,358 ms. Informe:
+`build/performance/navigation-bfa1bbd316e2457e9912968e09d55b57.json`;
+log `build/testing/speech-process-profile.log`. No es una medida de una partida
+real ni una comprobación física de los altavoces.
+La compilación release final aprobó en 84,9 segundos
+(`build/testing/speech-process-release-final.log`); se comprobó la presencia
+del helper y de su licencia en esa salida.
+El arranque debug y la recarga en caliente (526 ms) aprobaron, sin excepciones
+reportadas por Dart MCP; la captura DXGI estuvo activa. Se comprobó el helper
+y su licencia también en debug. El arranque release aprobó durante ocho segundos
+(`speech-process-release-startup.log`). Ambas aplicaciones se cerraron al terminar
+y no se modificó la calibración guardada.
+
 La tanda del catálogo corrigió la cancelación y el presupuesto de espera del
 cliente en segundo plano. Cerrar el cliente ahora termina la consulta pendiente
 y su worker HTTP, también si se cierra antes de que termine de arrancar. Un

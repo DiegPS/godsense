@@ -48,6 +48,14 @@ archivos y borrado confirmado. Otro recorrido usa el arranque y la ventana
 nativa de producción. Usan preferencias y SQLite aislados y datos sintéticos;
 no borran datos personales ni necesitan una partida real.
 
+La síntesis Windows se ejecuta en `godsense_speech_worker.exe`, construido e
+instalado por CMake junto al ejecutable principal y las DLL de Sherpa/ONNX.
+La verificación de motores instalados comprueba también el protocolo del helper,
+su cierre al perder el isolate intermediario y la reinicialización tras timeout.
+La síntesis y cancelación de cada voz se prueban en procesos separados; no se
+requiere un programa externo instalado por el usuario para este auxiliar.
+El empaquetado exige el helper y `data/licenses/LICENSE.sherpa-onnx`.
+
 Se prueban tamaños de ventana desde 900 × 600 y escalas de texto de hasta 200 %,
 el detalle de jugadores y habilidades, gráficos y eventos, y la creación,
 visibilidad y reutilización del overlay. Con inferencia habilitada, otro

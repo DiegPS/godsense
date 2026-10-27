@@ -15,6 +15,8 @@ import '../sherpa_cpu_thread_policy.dart';
 import '../native_worker_guard.dart';
 import 'tts_model_catalog.dart';
 import 'tts_text_chunks.dart';
+import 'speech_process_worker.dart';
+import 'speech_process_host.dart';
 
 class TtsAudio {
   final Float32List samples;
@@ -32,9 +34,12 @@ class SherpaTtsEngine {
     SherpaTtsWorkerEntrypoint? workerEntrypoint,
     Duration synthesisTimeout = const Duration(seconds: 90),
   }) : _workerEntrypoint = workerEntrypoint ?? _workerMain,
+       _usesProcess = Platform.isWindows && workerEntrypoint == null,
        _synthesisTimeout = synthesisTimeout;
 
   final SherpaTtsWorkerEntrypoint _workerEntrypoint;
+  final bool _usesProcess;
+  SpeechProcessHost? _speechHost;
   final Duration _synthesisTimeout;
   Isolate? _isolate;
   SendPort? _commands;
@@ -57,6 +62,15 @@ class SherpaTtsEngine {
       return;
     }
     await unload();
+    final nativeDirectory =
+        Platform.environment['GODSENSE_SHERPA_LIBRARY_DIR'] ??
+        File(Platform.resolvedExecutable).parent.path;
+    final host = _usesProcess
+        ? SpeechProcessHost(
+            p.join(nativeDirectory, 'godsense_speech_worker.exe'),
+          )
+        : null;
+    _speechHost = host;
     final ready = ReceivePort();
     late final NativeWorkerGuard guard;
     guard = NativeWorkerGuard(
@@ -72,6 +86,7 @@ class SherpaTtsEngine {
         <String, Object>{
           'reply': ready.sendPort,
           'model': _modelMessage(installation),
+          if (host != null) 'speechProcessHost': host.requests,
           'nativeLibraryDirectory':
               Platform.environment['GODSENSE_SHERPA_LIBRARY_DIR'] ??
               File(Platform.resolvedExecutable).parent.path,
@@ -96,6 +111,8 @@ class SherpaTtsEngine {
       guard.markReady();
     } catch (_) {
       isolate?.kill(priority: Isolate.immediate);
+      await host?.close();
+      if (identical(_speechHost, host)) _speechHost = null;
       if (identical(_workerGuard, guard)) {
         _workerGuard = null;
         _isolate = null;
@@ -193,10 +210,27 @@ class SherpaTtsEngine {
   }) async {
     var safeToReleaseNativeMemory = false;
     try {
-      await terminal;
+      final result = await terminal;
       // A terminal worker response is sent only after generateWithConfig has
       // returned and sherpa_onnx has closed its NativeCallable.
       safeToReleaseNativeMemory = true;
+      if (result is Map &&
+          result['workerStopped'] == true &&
+          identical(_workerGuard, guard)) {
+        // The Windows helper was terminated, including after synthesis timeout.
+        // Retire its idle async proxy so the next initialization cannot reuse
+        // a command port whose native process is already gone.
+        _commands = null;
+        _installation = null;
+        _workerGuard = null;
+        final isolate = _isolate;
+        _isolate = null;
+        await guard.dispose(expectedExit: true);
+        isolate?.kill(priority: Isolate.immediate);
+        final host = _speechHost;
+        _speechHost = null;
+        await host?.close();
+      }
     } catch (_) {
       // An isolate error can be delivered just before its exit notification.
       // Only release memory observed by the callback after the isolate has
@@ -254,6 +288,8 @@ class SherpaTtsEngine {
       }
     }
     final commands = _commands;
+    final host = _speechHost;
+    _speechHost = null;
     _commands = null;
     _installation = null;
     final isolate = _isolate;
@@ -263,6 +299,7 @@ class SherpaTtsEngine {
     await guard?.dispose(expectedExit: true);
     if (commands == null) {
       isolate?.kill(priority: Isolate.immediate);
+      await host?.close();
       return;
     }
     final response = ReceivePort();
@@ -273,6 +310,7 @@ class SherpaTtsEngine {
       isolate?.kill(priority: Isolate.immediate);
     } finally {
       response.close();
+      await host?.close();
     }
   }
 
@@ -293,6 +331,9 @@ class SherpaTtsEngine {
     bool failedAfterReady,
   ) {
     if (!identical(_workerGuard, guard)) return;
+    final host = _speechHost;
+    _speechHost = null;
+    if (host != null) unawaited(host.close());
     _commands = null;
     _installation = null;
     _isolate = null;
@@ -317,6 +358,10 @@ class SherpaTtsEngine {
   }
 
   static void _workerMain(Map<String, Object> startup) {
+    if (Platform.isWindows) {
+      speechProcessWorkerMain(startup);
+      return;
+    }
     final owner = startup['reply']! as SendPort;
     final model = startup['model']! as Map;
     if (Platform.isWindows) {
