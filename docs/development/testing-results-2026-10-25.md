@@ -1,4 +1,4 @@
-# Registro de pruebas del 25 y 26 de octubre de 2026
+# Registro de pruebas del 25 al 27 de octubre de 2026
 
 La última pasada completa corresponde a `3fc67f2`, en
 `build/testing/runs/20261026-231944/`: **13 879 / 15 739 líneas (88,1822 %)**,
@@ -47,6 +47,33 @@ El 27 de octubre se verificó el arranque debug y la recarga en caliente
 aviso controlado de la pantalla calibrada ausente. La aplicación de prueba se
 cerró antes de pausar la meta a petición del usuario; no se inició otra tanda
 ni se modificó el envío de Microsoft Store.
+
+Al retomar el trabajo el 27 de octubre, dos pruebas adicionales reprodujeron
+que una comprobación pendiente del modelo o una apertura tardía del micrófono
+podían reactivar la captura después de llamar a `stop()`. Detener ahora invalida
+los inicios pendientes y deshabilita la captura. El cierre interno necesario al
+cambiar idioma o reducción de ruido conserva la solicitud de configuración.
+Se comprueba que una activación explícita posterior vuelve a funcionar.
+
+La base aprobó **661 pruebas con 24 omisiones explícitas**, y el analizador de
+`lib`, `test` e `integration_test` no encontró incidencias. Los nuevos casos
+incluyen el panel de prueba del micrófono (mensajes, botones, nivel y texto
+grande) y caché de modelos con directorios anidados, corrupción, archivos
+desaparecidos, metadatos inválidos y limpieza tras una instalación fallida.
+Evidencia: `build/testing/microphone-resume-red.log`,
+`microphone-resume-fixed.log`, `microphone-resume-base.log` y
+`microphone-resume-analysis.log`. La captura y los transportes de estas pruebas
+son sintéticos; los archivos de caché están en directorios temporales aislados.
+Esta tanda aún necesita medición global posterior.
+Los 45 casos de ajustes y micrófono aprobaron sobre el motor Windows
+(`microphone-resume-native.log`). Las cuatro comprobaciones del motor real de
+reconocimiento, incluidas transcripción con y sin reducción de ruido, también
+aprobaron (`microphone-resume-real-asr.log`); usan PCM inyectado, no el micrófono
+físico del equipo.
+El arranque debug y la recarga en caliente (363 ms) aprobaron; Dart MCP no
+reportó excepciones de runtime. La captura registró inicialmente la pantalla
+calibrada ausente y después se recuperó con frames DXGI, sin modificar la
+calibración guardada. No equivale a verificar la detección en una partida real.
 
 La pasada completa anterior corresponde a `d95198d`, en
 `build/testing/runs/20261026-180915/`: **13 737 / 15 709 líneas (87,4467 %)**.

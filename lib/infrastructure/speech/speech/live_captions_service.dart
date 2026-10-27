@@ -155,7 +155,7 @@ class LiveCaptionsService {
       await stop();
       return;
     }
-    if (changed || _stopping != null) await stop(emitIdle: false);
+    if (changed || _stopping != null) await _stopCurrent(emitIdle: false);
     if (revision != _revision) return;
     final installation = await _modelCache.installed(model.package);
     if (revision != _revision) return;
@@ -397,6 +397,12 @@ class LiveCaptionsService {
   }
 
   Future<void> stop({bool emitIdle = true}) async {
+    _enabled = false;
+    ++_revision;
+    await _stopCurrent(emitIdle: emitIdle);
+  }
+
+  Future<void> _stopCurrent({bool emitIdle = true}) async {
     final operation = _stopping ??= _stopWorker();
     try {
       await operation;
