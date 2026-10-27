@@ -113,11 +113,19 @@ foreach ($nativeTest in $nativeCvTests) {
 }
 
 if (-not $SkipIntegration) {
+    $groupedWindowsTests = @(Get-GodSenseGroupedWindowsTests)
+    $hasWindowsBundle = Test-Path -LiteralPath (
+        Join-Path $projectRoot 'integration_test/ui/windows_journeys_test.dart'
+    ) -PathType Leaf
     $integrationTests = Get-ChildItem -LiteralPath (
         Join-Path $projectRoot 'integration_test'
     ) -Filter '*_test.dart' -File -Recurse | Sort-Object FullName
     foreach ($testFile in $integrationTests) {
         $relativePath = $testFile.FullName.Substring($projectRoot.Length + 1).Replace('\', '/')
+        if ($hasWindowsBundle -and $relativePath -in $groupedWindowsTests) {
+            Write-Host "Included in Windows journeys bundle: $relativePath"
+            continue
+        }
         if ($InstalledRuntimesSeparately -and $relativePath -in (Get-GodSenseInstalledRuntimeTests)) {
             Write-Host "Deferred to installed-runtimes stage: $relativePath"
             continue

@@ -66,6 +66,46 @@ try {
         }
         Write-Host "Passed integration inventory scenario: deferred=$defer"
     }
+
+    # Match the inventory to the real bundle imports before trusting deferral.
+    $groupedTargets = @(Get-GodSenseGroupedWindowsTests)
+    $bundleName = 'integration_test/ui/windows_journeys_test.dart'
+    $realBundle = Join-Path (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) $bundleName
+    $importedTargets = @(
+        [regex]::Matches((Get-Content -LiteralPath $realBundle -Raw), "import '(?:\./)?([^'/:]+_test\.dart)'") |
+            ForEach-Object { 'integration_test/ui/' + $_.Groups[1].Value }
+    )
+    if ($importedTargets.Count -ne $groupedTargets.Count -or
+        @(Compare-Object $groupedTargets $importedTargets).Count) {
+        throw 'Windows bundle imports differ from the grouped integration inventory.'
+    }
+    foreach ($target in ($groupedTargets + $bundleName)) {
+        $absolute = Join-Path $temporaryRoot $target
+        New-Item -ItemType Directory -Path (Split-Path -Parent $absolute) -Force | Out-Null
+        Set-Content -LiteralPath $absolute -Value '// Disposable grouped target fixture.'
+    }
+    foreach ($defer in @($false, $true)) {
+        $calls.Clear()
+        & $scriptPath -SkipBuild -InstalledRuntimesSeparately:$defer *> $null
+        $executed = @($calls | Where-Object { $_ -match '^test integration_test/' })
+        $expected = if ($defer) { $otherTargets + $bundleName } else { $runtimeTargets + $otherTargets + $bundleName }
+        if ($executed.Count -ne $expected.Count) { throw "Incorrect bundled integration count: deferred=$defer" }
+        foreach ($target in $expected) {
+            if (@($executed | Where-Object { $_.StartsWith('test ' + $target + ' ') }).Count -ne 1) {
+                throw "Expected integration must run exactly once with bundle: $target"
+            }
+        }
+        foreach ($target in $groupedTargets) {
+            if ($executed | Where-Object { $_.StartsWith('test ' + $target + ' ') }) {
+                throw "Grouped suite was unnecessarily executed twice: $target"
+            }
+        }
+        $bundleCall = $executed | Where-Object { $_.StartsWith('test ' + $bundleName + ' ') }
+        if ($bundleCall -notmatch '-d windows --coverage --coverage-path build/testing/ui-windows_journeys_test.info') {
+            throw 'Bundled UI suite lost its native Windows target or coverage output.'
+        }
+        Write-Host "Passed bundled integration inventory scenario: deferred=$defer"
+    }
 } finally {
     Set-Location -LiteralPath $originalLocation.Path
     $resolved = [IO.Path]::GetFullPath($temporaryRoot)

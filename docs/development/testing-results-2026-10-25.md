@@ -1,5 +1,28 @@
 # Registro de pruebas del 25 al 27 de octubre de 2026
 
+El nuevo recorrido `integration_test/ui/windows_journeys_test.dart` aprobó
+**127 casos en un único proceso Windows** (`build/testing/ui-bundle-validation.log`).
+Agrupa las siete suites existentes y limita sus hooks a cada grupo; permite
+comprobar la convivencia de League/Coach, navegación, ventanas, overlay, Scout,
+ajustes/voz y transporte. El verificador local utiliza esa entrada una sola vez,
+mantiene las entradas individuales para diagnóstico y sigue descubriendo nuevas
+integraciones. Los ocho escenarios de regresión del script aprobaron, incluidos
+inventario frente a imports, exclusión de duplicados, delegación de motores
+instalados y conservación de destino Windows/cobertura. El analizador quedó sin
+incidencias. Evidencia: `bundled-verifier-regressions.log` y
+`bundled-analysis.log`, dentro de `build/testing/`. Esta tanda de infraestructura
+no corrige ni convierte en aprobados los fallos nativos de la pasada completa.
+Los ocho regresores Python también aprobaron (`bundled-python-regressions.log`).
+El arranque debug y la recarga en caliente (377 ms) aprobaron; Dart MCP no
+encontró excepciones y se cerró la aplicación al terminar la revisión.
+
+La repetición aislada de Kokoro y ZipVoice con la configuración de producción
+aprobó (cancelación de 3,552 y 3,887 segundos). El experimento posterior de
+reducir ambos a cuatro hilos no aportó mejora: Kokoro tardó 3,699 segundos y
+ZipVoice falló con 5,144 segundos. **El experimento se revirtió íntegramente**;
+se conserva la evidencia en `cancel-baseline-*.log` y `cancel-four-threads-*.log`.
+La variación observada impide dar por resuelta la latencia de cancelación.
+
 La pasada completa más reciente, `build/testing/runs/20261027-124009/`, verificó
 `80abaa6` con árbol limpio y cero cambios en las entradas inventariadas. Cerró
 con **13 926 / 15 761 líneas (88,3573 %)**, sin archivos sin medir. **No aprobó

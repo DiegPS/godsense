@@ -21,6 +21,17 @@ primera copia que acabaría omitida por falta de entorno. La invocación
 independiente de `verify_windows.ps1` conserva sus integraciones habituales;
 las integraciones nuevas que no figuren en ese inventario también se ejecutan.
 
+Los siete recorridos de interfaz con fixtures se agrupan en
+`integration_test/ui/windows_journeys_test.dart`: League/Coach, navegación,
+ventana nativa, overlay, Scout, ajustes/voz y transporte de descargas. Comparten
+un proceso Windows para detectar fugas de estado entre suites, con sus hooks
+de preparación y limpieza limitados a cada grupo. El verificador evita volver
+a compilar esas siete entradas individualmente. Sus archivos siguen disponibles
+para ejecutarlos por separado; las integraciones nuevas se descubren normalmente
+y el chat con IA real conserva su etapa con motores instalados. Los regresores
+del script comprueban el inventario, la ausencia de duplicados y la conservación
+de pruebas nuevas, destino Windows y cobertura.
+
 La meta de cobertura combinada es **100 %**. El comando falla mientras no se
 alcance; no convierte omisiones en éxitos ni modifica el código para ocultar
 líneas sin cubrir. Cada ejecución guarda `summary.json`, logs, LCOV e informe

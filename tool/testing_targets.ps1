@@ -1,4 +1,16 @@
 # Shared inventory for the full local verification pipeline.
+function Get-GodSenseGroupedWindowsTests {
+    @(
+        'integration_test/ui/connected_league_test.dart',
+        'integration_test/ui/desktop_app_test.dart',
+        'integration_test/ui/native_window_test.dart',
+        'integration_test/ui/overlay_hud_test.dart',
+        'integration_test/ui/scout_search_test.dart',
+        'integration_test/ui/settings_controls_test.dart',
+        'integration_test/ui/windows_artifact_download_test.dart'
+    )
+}
+
 function Get-GodSenseInstalledRuntimeTests {
     @(
         'test/infrastructure/ai/ai_model_catalog_live_test.dart',
