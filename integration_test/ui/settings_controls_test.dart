@@ -6,6 +6,8 @@ import '../../test/infrastructure/speech/captions_download_lifecycle_test.dart'
 import '../../test/infrastructure/speech/captions_start_stop_race_test.dart'
     as capture;
 import '../../test/presentation/microphone_test_panel_test.dart' as microphone;
+import '../../test/infrastructure/speech/tts_initialization_lifecycle_test.dart'
+    as synthesis;
 
 import '../../test/presentation/coach/ai_provider_connections_test.dart'
     as auth;
@@ -24,4 +26,5 @@ void main() {
   captions.main();
   capture.main();
   microphone.main();
+  synthesis.main();
 }

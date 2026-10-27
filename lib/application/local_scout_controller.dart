@@ -372,6 +372,7 @@ class LocalScoutController extends StateNotifier<LocalScoutState> {
       if (revision != _revision) return;
 
       var ranked = await _loadRanked(account.puuid);
+      if (revision != _revision) return;
       var records = await _loadMatches(account.puuid, limit: 30);
       if (revision != _revision) return;
 
@@ -395,6 +396,7 @@ class LocalScoutController extends StateNotifier<LocalScoutState> {
 
         if (revision != _revision) return;
         ranked = await _loadRanked(account.puuid);
+        if (revision != _revision) return;
         records = await _loadMatches(account.puuid, limit: 30);
         if (revision != _revision) return;
 
@@ -523,6 +525,7 @@ class LocalScoutController extends StateNotifier<LocalScoutState> {
           );
         } catch (_) {
           // Cached scoreboards remain usable when League cannot supply a timeline.
+          if (revision != _detailRevision) return;
         }
       }
       if (!typedSummary.hasFullDetails) {

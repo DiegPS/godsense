@@ -1,5 +1,38 @@
 # Registro de pruebas del 25 al 27 de octubre de 2026
 
+La ejecución `build/testing/runs/20261027-120827/`, iniciada con el árbol limpio
+en `4c95b19`, quedó **incompleta**. La etapa Windows terminó correctamente:
+661 pruebas de base y 24 omisiones, 16 de visión, 114 casos de interfaz,
+medición profile y compilación/arranque release. La navegación con captura
+registró p95 de 11,257 ms y el catálogo un intervalo máximo del hilo de eventos
+de 27,333 ms (`build/performance/navigation-f8413b410a114c1f9e549e6c0ca73fbb.json`).
+El proceso desapareció al comenzar el catálogo real de OpenCode; se comprobaron
+el handle y la lista de procesos. No existe `summary.json` de cierre ni cobertura
+combinada de esa ejecución. Sus etapas restantes no se cuentan como aprobadas.
+
+La tanda posterior reprodujo siete fallos entre diez casos nuevos de Scout y
+síntesis de voz. Un error tardío del timeline opcional podía aplicar el marcador
+de la cuenta anterior; una consulta antigua de clasificación seguía leyendo
+partidas después de cambiar de cuenta o cerrar el controlador. Scout ahora
+comprueba la revisión antes de continuar, también después de la sincronización.
+El marcador en caché sigue disponible si falla únicamente el timeline actual.
+
+La síntesis podía iniciar una descarga cancelada, reintentar una preparación
+obsoleta o publicar «lista» después de detenerse. Las comprobaciones de generación
+ahora cubren la lectura de caché, la espera de otra inicialización y el arranque
+del reproductor. Se verifica que una preparación nueva solicitada después de
+detener siga funcionando. La base posterior aprobó **674 pruebas con 24 omisiones**
+y el analizador quedó sin incidencias. Evidencia: `scout-tts-boundaries-red.log`,
+`scout-tts-boundaries-focused-final.log` (29 casos), `scout-tts-boundaries-base.log`
+y `scout-tts-boundaries-analysis-final.log`, dentro de `build/testing/`.
+Los recorridos nativos posteriores aprobaron 18 casos de Scout y 52 de ajustes
+(`scout-tts-native-scout_search_test.log` y
+`scout-tts-native-settings_controls_test.log`). Los transportes de esta tanda
+son sintéticos; los controladores y el motor de interfaz Windows son reales.
+El arranque debug y la recarga en caliente (414 ms) aprobaron; Dart MCP no
+reportó excepciones. La captura DXGI funcionó durante esa revisión. No se
+modificó la calibración guardada ni se verificó una partida real.
+
 La última pasada completa corresponde a `3fc67f2`, en
 `build/testing/runs/20261026-231944/`: **13 879 / 15 739 líneas (88,1822 %)**,
 sin archivos sin medir, árbol limpio y cero cambios en entradas inventariadas.

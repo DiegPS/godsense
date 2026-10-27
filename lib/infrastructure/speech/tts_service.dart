@@ -147,12 +147,21 @@ class TtsService {
   }
 
   Future<void> _prepareForConfiguration(int revision) async {
+    final generation = _generation;
     try {
       await ensureReady(allowDownload: false);
       // A previous initialization may have been cancelled by a near-simultaneous
       // settings update. Retry once after its whenComplete clears the slot.
-      if (revision == _configurationRevision && !_engine.isReady) {
+      if (!_disposed &&
+          generation == _generation &&
+          revision == _configurationRevision &&
+          !_engine.isReady) {
         await Future<void>.delayed(Duration.zero);
+        if (_disposed ||
+            generation != _generation ||
+            revision != _configurationRevision) {
+          return;
+        }
         await ensureReady(allowDownload: false);
       }
     } catch (_) {}
@@ -160,6 +169,7 @@ class TtsService {
 
   Future<void> ensureReady({required bool allowDownload}) async {
     if (_disposed) return Future.error(StateError('TTS is disposed.'));
+    final generation = _generation;
     if (_engine.isReady && _loadState.modelId == _modelId) {
       return;
     }
@@ -167,8 +177,10 @@ class TtsService {
     final inFlight = _initialization;
     if (inFlight != null) {
       await inFlight;
+      if (_disposed || generation != _generation) return;
       if (allowDownload && !_engine.isReady) {
         await Future<void>.delayed(Duration.zero);
+        if (_disposed || generation != _generation) return;
         await ensureReady(allowDownload: true);
       }
       return;
@@ -186,6 +198,7 @@ class TtsService {
     _downloadCancellation = cancellation;
     try {
       var installation = await _modelCache.installed(model);
+      if (_disposed || generation != _generation) return;
       if (installation == null && !allowDownload) {
         _knownMissingModelId = model.id;
         _emit(
@@ -225,8 +238,8 @@ class TtsService {
           );
         },
       );
-      _knownMissingModelId = null;
       if (_disposed || generation != _generation) return;
+      _knownMissingModelId = null;
       _emit(
         TtsLoadState(
           phase: TtsLoadPhase.loading,
@@ -242,6 +255,7 @@ class TtsService {
       await _engine.initialize(installation);
       if (_disposed || generation != _generation) return;
       await _audioPlayback.startKeepAlive();
+      if (_disposed || generation != _generation) return;
       _emit(
         TtsLoadState(
           phase: TtsLoadPhase.ready,
