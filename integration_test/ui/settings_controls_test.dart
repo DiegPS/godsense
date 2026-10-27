@@ -1,6 +1,8 @@
 import 'package:integration_test/integration_test.dart';
 
 import '../../test/application/native_speech_async_safety_test.dart' as speech;
+import '../../test/infrastructure/speech/captions_download_lifecycle_test.dart'
+    as captions;
 
 import '../../test/presentation/coach/ai_provider_connections_test.dart'
     as auth;
@@ -16,4 +18,5 @@ void main() {
   voice.main();
   runtimes.main();
   speech.main();
+  captions.main();
 }

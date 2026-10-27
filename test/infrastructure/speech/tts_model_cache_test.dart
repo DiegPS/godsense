@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:convert';
 
 import 'package:archive/archive.dart';
 import 'package:crypto/crypto.dart';
@@ -140,6 +141,107 @@ void main() {
 
     expect(await freshProcessCache.installed(model), isNull);
   });
+
+  test('pre-cancelled request cannot reuse an installed model', () async {
+    final downloader = _MemoryDownloader({
+      model.downloads.single.uri: archiveBytes,
+    });
+    final cache = TtsModelCache(downloader: downloader, rootDirectory: root);
+    await cache.ensureAvailable(model);
+    final cancellation = TtsDownloadCancellation()..cancel();
+    await expectLater(
+      cache.ensureAvailable(model, cancellation: cancellation),
+      throwsA(isA<TtsDownloadCancelledException>()),
+    );
+    expect(downloader.requests, hasLength(1));
+  });
+
+  test(
+    'cancelling during the cached check cannot report installation success',
+    () async {
+      final cache = TtsModelCache(
+        downloader: _MemoryDownloader({
+          model.downloads.single.uri: archiveBytes,
+        }),
+        rootDirectory: root,
+      );
+      await cache.ensureAvailable(model);
+      final cancellation = TtsDownloadCancellation();
+      final phases = <TtsInstallPhase>[];
+      await expectLater(
+        cache.ensureAvailable(
+          model,
+          cancellation: cancellation,
+          onProgress: (progress) {
+            phases.add(progress.phase);
+            if (progress.phase == TtsInstallPhase.checking) {
+              cancellation.cancel();
+            }
+          },
+        ),
+        throwsA(isA<TtsDownloadCancelledException>()),
+      );
+      expect(phases, isNot(contains(TtsInstallPhase.installed)));
+    },
+  );
+
+  test(
+    'removing a model preserves other installations and permits reinstall',
+    () async {
+      final downloader = _MemoryDownloader({
+        model.downloads.single.uri: archiveBytes,
+      });
+      final cache = TtsModelCache(downloader: downloader, rootDirectory: root);
+      await cache.ensureAvailable(model);
+      final other = File('${root.path}/unrelated/keep.txt');
+      await other.parent.create(recursive: true);
+      await other.writeAsString('keep');
+      await cache.remove(model);
+      expect(await cache.installed(model), isNull);
+      expect(await other.readAsString(), 'keep');
+      await cache.remove(model);
+      await cache.ensureAvailable(model);
+      expect(await cache.installed(model), isNotNull);
+      expect(downloader.requests, hasLength(2));
+    },
+  );
+
+  for (final manifest in [
+    'invalid json',
+    jsonEncode({'files': []}),
+    jsonEncode({
+      'files': [
+        {'path': '../outside.onnx', 'bytes': 5, 'sha256': '0' * 64},
+      ],
+    }),
+    jsonEncode({
+      'files': [
+        {'path': 'model.onnx', 'bytes': '5', 'sha256': '0' * 64},
+      ],
+    }),
+    jsonEncode({
+      'files': [
+        {'path': 'model.onnx', 'bytes': 5, 'sha256': '0' * 64},
+      ],
+    }),
+  ].indexed) {
+    test(
+      'invalid integrity manifest ${manifest.$1} never marks a model installed',
+      () async {
+        final cache = TtsModelCache(
+          downloader: _MemoryDownloader({
+            model.downloads.single.uri: archiveBytes,
+          }),
+          rootDirectory: root,
+        );
+        final installed = await cache.ensureAvailable(model);
+        await File('${installed.directory.path}/.godsense-integrity.json')
+            .writeAsString(manifest.$2);
+        final fresh = TtsModelCache(rootDirectory: root);
+        expect(await fresh.installed(model), isNull);
+      },
+    );
+  }
 }
 
 TtsModelDefinition _model(

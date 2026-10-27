@@ -41,6 +41,32 @@ El arranque debug y la recarga en caliente aprobaron; Dart MCP no encontró
 excepciones de runtime. La captura mantuvo el aviso controlado de la pantalla
 calibrada ausente; no se modificó la calibración del usuario.
 
+La siguiente tanda reprodujo siete fallos del ciclo de descarga de subtítulos:
+progreso, cancelación y errores de una descarga anterior reemplazaban la nueva;
+una instalación tardía podía reactivar la captura después de detenerla; y una
+descarga completada sin activar la voz quedaba en «cargando» o conservaba un
+error anterior. Cada respuesta ahora comprueba su solicitud y cancelación; al
+finalizar sin captura queda en espera. Los errores siguen llegando al solicitante,
+pero solo la solicitud vigente modifica el estado visible. La caché compartida
+también respetará una cancelación al reutilizar un modelo ya instalado.
+
+Los fallos originales están en `build/testing/captions-download-red.log` y
+`speech-cache-red.log`. Aprobaron 33 pruebas focalizadas, incluidas cancelación
+nativa, fallo y cierre de workers, flush de Push-to-Talk, rechazo de manifiestos
+dañados y reinstalación conservando otros modelos. La base posterior aprobó
+**635 pruebas y 24 omisiones explícitas** (`speech-download-base.log`);
+el analizador final no encontró incidencias (`speech-download-analysis-final.log`).
+Los transportes y la captura de estas regresiones son sintéticos; los archivos
+de modelos y workers de prueba están aislados y no modifican modelos personales.
+Todavía requieren la medición global posterior.
+Los 30 casos de ajustes, controles de voz y descargas de subtítulos también
+aprobaron sobre Windows nativo (`build/testing/speech-download-native.log`).
+El arranque debug, la recarga en caliente y la consulta de errores de Flutter
+aprobaron. Se conserva el aviso controlado de la pantalla calibrada ausente.
+Una comprobación adicional evita empezar la verificación de modelos grandes
+si se cancela desde el aviso inicial; sus pruebas de caché se repitieron en
+`build/testing/speech-cache-final.log` después de ese ajuste.
+
 La pasada completa anterior corresponde a `8eab7df`, en
 `build/testing/runs/20261026-173842/`: **13 549 / 15 676 líneas (86,4315 %)**.
 Aprobaron Windows y motores instalados, sin archivos sin medir ni cambios en

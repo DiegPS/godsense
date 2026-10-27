@@ -150,13 +150,16 @@ class TtsModelCache {
     TtsDownloadCancellation? cancellation,
   }) async {
     final activeCancellation = cancellation ?? TtsDownloadCancellation();
+    activeCancellation.throwIfCancelled();
     onProgress?.call(
       const TtsInstallProgress(
         phase: TtsInstallPhase.checking,
         message: 'Checking installed model…',
       ),
     );
+    activeCancellation.throwIfCancelled();
     final existing = await installed(model);
+    activeCancellation.throwIfCancelled();
     if (existing != null) {
       onProgress?.call(
         TtsInstallProgress(
@@ -170,6 +173,7 @@ class TtsModelCache {
       return existing;
     }
     final root = await rootDirectory;
+    activeCancellation.throwIfCancelled();
     await root.create(recursive: true);
     final downloads = Directory(p.join(root.path, '.downloads'));
     await downloads.create(recursive: true);

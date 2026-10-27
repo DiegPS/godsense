@@ -191,32 +191,48 @@ class LiveCaptionsService {
     final cancellation = TtsDownloadCancellation();
     _downloadCancellation?.cancel();
     _downloadCancellation = cancellation;
+    bool current() =>
+        !_disposed &&
+        !cancellation.isCancelled &&
+        identical(_downloadCancellation, cancellation);
     try {
       final installation = await _modelCache.ensureAvailable(
         model.package,
         cancellation: cancellation,
-        onProgress: (progress) => _emit(
-          LiveCaptionsState(
-            phase: progress.phase == TtsInstallPhase.downloading
-                ? LiveCaptionsPhase.downloading
-                : LiveCaptionsPhase.loading,
-            message: progress.message,
-            receivedBytes: progress.receivedBytes,
-            totalBytes: progress.totalBytes,
-          ),
-        ),
+        onProgress: (progress) {
+          if (!current()) return;
+          _emit(
+            LiveCaptionsState(
+              phase: progress.phase == TtsInstallPhase.downloading
+                  ? LiveCaptionsPhase.downloading
+                  : LiveCaptionsPhase.loading,
+              message: progress.message,
+              receivedBytes: progress.receivedBytes,
+              totalBytes: progress.totalBytes,
+            ),
+          );
+        },
       );
-      if (_enabled) await _start(installation, revision: _revision);
+      if (!current()) return;
+      if (_enabled) {
+        await _start(installation, revision: _revision);
+      } else {
+        _emit(
+          const LiveCaptionsState(message: 'Offline caption model is ready.'),
+        );
+      }
     } on TtsDownloadCancelledException {
-      if (!_disposed) _emit(const LiveCaptionsState());
+      if (current()) _emit(const LiveCaptionsState());
     } catch (error) {
-      _emit(
-        LiveCaptionsState(
-          phase: LiveCaptionsPhase.error,
-          message: 'The caption model could not be prepared.',
-          error: error.toString(),
-        ),
-      );
+      if (current()) {
+        _emit(
+          LiveCaptionsState(
+            phase: LiveCaptionsPhase.error,
+            message: 'The caption model could not be prepared.',
+            error: error.toString(),
+          ),
+        );
+      }
       rethrow;
     } finally {
       if (identical(_downloadCancellation, cancellation)) {
