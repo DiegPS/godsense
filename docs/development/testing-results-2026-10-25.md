@@ -1,5 +1,41 @@
 # Registro de pruebas del 25 al 27 de octubre de 2026
 
+La tanda del catálogo corrigió la cancelación y el presupuesto de espera del
+cliente en segundo plano. Cerrar el cliente ahora termina la consulta pendiente
+y su worker HTTP, también si se cierra antes de que termine de arrancar. Un
+único plazo incluye arranque del isolate, cabeceras, cuerpo y decodificación;
+no suma dos esperas independientes. Los errores HTTP conservan su tipo/código,
+las solicitudes simultáneas se agrupan y una consulta fallida permite reintentar.
+
+La comparación aislada de OpenCode con dos directorios privados nuevos midió
+21,275 segundos para el catálogo sin dependencias preparadas frente a 1,968
+segundos reutilizando únicamente sus paquetes npm públicos. No se copiaron
+sesiones, autenticación, configuración privada ni metadatos de modelos.
+Evidencia: `build/testing/catalog-dependency-probe.log`. El primer catálogo tiene
+ahora un presupuesto total separado de 60 segundos para esa inicialización;
+después del primer éxito conserva los 30 segundos normales. No se añadieron
+reintentos automáticos ni se amplió el plazo de las demás operaciones de API.
+
+Las ocho pruebas específicas del cliente están incluidas en una base final de
+**679 casos aprobados y 24 omisiones explícitas** (`catalog-lifecycle-base-final.log`).
+El analizador aprobó (`catalog-lifecycle-analysis-final.log`). Los dos catálogos
+reales también aprobaron desde directorios nuevos (`catalog-lifecycle-live.log`),
+sin enviar inferencia. El sondeo de la versión anterior con JSON válido terminó
+en 782 ms con 500 ms configurados, confirmando la acumulación del plazo antiguo
+(`catalog-legacy-deadline-proof.log`). El primer registro rojo incluyó una
+respuesta JSON de fixture incorrecta; no se usa como prueba de ese defecto.
+La prueba del cuerpo lento se corrigió para enviar JSON válido.
+
+El profile posterior aprobó navegación fría p95 de 39,836 ms, caliente de
+12,701 ms y con captura de 13,791 ms; el refresco real del catálogo registró
+un intervalo máximo del hilo de eventos de 23,571 ms. Hubo 47 capturas y cero
+errores. Informe: `build/performance/navigation-7c51f3d4beea4020bec4412ae17e990b.json`;
+log `build/testing/catalog-lifecycle-profile.log`. Esta tanda no resuelve los
+fallos de cancelación de Kokoro/ZipVoice ni demuestra el 100 % de cobertura.
+El arranque debug y la recarga en caliente (384 ms) aprobaron, sin excepciones
+reportadas por Dart MCP. La captura DXGI estuvo activa y se cerró la aplicación
+al terminar. No se modificó la calibración guardada ni se probó una partida real.
+
 El nuevo recorrido `integration_test/ui/windows_journeys_test.dart` aprobó
 **127 casos en un único proceso Windows** (`build/testing/ui-bundle-validation.log`).
 Agrupa las siete suites existentes y limita sus hooks a cada grupo; permite

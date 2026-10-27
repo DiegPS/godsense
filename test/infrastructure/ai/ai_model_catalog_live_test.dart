@@ -68,7 +68,8 @@ void main() {
       skip: path == null
           ? 'Set GODSENSE_TEST_*_EXE to opt into local catalog checks.'
           : false,
-      timeout: const Timeout(Duration(seconds: 55)),
+      // Endpoint startup (15s), health (25s), first catalog (60s), and cleanup.
+      timeout: const Timeout(Duration(minutes: 2)),
     );
   }
 }
