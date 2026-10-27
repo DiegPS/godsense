@@ -277,6 +277,7 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
   Set<int> _draftPickableIds = const {};
   String? _draftAccountKey;
   bool _draftPoolLoading = false;
+  int _draftPoolGeneration = 0;
   DateTime? _lastDraftPoolAttempt;
   DateTime? _lastLiveProbe;
   String? _lastObservedPhase;
@@ -366,10 +367,12 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
   )).synchronizeScoutAccount(account, onProgress: onProgress);
 
   Future<Map<int, String>> loadChampionNames() async {
+    if (!mounted) return const {};
     if (_championNames.length >= 150) return Map.unmodifiable(_championNames);
     final response = await _lcu.get(
       '/lol-game-data/assets/v1/champion-summary.json',
     );
+    if (!mounted) return const {};
     if (response is List) {
       for (final raw in response.whereType<Map>()) {
         final id = (raw['id'] as num?)?.toInt();
@@ -385,7 +388,7 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
   }
 
   Future<void> _ensureChampionProfileLoaded(int id) async {
-    if (id <= 0) return;
+    if (!mounted || id <= 0) return;
     if (_championNames.containsKey(id) &&
         (_championAliases[id]?.isNotEmpty ?? false) &&
         _championProfiles.containsKey(id)) {
@@ -405,7 +408,7 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
   Future<void> _loadChampionProfile(int id) async {
     final version = _championProfilesVersion;
     final data = await _lcu.get('/lol-game-data/assets/v1/champions/$id.json');
-    if (data is! Map || _championProfilesVersion != version) return;
+    if (!mounted || data is! Map || _championProfilesVersion != version) return;
     _championNames[id] = data['name']?.toString() ?? '$id';
     _championAliases[id] = data['alias']?.toString() ?? '';
     _championProfiles[id] = {
@@ -693,6 +696,8 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
     final previous = _lastObservedPhase;
     if (phase == previous) return;
     _lastObservedPhase = phase;
+    _draftPoolGeneration++;
+    _draftPoolLoading = false;
     if (phase == 'ChampSelect') {
       _draftPoolLoaded = false;
       _lastDraftPoolAttempt = null;
@@ -723,6 +728,7 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
               (_championAliases[id]?.isEmpty ?? true) ||
               !_championProfiles.containsKey(id))) {
         await _ensureChampionProfileLoaded(id);
+        if (!mounted) return const {};
       }
     }
     final localCell = (raw['localPlayerCellId'] as num?)?.toInt();
@@ -967,8 +973,10 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
   }
 
   void _ensureDraftPoolLoaded(String? puuid) {
-    if (puuid == null || puuid.isEmpty) return;
+    if (!mounted || puuid == null || puuid.isEmpty) return;
     if (_draftAccountKey != puuid) {
+      _draftPoolGeneration++;
+      _draftPoolLoading = false;
       _draftAccountKey = puuid;
       _draftPoolLoaded = false;
       _draftChampionPositions.clear();
@@ -986,17 +994,25 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
     }
     _draftPoolLoading = true;
     _lastDraftPoolAttempt = now;
+    final generation = _draftPoolGeneration;
+    bool current() =>
+        mounted &&
+        _draftAccountKey == puuid &&
+        generation == _draftPoolGeneration;
     unawaited(() async {
       try {
         final mastery = await _lcu.get(
           '/lol-champion-mastery/v1/local-player/champion-mastery',
         );
+        if (!current()) return;
         final pickable = await _lcu.get(
           '/lol-champ-select/v1/pickable-champion-ids',
         );
+        if (!current()) return;
         await loadChampionNames();
+        if (!current()) return;
         final matches = await loadLocalMatches(Puuid(puuid), limit: 100);
-        if (_draftAccountKey != puuid) return;
+        if (!current()) return;
         for (final match in matches) {
           try {
             final payload = _stringMap(jsonDecode(match.summaryJson));
@@ -1047,9 +1063,10 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
           for (final entry in profileIds.take(12)) {
             final id = (entry['championId'] as num?)?.toInt();
             if (id != null) await _ensureChampionProfileLoaded(id);
+            if (!current()) return;
           }
         }
-        if (_draftAccountKey != puuid) return;
+        if (!current()) return;
         _draftMastery = _mapList(mastery);
         _draftPickableIds = pickable is List
             ? pickable.whereType<num>().map((value) => value.toInt()).toSet()
@@ -1058,7 +1075,7 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
       } catch (_) {
         // Never substitute fabricated picks if the local pool is unavailable.
       } finally {
-        _draftPoolLoading = false;
+        if (current()) _draftPoolLoading = false;
       }
     }());
   }

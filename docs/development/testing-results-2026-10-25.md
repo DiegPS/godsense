@@ -1,6 +1,47 @@
 # Registro de pruebas del 25 y 26 de octubre de 2026
 
-La última pasada completa corresponde a `8eab7df`, en
+La última pasada completa corresponde a `d95198d`, en
+`build/testing/runs/20261026-180915/`: **13 737 / 15 709 líneas (87,4467 %)**.
+El árbol estaba limpio y no cambiaron los archivos inventariados. Aprobaron
+Windows, runtimes instalados y herramientas; el resultado global fue fallo
+únicamente por la puerta de cobertura del 100 %. Aprobaron 602 pruebas de base
+(24 omisiones explícitas), 16 de visión nativa y 83 casos de interfaz Windows,
+además del chat real incluido en los motores instalados. OpenCode y Kilo,
+streaming, conversación con cancelación/reinicio, reconocimiento de voz y los
+ocho sintetizadores pasaron sus comprobaciones reales. El streaming entregó
+135 fragmentos de texto. Las herramientas aprobaron ocho pruebas Python y
+seis escenarios PowerShell. Navegación profile: p95 de 38,450 ms en frío,
+13,633 ms en caliente y 12,080 ms con captura; intervalo máximo del hilo de
+eventos durante el catálogo: 23,192 ms. Informe:
+`build/performance/navigation-db50149830a64e18b8b0fb023f98719f.json`.
+Estos resultados no certifican una partida real, el audio físico ni un MSIX
+posterior. La puerta estricta continúa fallando y falta alcanzar el 100 %.
+
+Después de esa pasada se reprodujeron consultas adicionales de campeones e
+historial tras cerrar el controlador de League. Las continuaciones ahora
+comprueban su vigencia después de cada espera y detienen la cadena al cerrarse.
+Otra regresión demostró que una consulta de maestría pendiente de la selección
+anterior impedía cargar la siguiente. Cada selección/cuenta tiene su generación:
+la siguiente carga comienza aunque la anterior siga pendiente, y la respuesta
+antigua no reemplaza sus datos ni libera el bloqueo de la solicitud nueva.
+Se comprueban además los prerrequisitos del estado «Vigilando», sin fingir
+reconocimiento disponible cuando faltan retratos o hay un error de captura.
+Evidencia anterior a las correcciones: `build/testing/draft-lifecycle-red.log`
+y `draft-generation-red.log`. La base posterior aprobó **617 pruebas con 24
+omisiones explícitas**, y el analizador de `lib`, `test` e `integration_test`
+no encontró incidencias (`draft-lifecycle-base.log`, `draft-analysis-final.log`).
+El nuevo test de cambio de cuenta necesitó corregir su propio historial
+sintético: los participantes seguían perteneciendo a la cuenta anterior y no
+debían generar recomendaciones para la siguiente. Este ajuste no cambia la
+regla de producción que exige historial del jugador y posición compatibles.
+Esta tanda posterior requiere otra medición global de cobertura.
+Los 23 casos conectados de League/Coach también aprobaron sobre el motor
+nativo de Windows (`build/testing/draft-lifecycle-native-final.log`).
+El arranque debug y la recarga en caliente aprobaron; Dart MCP no encontró
+excepciones de runtime. La captura mantuvo el aviso controlado de la pantalla
+calibrada ausente; no se modificó la calibración del usuario.
+
+La pasada completa anterior corresponde a `8eab7df`, en
 `build/testing/runs/20261026-173842/`: **13 549 / 15 676 líneas (86,4315 %)**.
 Aprobaron Windows y motores instalados, sin archivos sin medir ni cambios en
 los archivos inventariados; el árbol estaba limpio. La base aprobó 573 pruebas,
@@ -35,7 +76,8 @@ Evidencia: `build/testing/coach-lifecycle-base.log`,
 `coach-empty-report-red.log`, `coach-lifecycle-analysis-final.log` y
 `runner-inventory-regressions.log`. La base completa se ejecutó antes del último
 ajuste del informe vacío; sus seis casos de informes sí se repitieron después.
-Estas modificaciones posteriores requieren su propia validación global.
+La pasada `d95198d` ya incluye estas modificaciones y el último ajuste del
+informe vacío, con el resultado global indicado al comienzo.
 El arranque debug y la recarga en caliente aprobaron, sin excepciones reportadas
 por Flutter; se mantuvo el aviso controlado de la pantalla calibrada ausente.
 
