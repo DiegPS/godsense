@@ -16,8 +16,8 @@ class CompositionBreakdownCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return CoachSurface(
-      title: 'Evaluación determinista de composición',
-      subtitle: 'Atributos estáticos · evaluador v1 · escala 0–3',
+      title: 'Composición de equipos',
+      subtitle: 'Características de los campeones · escala 0–3 · no predice el resultado',
       icon: Icons.balance_outlined,
       child: ally == null && enemy == null
           ? const CoachEmptyState(
@@ -76,14 +76,14 @@ class _AxisComparison extends StatelessWidget {
               ),
             ),
             Expanded(
-              child: _Bar(value: ally, color: CoachColors.cyan),
+              child: _Bar(value: ally, color: CoachColors.accent),
             ),
             const SizedBox(width: 8),
             SizedBox(
               width: 28,
               child: Text(
                 ally.toStringAsFixed(1),
-                style: const TextStyle(color: CoachColors.cyan, fontSize: 11),
+                style: const TextStyle(color: CoachColors.accent, fontSize: 11),
               ),
             ),
             const SizedBox(width: 8),

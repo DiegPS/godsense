@@ -12,8 +12,189 @@ import 'package:godsense/domain/identity/league_identity.dart';
 import 'package:godsense/domain/league/game_session.dart';
 import 'package:godsense/domain/tactical/tactical_models.dart';
 import 'package:godsense/presentation/coach/coach_page.dart';
+import 'package:godsense/presentation/coach/live/ai_coach_chat_card.dart';
+import 'package:godsense/application/ai/ai_conversation_controller.dart';
+
+import '../../support/ai_models.dart';
+import '../../application/ai/ai_conversation_controller_test.dart'
+    show FakeSupervisor;
+import 'ai_coach_chat_card_test.dart' show FakeAiConversationNotifier;
+
+import 'package:godsense/presentation/coach/shared/coach_section_header.dart';
+import 'package:godsense/presentation/coach/setup/item_bundles_view.dart';
+import 'package:godsense/presentation/coach/live/gold_timeline_card.dart';
 
 void main() {
+  testWidgets(
+    'sending works from every manual Coach phase with one conversation',
+    (tester) async {
+      await _setSize(tester, const Size(1280, 2000));
+      final coach = _controller(_inactiveInputs());
+      final conversation = _PhaseConversation();
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            coachControllerProvider.overrideWith((_) => coach),
+            nativeSpeechProvider.overrideWith((_) => _ReadySpeech()),
+            aiModelSelectionProvider.overrideWith((_) => ReadyModelSelection()),
+            aiRuntimeSupervisorProvider.overrideWithValue(FakeSupervisor()),
+            aiRuntimeSupervisorStateProvider.overrideWith(
+              (_) => Stream.value(FakeSupervisor().state),
+            ),
+            aiConversationProvider.overrideWith((_) => conversation),
+          ],
+          child: const MaterialApp(home: Scaffold(body: CoachPage())),
+        ),
+      );
+      await tester.pumpAndSettle();
+      for (final phase in CoachPhase.values) {
+        coach.showPhase(phase);
+        await tester.pumpAndSettle();
+        final field = find.byType(TextField);
+        await tester.ensureVisible(field);
+        await tester.enterText(field, 'Pregunta desde ${phase.name}');
+        await tester.testTextInput.receiveAction(TextInputAction.send);
+        await tester.pump();
+        await tester.pump();
+        expect(conversation.sentMessages.last, 'Pregunta desde ${phase.name}');
+        expect(tester.widget<TextField>(field).controller!.text, isEmpty);
+        expect(tester.widget<TextField>(field).enabled, isFalse);
+        conversation.finish();
+        await tester.pump();
+      }
+      expect(conversation.sentMessages.length, 4);
+      expect(conversation.state.messages.length, 4);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'one chat preserves a draft and pending send across all Coach phases',
+    (tester) async {
+      await _setSize(tester, const Size(1280, 2000));
+      final coach = _controller(_inactiveInputs());
+      final conversation = FakeAiConversationNotifier(
+        const AiConversationState(),
+      );
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            coachControllerProvider.overrideWith((_) => coach),
+            nativeSpeechProvider.overrideWith((_) => _ReadySpeech()),
+            aiModelSelectionProvider.overrideWith((_) => ReadyModelSelection()),
+            aiRuntimeSupervisorProvider.overrideWithValue(FakeSupervisor()),
+            aiRuntimeSupervisorStateProvider.overrideWith(
+              (_) => Stream.value(FakeSupervisor().state),
+            ),
+            aiConversationProvider.overrideWith((_) => conversation),
+          ],
+          child: const MaterialApp(home: Scaffold(body: CoachPage())),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final initialChat = tester.state(find.byType(AiCoachChatCard));
+      await tester.enterText(find.byType(TextField), 'Mi pregunta sin enviar');
+      for (final phase in [
+        CoachPhase.inGame,
+        CoachPhase.champSelect,
+        CoachPhase.postGame,
+        CoachPhase.inactive,
+      ]) {
+        coach.showPhase(phase);
+        await tester.pumpAndSettle();
+        expect(find.byType(AiCoachChatCard), findsOneWidget);
+        expect(
+          identical(tester.state(find.byType(AiCoachChatCard)), initialChat),
+          isTrue,
+          reason: 'Changing to $phase must not replace the chat',
+        );
+        expect(
+          tester.widget<TextField>(find.byType(TextField)).controller!.text,
+          'Mi pregunta sin enviar',
+        );
+      }
+      await tester.testTextInput.receiveAction(TextInputAction.send);
+      await tester.pump();
+      await tester.pump();
+      expect(conversation.sentMessages, ['Mi pregunta sin enviar']);
+      for (final phase in CoachPhase.values) {
+        coach.showPhase(phase);
+        await tester.pump();
+        expect(
+          tester.widget<TextField>(find.byType(TextField)).enabled,
+          isFalse,
+        );
+        expect(
+          conversation.state.messages.single.content,
+          'Mi pregunta sin enviar',
+        );
+      }
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'live gold updates preserve unrelated Coach cards and phase controls',
+    (tester) async {
+      await _setSize(tester, const Size(1280, 900));
+      CoachInputs live(int gold) => CoachInputs(
+        gameflowPhase: 'InProgress',
+        session: const GameSessionState(),
+        liveGame: {
+          'team_gold_diff': gold,
+          'gold_points': [
+            {'game_time': 60, 'value': 100},
+            {'game_time': 120, 'value': gold},
+          ],
+        },
+        lobby: null,
+        runes: null,
+        items: null,
+        jungle: null,
+        directives: const [],
+        threats: const [],
+        voiceProcessing: false,
+        voiceQuestion: '',
+        voiceAdvice: null,
+        voiceAnsweredAt: null,
+      );
+      final controller = _controller(live(100));
+      await tester.pumpWidget(_app(controller));
+      await tester.pump();
+      final header = tester.widget<CoachSectionHeader>(
+        find.byType(CoachSectionHeader),
+      );
+      final items = tester.widget<ItemBundlesView>(
+        find.byType(ItemBundlesView),
+      );
+      for (final gold in [200, 350, -800]) {
+        controller.synchronize(live(gold));
+        await tester.pump();
+        expect(
+          tester
+              .widget<GoldTimelineCard>(find.byType(GoldTimelineCard))
+              .differential,
+          gold,
+        );
+        expect(
+          identical(
+            tester.widget<CoachSectionHeader>(find.byType(CoachSectionHeader)),
+            header,
+          ),
+          isTrue,
+        );
+        expect(
+          identical(
+            tester.widget<ItemBundlesView>(find.byType(ItemBundlesView)),
+            items,
+          ),
+          isTrue,
+        );
+      }
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets('renders Champ Select at 800 pixels without overflow', (
     tester,
   ) async {
@@ -247,4 +428,12 @@ Future<void> _setSize(WidgetTester tester, Size size) async {
   tester.view.physicalSize = size;
   addTearDown(tester.view.resetDevicePixelRatio);
   addTearDown(tester.view.resetPhysicalSize);
+}
+
+class _PhaseConversation extends FakeAiConversationNotifier {
+  _PhaseConversation() : super(const AiConversationState());
+  void finish() => state = state.copyWith(
+    status: AiConversationStatus.idle,
+    streamedText: '',
+  );
 }

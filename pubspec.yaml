@@ -31,9 +31,13 @@ dependencies:
   dart_ai_runtime:
     git:
       url: https://github.com/DiegPS/dart_ai_runtime.git
-      ref: 9b730cf62e6bdcde773e4fa7acf64c5da6434461
+      ref: 2f0c458650b46f41f00e9dd11cf6980bfdd8ef6c
   flutter:
     sdk: flutter
+  flutter_consistent_ui:
+    git:
+      url: https://github.com/DiegPS/flutter_consistent_ui.git
+      ref: 8e774e1fab0d5b4fa370ed86dd6aa1e79368a046
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.

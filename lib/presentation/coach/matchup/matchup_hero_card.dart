@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:godsense/presentation/shared/gs_tokens.dart';
 
 import '../../../application/coach_controller.dart';
 import '../../shared/resilient_network_image.dart';
@@ -38,9 +39,9 @@ class MatchupHeroCard extends StatelessWidget {
           final duel = Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             decoration: BoxDecoration(
-              color: const Color(0xFF0C1017),
+              color: GsColors.surfaceElevated,
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: const Color(0x1AFFFFFF), width: 1),
+              border: Border.all(color: GsColors.border, width: 1),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -54,7 +55,7 @@ class MatchupHeroCard extends StatelessWidget {
                     role: localPlayer?.position.isNotEmpty == true
                         ? localPlayer!.position
                         : 'ALIADO',
-                    accent: CoachColors.cyan,
+                    accent: CoachColors.accent,
                     isLocal: true,
                   ),
                 ),
@@ -64,17 +65,17 @@ class MatchupHeroCard extends StatelessWidget {
                     vertical: 5,
                   ),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF1E293B),
+                    color: GsColors.surfaceHover,
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
-                      color: const Color(0x33FFFFFF),
+                      color: GsColors.borderInteractive,
                       width: 1,
                     ),
                   ),
                   child: const Text(
                     'VS',
                     style: TextStyle(
-                      color: Color(0xFFF1F5F9),
+                      color: GsColors.textPrimary,
                       fontWeight: FontWeight.w800,
                       fontSize: 13,
                       letterSpacing: 1.2,
@@ -88,7 +89,7 @@ class MatchupHeroCard extends StatelessWidget {
                     role: selectedEnemyPlayer?.position.isNotEmpty == true
                         ? selectedEnemyPlayer!.position
                         : 'RIVAL',
-                    accent: const Color(0xFFF43F5E),
+                    accent: GsColors.crimson,
                     isLocal: false,
                   ),
                 ),
@@ -105,7 +106,7 @@ class MatchupHeroCard extends StatelessWidget {
                     const Icon(
                       Icons.sports_martial_arts_outlined,
                       size: 15,
-                      color: Color(0xFF94A3B8),
+                      color: GsColors.textMuted,
                     ),
                     const SizedBox(width: 6),
                     const Text(
@@ -113,7 +114,7 @@ class MatchupHeroCard extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
-                        color: Color(0xFF94A3B8),
+                        color: GsColors.textMuted,
                       ),
                     ),
                   ],
@@ -137,23 +138,23 @@ class MatchupHeroCard extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF0C1017),
+                    color: GsColors.surfaceElevated,
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: const Color(0x14FFFFFF)),
+                    border: Border.all(color: GsColors.border),
                   ),
                   child: const Row(
                     children: [
                       Icon(
                         Icons.info_outline_rounded,
                         size: 16,
-                        color: Color(0xFF64748B),
+                        color: GsColors.textMuted,
                       ),
                       SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           'League todavía no ha revelado un rival.',
                           style: TextStyle(
-                            color: Color(0xFF94A3B8),
+                            color: GsColors.textMuted,
                             fontSize: 12,
                           ),
                         ),
@@ -170,7 +171,7 @@ class MatchupHeroCard extends StatelessWidget {
                 onPressed: importing ? null : onImport,
                 style: FilledButton.styleFrom(
                   minimumSize: const Size(double.infinity, 40),
-                  backgroundColor: const Color(0xFF0284C7),
+                  backgroundColor: GsColors.accent,
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
@@ -204,15 +205,15 @@ class MatchupHeroCard extends StatelessWidget {
                       color:
                           state.importFeedback.status ==
                               CoachImportStatus.failed
-                          ? const Color(0x26F43F5E)
-                          : const Color(0x1A10B981),
+                          ? GsColors.crimsonGlow
+                          : GsColors.emeraldGlow,
                       borderRadius: BorderRadius.circular(6),
                       border: Border.all(
                         color:
                             state.importFeedback.status ==
                                 CoachImportStatus.failed
-                            ? const Color(0x4DF43F5E)
-                            : const Color(0x4D10B981),
+                            ? GsColors.crimson
+                            : GsColors.emeraldGlow,
                       ),
                     ),
                     child: Text(
@@ -221,8 +222,8 @@ class MatchupHeroCard extends StatelessWidget {
                         color:
                             state.importFeedback.status ==
                                 CoachImportStatus.failed
-                            ? const Color(0xFFFDA4AF)
-                            : const Color(0xFF6EE7B7),
+                            ? GsColors.crimson
+                            : GsColors.emerald,
                         fontSize: 12,
                       ),
                     ),
@@ -261,9 +262,9 @@ class _MatchupSummary extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFF0C1017),
+        color: GsColors.surfaceElevated,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0x1F38BDF8)),
+        border: Border.all(color: GsColors.accentTint),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -272,7 +273,7 @@ class _MatchupSummary extends StatelessWidget {
             const Text(
               'CONDICIÓN DE LÍNEA',
               style: TextStyle(
-                color: Color(0xFF38BDF8),
+                color: GsColors.accent,
                 fontSize: 10,
                 fontWeight: FontWeight.w700,
                 letterSpacing: .7,
@@ -282,7 +283,7 @@ class _MatchupSummary extends StatelessWidget {
             Text(
               matchup.winCondition,
               style: const TextStyle(
-                color: Color(0xFFE2E8F0),
+                color: GsColors.textPrimary,
                 fontSize: 12,
                 height: 1.3,
               ),
@@ -293,7 +294,7 @@ class _MatchupSummary extends StatelessWidget {
             Text(
               '• $pattern',
               style: const TextStyle(
-                color: Color(0xFFCBD5E1),
+                color: GsColors.textSecondary,
                 fontSize: 11,
                 height: 1.3,
               ),
@@ -304,7 +305,7 @@ class _MatchupSummary extends StatelessWidget {
             Text(
               '⚡ ${matchup.powerSpikes.first}',
               style: const TextStyle(
-                color: Color(0xFFFBBF24),
+                color: GsColors.amber,
                 fontSize: 11,
                 height: 1.3,
               ),
@@ -343,18 +344,15 @@ class _EnemyPickerChip extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
               color: isSelected
-                  ? const Color(0xFF261017)
-                  : const Color(0xFF0C1017),
+                  ? GsColors.crimsonGlow
+                  : GsColors.surfaceElevated,
               borderRadius: BorderRadius.circular(8),
               border: Border.all(
                 color: isSelected
-                    ? const Color(0xFFF43F5E)
-                    : const Color(0x26FFFFFF),
+                    ? GsColors.crimson
+                    : GsColors.borderInteractive,
                 width: isSelected ? 1.5 : 1,
               ),
-              boxShadow: isSelected
-                  ? const [BoxShadow(color: Color(0x40F43F5E), blurRadius: 6)]
-                  : null,
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -363,9 +361,7 @@ class _EnemyPickerChip extends StatelessWidget {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: isSelected
-                          ? const Color(0xFFF43F5E)
-                          : Colors.transparent,
+                      color: isSelected ? GsColors.crimson : Colors.transparent,
                       width: 1,
                     ),
                   ),
@@ -383,9 +379,7 @@ class _EnemyPickerChip extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                    color: isSelected
-                        ? const Color(0xFFFECDD3)
-                        : const Color(0xFF94A3B8),
+                    color: isSelected ? GsColors.crimson : GsColors.textMuted,
                   ),
                 ),
               ],

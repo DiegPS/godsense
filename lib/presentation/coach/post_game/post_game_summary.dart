@@ -110,7 +110,7 @@ class PostGameSummary extends StatelessWidget {
                         children: [
                           const Icon(
                             Icons.arrow_right_rounded,
-                            color: CoachColors.cyan,
+                            color: CoachColors.accent,
                             size: 18,
                           ),
                           const SizedBox(width: 6),

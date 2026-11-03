@@ -7,6 +7,7 @@ import 'package:godsense/application/local_scout_controller.dart';
 import 'package:godsense/application/native_league_controller.dart';
 import 'package:godsense/domain/identity/league_identity.dart';
 import 'package:godsense/domain/league/account_context.dart';
+import 'package:godsense/presentation/shared/resilient_network_image.dart';
 
 void main() {
   testWidgets('explains the offline state when no account is available', (
@@ -14,19 +15,17 @@ void main() {
   ) async {
     await tester.pumpWidget(_scoutApp(const LocalScoutState()));
 
-    expect(find.text('Conecta una cuenta de League'), findsOneWidget);
+    expect(find.text('Selecciona un perfil para comenzar'), findsOneWidget);
     expect(find.byTooltip('Actualizar historial local'), findsOneWidget);
     expect(find.text('Nombre de Riot'), findsOneWidget);
     expect(find.text('Buscar'), findsOneWidget);
-    expect(find.text('Mi Cuenta'), findsOneWidget);
+    expect(find.text('Perfil que consultas en Scout'), findsOneWidget);
   });
 
   testWidgets('shows background refresh without replacing cached UI', (
     tester,
   ) async {
-    await tester.pumpWidget(
-      _scoutApp(const LocalScoutState(refreshing: true)),
-    );
+    await tester.pumpWidget(_scoutApp(const LocalScoutState(refreshing: true)));
 
     expect(find.text('Actualizando en segundo plano'), findsOneWidget);
     expect(find.byType(LinearProgressIndicator), findsNothing);
@@ -129,8 +128,17 @@ void main() {
     expect(find.text('Diego#LAN'), findsOneWidget);
     expect(find.textContaining('GOLD II'), findsOneWidget);
     expect(find.text('VICTORIA'), findsOneWidget);
+    // Items must have valid paths even when a historical patch is unavailable.
+    final itemImages = tester
+        .widgetList<ResilientNetworkImage>(find.byType(ResilientNetworkImage))
+        .where((image) => image.width == 22);
+    expect(itemImages, hasLength(4));
+    expect(
+      itemImages.first.urls.first,
+      endsWith('/assets/items/icons2d/3031_marksman_t3_infinityedge.png'),
+    );
     expect(find.text('Resumen de Rendimiento'), findsOneWidget);
-    expect(find.text('RECENT WIN RATE'), findsOneWidget);
+    expect(find.text('VICTORIAS RECIENTES'), findsOneWidget);
   });
 
   testWidgets('toggles expanded match details', (tester) async {
@@ -303,14 +311,14 @@ void main() {
 
     await tester.pumpWidget(_scoutApp(state));
     await tester.pumpAndSettle();
-    expect(find.text('Mi Cuenta'), findsOneWidget);
+    expect(find.text('Perfil que consultas en Scout'), findsOneWidget);
     expect(find.text('Diego#LAN'), findsOneWidget);
 
     // 2. Compact view (800x600)
     tester.view.physicalSize = const Size(800, 600);
     await tester.pumpWidget(_scoutApp(state));
     await tester.pumpAndSettle();
-    expect(find.text('Mi Cuenta'), findsOneWidget);
+    expect(find.text('Perfil que consultas en Scout'), findsOneWidget);
     expect(find.text('Diego#LAN'), findsOneWidget);
   });
 }

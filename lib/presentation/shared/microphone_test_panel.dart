@@ -45,7 +45,7 @@ class MicrophoneTestPanel extends StatelessWidget {
         Text(switch (state.phase) {
           MicrophoneTestPhase.idle =>
             enabled
-                ? 'Graba hasta 3 segundos del micrófono predeterminado y escúchalos. El audio se borra al terminar y no se envía al coach.'
+                ? 'Graba hasta 3 segundos del micrófono seleccionado y escúchalos. El audio se borra al terminar y no se envía al coach.'
                 : 'Termina de hablar con el coach antes de probar el micrófono.',
           MicrophoneTestPhase.preparing => 'Preparando el micrófono…',
           MicrophoneTestPhase.recording =>
@@ -55,14 +55,18 @@ class MicrophoneTestPanel extends StatelessWidget {
             'Cancelando y liberando el micrófono…',
           MicrophoneTestPhase.completed =>
             state.silent
-                ? 'No detectamos señal audible. Revisa el micrófono predeterminado y su volumen en Windows.'
+                ? 'No detectamos señal audible. Revisa el micrófono seleccionado y su volumen en Windows.'
                 : 'Prueba completada. Si te escuchaste bien, el micrófono y la reproducción funcionan.',
           MicrophoneTestPhase.error =>
             state.cleanupFailed
                 ? 'La prueba terminó, pero no se pudo limpiar la carpeta temporal de Windows.'
+                : state.backendUnavailable
+                ? 'La captura de audio no está disponible en esta ejecución. Reinicia GodSense para cargar el componente de micrófono.'
+                : state.playbackFailed
+                ? 'Se grabó el micrófono, pero falló la reproducción. Revisa la salida de audio de Windows.'
                 : state.permissionDenied
                 ? 'Windows no permite usar el micrófono. Revisa Privacidad y seguridad → Micrófono y permite el acceso a aplicaciones de escritorio.'
-                : 'No pudimos completar la prueba. Revisa que el micrófono y los altavoces estén conectados y vuelve a intentarlo.',
+                : 'No pudimos capturar audio del micrófono seleccionado. Prueba otra entrada o revisa su acceso y volumen en Windows.',
         }),
         if (state.phase == MicrophoneTestPhase.recording) ...[
           const SizedBox(height: 8),

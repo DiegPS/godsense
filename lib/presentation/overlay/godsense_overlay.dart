@@ -9,6 +9,7 @@ class GodSenseOverlay extends ConsumerStatefulWidget {
 
 class _GodSenseOverlayState extends ConsumerState<GodSenseOverlay> {
   Timer? _clock;
+  ThemeData? _hudTheme;
   DateTime _now = DateTime.now();
 
   void _setClockActive(bool active) {
@@ -40,7 +41,25 @@ class _GodSenseOverlayState extends ConsumerState<GodSenseOverlay> {
         ),
       ),
     );
-    final nativeVision = ref.watch(nativeVisionProvider);
+    final nativeVision = ref.watch(
+      nativeVisionProvider.select(
+        (vision) => (
+          gank: vision.events
+              .where((event) => event.kind == NativeTrackerEventKind.gank)
+              .firstOrNull,
+          sighting: vision.events
+              .where(
+                (event) => event.kind == NativeTrackerEventKind.junglerSighting,
+              )
+              .firstOrNull,
+          hasEvents: vision.events.isNotEmpty,
+          hasKnown: vision.lastKnown.isNotEmpty,
+          knownRevision: Object.hashAll(
+            vision.lastKnown.entries.map((e) => Object.hash(e.key, e.value)),
+          ),
+        ),
+      ),
+    );
     final nativeSpeech = ref.watch(nativeSpeechProvider);
     final nativeVoiceCoach = ref.watch(nativeVoiceCoachProvider);
     final calibration = ref.watch(nativeCalibrationProvider).calibration;
@@ -54,14 +73,16 @@ class _GodSenseOverlayState extends ConsumerState<GodSenseOverlay> {
         .where((alert) => alert.kind == CompanionAlertKind.gank)
         .where((alert) => _now.difference(alert.receivedAt).inSeconds < 5)
         .firstOrNull;
-    final nativeGank = nativeVision.events
-        .where((event) => event.kind == NativeTrackerEventKind.gank)
-        .where((event) => _now.difference(event.timestamp).inSeconds < 5)
-        .firstOrNull;
-    final nativeSighting = nativeVision.events
-        .where((event) => event.kind == NativeTrackerEventKind.junglerSighting)
-        .where((event) => _now.difference(event.timestamp).inSeconds < 180)
-        .firstOrNull;
+    final nativeGank =
+        nativeVision.gank != null &&
+            _now.difference(nativeVision.gank!.timestamp).inSeconds < 5
+        ? nativeVision.gank
+        : null;
+    final nativeSighting =
+        nativeVision.sighting != null &&
+            _now.difference(nativeVision.sighting!.timestamp).inSeconds < 180
+        ? nativeVision.sighting
+        : null;
     final voice = companion.alerts
         .where((alert) => alert.kind == CompanionAlertKind.voice)
         .where((alert) {
@@ -86,8 +107,8 @@ class _GodSenseOverlayState extends ConsumerState<GodSenseOverlay> {
     _setClockActive(
       visible &&
           (companion.alerts.isNotEmpty ||
-              nativeVision.events.isNotEmpty ||
-              nativeVision.lastKnown.isNotEmpty ||
+              nativeVision.hasEvents ||
+              nativeVision.hasKnown ||
               nativeSpeech.pushToTalkPressed ||
               nativeSpeech.lastTranscriptAt != null),
     );
@@ -130,140 +151,145 @@ class _GodSenseOverlayState extends ConsumerState<GodSenseOverlay> {
 
     if (!visible) return const SizedBox.expand();
 
-    return Material(
-      type: MaterialType.transparency,
-      child: Stack(
-        children: [
-          if (layout.editing)
-            Positioned(
-              top: 8,
-              left: 0,
-              right: 0,
-              child: Center(
-                child: _OverlayGlassCard(
-                  borderColor: Theme.of(context).colorScheme.primary,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 8,
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.open_with, color: Color(0xFF38BDF8)),
-                      const SizedBox(width: 8),
-                      const Text(
-                        'Modo edición: arrastra, redimensiona o colapsa paneles',
-                        style: TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                      const SizedBox(width: 12),
-                      FilledButton.tonal(
-                        onPressed: () => ref
-                            .read(overlayLayoutProvider.notifier)
-                            .setEditing(false),
-                        child: const Text('Terminar'),
-                      ),
-                    ],
+    return Theme(
+      data: _hudTheme ??= godsenseOverlayTheme(),
+      child: Material(
+        type: MaterialType.transparency,
+        child: Stack(
+          children: [
+            if (layout.editing)
+              Positioned(
+                top: 8,
+                left: 0,
+                right: 0,
+                child: Center(
+                  child: _OverlayGlassCard(
+                    borderColor: GsHudColors.cyan,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.open_with, color: GsHudColors.cyan),
+                        const SizedBox(width: 8),
+                        const Text(
+                          'Modo edición: arrastra, redimensiona o colapsa paneles',
+                          style: TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        const SizedBox(width: 12),
+                        FilledButton.tonal(
+                          onPressed: () => ref
+                              .read(overlayLayoutProvider.notifier)
+                              .setEditing(false),
+                          child: const Text('Terminar'),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
-            ),
-          if (nativeGank != null || gank != null || layout.editing)
-            _EditableOverlayPanel(
-              id: 'gank',
-              title: 'Alerta de gank',
-              child: _GankAlertHUD(nativeGank: nativeGank, gank: gank),
-            ),
-          if (!hiddenPanels.contains('jungler'))
-            _EditableOverlayPanel(
-              id: 'jungler',
-              title: 'Jungla enemigo',
-              child: _ThreatRadarHUD(
-                jungler: jungler,
-                threats: threats,
-                nativeSighting: nativeSighting,
-                sighting: sighting,
-                nativeVision: nativeVision,
-                now: _now,
+            if (nativeGank != null || gank != null || layout.editing)
+              _EditableOverlayPanel(
+                id: 'gank',
+                title: 'Alerta de gank',
+                child: _GankAlertHUD(nativeGank: nativeGank, gank: gank),
               ),
-            ),
-          if ((nativeVoiceVisible || voice != null || layout.editing) &&
-              !hiddenPanels.contains('voice_ask'))
-            _EditableOverlayPanel(
-              id: 'voice_ask',
-              title: 'Coach de voz',
-              child: _VoiceCapsuleHUD(
-                isListening: nativeSpeech.pushToTalkPressed,
-                transcript: nativeSpeech.transcript,
-                isProcessing: nativeVoiceCoach.processing,
-                adviceText: nativeVoiceCoach.advice?.ttsText,
-                voiceAlert: voice,
+            if (!hiddenPanels.contains('jungler'))
+              _EditableOverlayPanel(
+                id: 'jungler',
+                title: 'Jungla enemigo',
+                child: _ThreatRadarHUD(
+                  jungler: jungler,
+                  threats: threats,
+                  nativeSighting: nativeSighting,
+                  sighting: sighting,
+                  nativeVision: NativeVisionState(
+                    lastKnown: ref.read(nativeVisionProvider).lastKnown,
+                  ),
+                  now: _now,
+                ),
               ),
-            ),
-          if (!hiddenPanels.contains('matchup_info'))
-            _EditableOverlayPanel(
-              id: 'matchup_info',
-              title: 'Enfrentamiento',
-              child: _MatchupInfoHUD(
-                matchupData: companion.coaching['matchup'],
+            if ((nativeVoiceVisible || voice != null || layout.editing) &&
+                !hiddenPanels.contains('voice_ask'))
+              _EditableOverlayPanel(
+                id: 'voice_ask',
+                title: 'Coach de voz',
+                child: _VoiceCapsuleHUD(
+                  isListening: nativeSpeech.pushToTalkPressed,
+                  transcript: nativeSpeech.transcript,
+                  isProcessing: nativeVoiceCoach.processing,
+                  adviceText: nativeVoiceCoach.advice?.ttsText,
+                  voiceAlert: voice,
+                ),
               ),
-            ),
-          if (!hiddenPanels.contains('builds'))
-            _EditableOverlayPanel(
-              id: 'builds',
-              title: 'Build recomendada',
-              child: _LinearBuildsHUD(
-                coachGroups: ref
-                    .watch(coachControllerProvider)
-                    .itemRecommendationGroups,
-                rawBuilds: companion.coaching['builds'] is Map
-                    ? Map<String, dynamic>.from(
-                        companion.coaching['builds'] as Map,
-                      )
-                    : (ref.watch(nativeLeagueProvider).liveGame?['builds']
-                              is Map
-                          ? Map<String, dynamic>.from(
-                              ref
-                                      .watch(nativeLeagueProvider)
-                                      .liveGame!['builds']
-                                  as Map,
-                            )
-                          : null),
+            if (!hiddenPanels.contains('matchup_info'))
+              _EditableOverlayPanel(
+                id: 'matchup_info',
+                title: 'Enfrentamiento',
+                child: _MatchupInfoHUD(
+                  matchupData: companion.coaching['matchup'],
+                ),
               ),
-            ),
-          if (!hiddenPanels.contains('directives'))
-            _EditableOverlayPanel(
-              id: 'directives',
-              title: 'Directivas',
-              child: _PriorityDirectivesHUD(directives: companion.directives),
-            ),
-          if (!hiddenPanels.contains('team_comp'))
-            _EditableOverlayPanel(
-              id: 'team_comp',
-              title: 'Composición',
-              child: _EsportsCompositionHUD(
-                game: game,
-                aiTeamComp: companion.coaching['team_comp'] is Map
-                    ? Map<String, dynamic>.from(
-                        companion.coaching['team_comp'] as Map,
-                      )
-                    : null,
+            if (!hiddenPanels.contains('builds'))
+              _EditableOverlayPanel(
+                id: 'builds',
+                title: 'Build recomendada',
+                child: _LinearBuildsHUD(
+                  coachGroups: ref
+                      .watch(coachControllerProvider)
+                      .itemRecommendationGroups,
+                  rawBuilds: companion.coaching['builds'] is Map
+                      ? Map<String, dynamic>.from(
+                          companion.coaching['builds'] as Map,
+                        )
+                      : (ref.watch(nativeLeagueProvider).liveGame?['builds']
+                                is Map
+                            ? Map<String, dynamic>.from(
+                                ref
+                                        .watch(nativeLeagueProvider)
+                                        .liveGame!['builds']
+                                    as Map,
+                              )
+                            : null),
+                ),
               ),
-            ),
-          if ((gank != null || nativeGank != null) &&
-              calibration?.bounds != null)
-            _CalibrationDangerRing(
-              bounds: calibration!.bounds!,
-              danger:
-                  nativeGank != null || gank?.raw['threat_level'] == 'DANGER',
-              devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
-            ),
-          if (!hiddenPanels.contains('gold_chart'))
-            _EditableOverlayPanel(
-              id: 'gold_chart',
-              title: 'Diferencia de oro',
-              child: _MiniGoldBadgeHUD(goldDifference: goldDifference),
-            ),
-        ],
+            if (!hiddenPanels.contains('directives'))
+              _EditableOverlayPanel(
+                id: 'directives',
+                title: 'Directivas',
+                child: _PriorityDirectivesHUD(directives: companion.directives),
+              ),
+            if (!hiddenPanels.contains('team_comp'))
+              _EditableOverlayPanel(
+                id: 'team_comp',
+                title: 'Composición',
+                child: _EsportsCompositionHUD(
+                  game: game,
+                  aiTeamComp: companion.coaching['team_comp'] is Map
+                      ? Map<String, dynamic>.from(
+                          companion.coaching['team_comp'] as Map,
+                        )
+                      : null,
+                ),
+              ),
+            if ((gank != null || nativeGank != null) &&
+                calibration?.bounds != null)
+              _CalibrationDangerRing(
+                bounds: calibration!.bounds!,
+                danger:
+                    nativeGank != null || gank?.raw['threat_level'] == 'DANGER',
+                devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
+              ),
+            if (!hiddenPanels.contains('gold_chart'))
+              _EditableOverlayPanel(
+                id: 'gold_chart',
+                title: 'Diferencia de oro',
+                child: _MiniGoldBadgeHUD(goldDifference: goldDifference),
+              ),
+          ],
+        ),
       ),
     );
   }

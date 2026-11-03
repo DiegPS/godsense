@@ -29,7 +29,7 @@ Los modelos descargados y la calibración se conservan al borrar el historial.
 
 ## Desarrollo en Windows
 
-Se necesitan Flutter con Dart 3.13 o superior y las herramientas de compilación
+Se necesitan Flutter 3.47.0 o superior, Dart 3.13.1 o superior y las herramientas de compilación
 de escritorio de Visual Studio con C++. No se necesita Python ni Node para
 ejecutar la aplicación.
 
@@ -84,6 +84,7 @@ omitido no equivale a una función validada con el servicio real.
 - [Estado de funcionalidades](docs/architecture/implementation-status.md)
 - [Runtime de IA opcional](docs/architecture/ai-runtime.md)
 - [Diseño de interfaz](docs/design-system.md)
+- [Renovación de interfaz y verificaciones](docs/design-refresh.md)
 - [Imágenes y textos de Store con datos de demostración](design/store/README.md)
 
 GodSense es un proyecto independiente; no es un producto oficial de Riot Games.

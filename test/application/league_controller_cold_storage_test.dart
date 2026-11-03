@@ -73,6 +73,21 @@ void main() {
     },
   );
   test(
+    'saved Scout profiles are available locally without LCU requests',
+    () async {
+      expect(await controller.loadKnownScoutAccounts(), isEmpty);
+      final profile = await controller.resolveScoutAccount(
+        gameName: 'Fixture',
+        tagLine: 'TEST',
+      );
+      client.paths.clear();
+      final saved = await controller.loadKnownScoutAccounts();
+      expect(saved.single.puuid, profile.puuid);
+      expect(client.paths, isEmpty);
+      expect(controller.state.accountContext?.context?.account, isNull);
+    },
+  );
+  test(
     'retention and confirmed deletion work before any account is loaded',
     () async {
       await controller.applyLocalDataRetention();

@@ -15,6 +15,7 @@ class _ScoutPageState extends ConsumerState<ScoutPage> {
   final Set<int> _expandedMatchIds = {};
   int _visibleMatchCount = _matchPageSize;
   String? _visibleSubjectKey;
+  bool _showSearchErrors = false;
 
   @override
   void dispose() {
@@ -38,6 +39,10 @@ class _ScoutPageState extends ConsumerState<ScoutPage> {
     final state = ref.watch(localScoutProvider);
     final subject = state.subjectAccount;
     final analytics = state.analytics;
+    final hasRelationships =
+        analytics != null &&
+        (analytics.recentTeammates.isNotEmpty ||
+            analytics.recentOpponents.isNotEmpty);
     final matches = state.typedMatches;
     final subjectKey = subject == null
         ? null
@@ -47,65 +52,43 @@ class _ScoutPageState extends ConsumerState<ScoutPage> {
       _visibleMatchCount = _matchPageSize;
       _expandedMatchIds.clear();
     }
-    final activeAccount = ref.watch(
-      nativeLeagueProvider.select(
-        (league) => league.accountContext?.context?.account,
-      ),
-    );
-    final leagueConnected = ref.watch(
-      nativeLeagueProvider.select(
-        (league) => league.accountContext?.lcuConnected ?? false,
-      ),
-    );
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isWide = constraints.maxWidth >= 1020;
-
-        return ListView(
-          padding: GsSizes.pageInsets(context),
+        return GsFeaturePage(
           children: [
-            // 1. Search Console Bar
-            _buildSearchConsole(state),
+            const ScoutProfileSelector(),
+            const SizedBox(height: 16),
+            _buildSearchAndProfile(state, analytics),
             const SizedBox(height: 14),
 
             // 2. Empty State when no profile is available
             if (subject == null && state.profile.isEmpty && !state.loading)
               _buildEmptyState(),
 
-            // 3. Hero Profile Header
             if (subject != null || state.profile.isNotEmpty) ...[
-              _buildHeroProfileHeader(state, analytics),
-              const SizedBox(height: 20),
-
-              // 4. Main Body: Split or Stacked based on Width
-              if (isWide)
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+              UiSplitView(
+                breakpoint: hasRelationships ? 1020 : double.infinity,
+                primaryFraction: .66,
+                spacing: 20,
+                primary: UiFormFields(
                   children: [
-                    // Left Column (Sidebar: Linked account & Relationships)
-                    SizedBox(
-                      width: 320,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                    if (analytics != null) _buildPerformanceSummary(analytics),
+                    _buildMatchHistorySection(matches, state),
+                  ],
+                ),
+                secondary: !hasRelationships
+                    ? const SizedBox.shrink()
+                    : UiFormFields(
                         children: [
-                          _buildLinkedAccountCard(
-                            activeAccount,
-                            leagueConnected,
-                          ),
-                          const SizedBox(height: 16),
-                          if (analytics != null &&
-                              analytics.recentTeammates.isNotEmpty) ...[
+                          if (analytics.recentTeammates.isNotEmpty)
                             _buildRelationshipTable(
                               title: 'Compañeros Recientes',
                               subtitle: 'Aliados en partidas analizadas',
                               icon: Icons.group_outlined,
                               relationships: analytics.recentTeammates,
                             ),
-                            const SizedBox(height: 16),
-                          ],
-                          if (analytics != null &&
-                              analytics.recentOpponents.isNotEmpty) ...[
+                          if (analytics.recentOpponents.isNotEmpty)
                             _buildRelationshipTable(
                               title: 'Rivales Recientes',
                               subtitle:
@@ -113,61 +96,9 @@ class _ScoutPageState extends ConsumerState<ScoutPage> {
                               icon: Icons.sports_kabaddi_outlined,
                               relationships: analytics.recentOpponents,
                             ),
-                            const SizedBox(height: 16),
-                          ],
                         ],
                       ),
-                    ),
-                    const SizedBox(width: 20),
-
-                    // Right Main Column (Performance Summary & Match History)
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          if (analytics != null) ...[
-                            _buildPerformanceSummary(analytics),
-                            const SizedBox(height: 20),
-                          ],
-                          _buildMatchHistorySection(matches, state),
-                        ],
-                      ),
-                    ),
-                  ],
-                )
-              else
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _buildLinkedAccountCard(activeAccount, leagueConnected),
-                    const SizedBox(height: 16),
-                    if (analytics != null) ...[
-                      _buildPerformanceSummary(analytics),
-                      const SizedBox(height: 16),
-                    ],
-                    if (analytics != null &&
-                        analytics.recentTeammates.isNotEmpty) ...[
-                      _buildRelationshipTable(
-                        title: 'Compañeros Recientes',
-                        subtitle: 'Aliados en partidas analizadas',
-                        icon: Icons.group_outlined,
-                        relationships: analytics.recentTeammates,
-                      ),
-                      const SizedBox(height: 16),
-                    ],
-                    if (analytics != null &&
-                        analytics.recentOpponents.isNotEmpty) ...[
-                      _buildRelationshipTable(
-                        title: 'Rivales Recientes',
-                        subtitle: 'Enfrentamientos en partidas analizadas',
-                        icon: Icons.sports_kabaddi_outlined,
-                        relationships: analytics.recentOpponents,
-                      ),
-                      const SizedBox(height: 16),
-                    ],
-                    _buildMatchHistorySection(matches, state),
-                  ],
-                ),
+              ),
             ],
 
             if (state.lastError != null) ...[
@@ -188,8 +119,7 @@ class _ScoutPageState extends ConsumerState<ScoutPage> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'No pudimos actualizar este perfil. Comprueba que '
-                        'League esté abierto e inténtalo de nuevo.',
+                        'No pudimos actualizar este perfil. ${state.lastError}',
                         style: const TextStyle(
                           color: GsColors.crimson,
                           fontSize: 12,
@@ -206,6 +136,37 @@ class _ScoutPageState extends ConsumerState<ScoutPage> {
     );
   }
 
+  Widget _buildSearchAndProfile(
+    LocalScoutState state,
+    ScoutProfileAnalytics? analytics,
+  ) {
+    final search = KeyedSubtree(
+      key: const ValueKey('scout-search-console'),
+      child: _buildSearchConsole(state),
+    );
+    if (state.subjectAccount == null && state.profile.isEmpty) return search;
+    final profile = _buildHeroProfileHeader(state, analytics);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final scale = MediaQuery.textScalerOf(context).scale(14) / 14;
+        if (constraints.maxWidth >= 820 * scale) {
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(child: profile),
+              const SizedBox(width: 16),
+              SizedBox(width: 460 * scale, child: search),
+            ],
+          );
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [search, const SizedBox(height: 14), profile],
+        );
+      },
+    );
+  }
+
   Widget _buildSearchConsole(LocalScoutState state) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -213,19 +174,31 @@ class _ScoutPageState extends ConsumerState<ScoutPage> {
         Wrap(
           spacing: 8,
           runSpacing: 8,
-          crossAxisAlignment: WrapCrossAlignment.center,
+          crossAxisAlignment: WrapCrossAlignment.start,
           children: [
             GsInput(
               width: 200,
               controller: _gameName,
-              hintText: 'Nombre de Riot',
+              labelText: 'Nombre de Riot',
+              hintText: 'Ej. Hide on bush',
+              errorText: _showSearchErrors && _gameName.text.trim().isEmpty
+                  ? 'Escribe el nombre de Riot.'
+                  : null,
+              onChanged: (_) => _clearSearchErrors(),
               prefixIcon: Icons.sports_esports_outlined,
               textInputAction: TextInputAction.next,
             ),
             GsInput(
               width: 90,
               controller: _tagLine,
-              hintText: 'Tag',
+              labelText: 'Tag',
+              hintText: 'Ej. LAN',
+              errorText:
+                  _showSearchErrors &&
+                      _tagLine.text.trim().replaceFirst('#', '').isEmpty
+                  ? 'Escribe el tag.'
+                  : null,
+              onChanged: (_) => _clearSearchErrors(),
               prefixText: '# ',
               textInputAction: TextInputAction.search,
               onSubmitted: state.loading ? null : (_) => _search(),
@@ -235,16 +208,6 @@ class _ScoutPageState extends ConsumerState<ScoutPage> {
               icon: Icons.search_rounded,
               loading: state.loading,
               onPressed: state.loading ? null : _search,
-            ),
-            GsButton(
-              label: 'Mi Cuenta',
-              icon: Icons.account_circle_outlined,
-              variant: GsButtonVariant.secondary,
-              onPressed: state.loading
-                  ? null
-                  : () => ref
-                        .read(localScoutProvider.notifier)
-                        .useConnectedAccount(),
             ),
             GsIconButton(
               icon: Icons.refresh_rounded,
@@ -265,7 +228,7 @@ class _ScoutPageState extends ConsumerState<ScoutPage> {
                   dimension: 8,
                   child: CircularProgressIndicator(
                     strokeWidth: 1.5,
-                    color: GsColors.cyan,
+                    color: GsColors.accent,
                   ),
                 ),
               ),
@@ -278,7 +241,7 @@ class _ScoutPageState extends ConsumerState<ScoutPage> {
                 style: const TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w500,
-                  color: GsColors.cyan,
+                  color: GsColors.accent,
                 ),
               ),
             ],
@@ -289,43 +252,12 @@ class _ScoutPageState extends ConsumerState<ScoutPage> {
   }
 
   Widget _buildEmptyState() {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 24),
-      decoration: BoxDecoration(
-        color: GsColors.surface,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: const BoxDecoration(
-              color: GsColors.cyanGlow,
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.travel_explore_rounded,
-              size: 36,
-              color: GsColors.cyan,
-            ),
-          ),
-          const SizedBox(height: 14),
-          const Text(
-            'Conecta una cuenta de League',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-              color: GsColors.textPrimary,
-            ),
-          ),
-          const SizedBox(height: 6),
-          const Text(
-            'GodSense mostrará aquí su rango e historial sincronizado cuando busques un Riot ID o conectes tu cliente.',
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 13, color: GsColors.textSecondary),
-          ),
-        ],
+    return const GsCard(
+      padding: EdgeInsets.zero,
+      child: UiEmptyState(
+        icon: Icons.travel_explore_rounded,
+        title: 'Selecciona un perfil para comenzar',
+        description: 'Elige un perfil guardado para consultar sus datos sin conexión. Para buscar un Riot ID nuevo o actualizar su historial, abre League.',
       ),
     );
   }
@@ -361,207 +293,151 @@ class _ScoutPageState extends ConsumerState<ScoutPage> {
         ? 0
         : (formWins * 100 / recentForm.length).round();
 
+    final identity = Row(
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: _NetworkPortrait(url: iconUrl, size: 52),
+        ),
+        const SizedBox(width: 14),
+
+        // Name, Tag & Rank info (Clean flat typography, zero nested cards)
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '$name#$tag',
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: GsColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Wrap(
+                spacing: 6,
+                runSpacing: 2,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  Text(
+                    '$tier $division · $lp LP',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: GsColors.accent,
+                    ),
+                  ),
+                  if (analytics != null &&
+                      analytics.roleDistribution.isNotEmpty) ...[
+                    const Text(
+                      '·',
+                      style: TextStyle(color: GsColors.textMuted, fontSize: 11),
+                    ),
+                    Text(
+                      '${analytics.roleDistribution.first.role.label} Main (${analytics.roleDistribution.first.percentage.toStringAsFixed(0)}%)',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: GsColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+    final form = recentForm.isEmpty
+        ? null
+        : Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Wrap(
+                alignment: WrapAlignment.end,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  const Text(
+                    'FORMA RECIENTE: ',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.5,
+                      color: GsColors.textMuted,
+                    ),
+                  ),
+                  Text(
+                    '${formWins}W ${formLosses}L ($formWr% WR)',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: formWr >= 50 ? GsColors.emerald : GsColors.crimson,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: recentForm.map((won) {
+                  return Container(
+                    width: 14,
+                    height: 16,
+                    margin: const EdgeInsets.only(left: 2),
+                    decoration: BoxDecoration(
+                      color: won ? GsColors.emerald : GsColors.crimson,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      won ? 'W' : 'L',
+                      style: const TextStyle(
+                        fontSize: 8.5,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ],
+          );
     return Container(
+      key: const ValueKey('scout-profile-summary'),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
         color: GsColors.surface,
         borderRadius: BorderRadius.circular(GsSizes.radius + 2),
         border: Border.all(color: GsColors.border),
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: _NetworkPortrait(url: iconUrl, size: 52),
-          ),
-          const SizedBox(width: 14),
-
-          // Name, Tag & Rank info (Clean flat typography, zero nested cards)
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final scale = MediaQuery.textScalerOf(context).scale(14) / 14;
+          if (form != null && constraints.maxWidth >= 540 * scale) {
+            return Row(
               children: [
-                Text(
-                  '$name#$tag',
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: GsColors.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 2,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    Text(
-                      '$tier $division · $lp LP',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF38BDF8),
-                      ),
-                    ),
-                    if (analytics != null &&
-                        analytics.roleDistribution.isNotEmpty) ...[
-                      const Text(
-                        '·',
-                        style: TextStyle(
-                          color: GsColors.textMuted,
-                          fontSize: 11,
-                        ),
-                      ),
-                      Text(
-                        '${analytics.roleDistribution.first.role.label} Main (${analytics.roleDistribution.first.percentage.toStringAsFixed(0)}%)',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: GsColors.textSecondary,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
+                Expanded(child: identity),
+                const SizedBox(width: 16),
+                form,
               ],
-            ),
-          ),
-
-          // Recent Form (Streak Bar: clean flat segments, zero nested cards)
-          if (recentForm.isNotEmpty)
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text(
-                      'FORMA RECIENTE: ',
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0.5,
-                        color: GsColors.textMuted,
-                      ),
-                    ),
-                    Text(
-                      '${formWins}W ${formLosses}L ($formWr% WR)',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: formWr >= 50
-                            ? GsColors.emerald
-                            : GsColors.crimson,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: recentForm.map((won) {
-                    return Container(
-                      width: 14,
-                      height: 16,
-                      margin: const EdgeInsets.only(left: 2),
-                      decoration: BoxDecoration(
-                        color: won
-                            ? const Color(0xFF10B981)
-                            : const Color(0xFFEF4444),
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                      alignment: Alignment.center,
-                      child: Text(
-                        won ? 'W' : 'L',
-                        style: const TextStyle(
-                          fontSize: 8.5,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.white,
-                        ),
-                      ),
-                    );
-                  }).toList(),
-                ),
+            );
+          }
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              identity,
+              if (form != null) ...[
+                const SizedBox(height: 8),
+                Align(alignment: Alignment.centerRight, child: form),
               ],
-            ),
-        ],
+            ],
+          );
+        },
       ),
-    );
-  }
-
-  Widget _buildLinkedAccountCard(
-    LeagueAccountProfile? account,
-    bool leagueConnected,
-  ) {
-    return GsCard(
-      title: 'Cuenta Conectada',
-      icon: Icons.link_rounded,
-      padding: const EdgeInsets.all(14),
-      child: account != null
-          ? Row(
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: _NetworkPortrait(
-                    url: account.profileIconId != null
-                        ? 'https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1/profile-icons/${account.profileIconId}.jpg'
-                        : null,
-                    size: 40,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '${account.riotId?.gameName ?? 'Invocador'}#${account.riotId?.tagLine ?? 'LAN'}',
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: GsColors.textPrimary,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 2),
-                      Row(
-                        children: [
-                          Container(
-                            width: 6,
-                            height: 6,
-                            decoration: BoxDecoration(
-                              color: leagueConnected
-                                  ? GsColors.emerald
-                                  : GsColors.textMuted,
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            leagueConnected
-                                ? 'Cuenta conectada'
-                                : 'Desconectado',
-                            style: const TextStyle(
-                              fontSize: 11,
-                              color: GsColors.textSecondary,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            )
-          : const Padding(
-              padding: EdgeInsets.symmetric(vertical: 4),
-              child: Text(
-                'Abre League para conectar tu cuenta.',
-                style: TextStyle(fontSize: 12, color: GsColors.textMuted),
-              ),
-            ),
     );
   }
 
@@ -582,7 +458,7 @@ class _ScoutPageState extends ConsumerState<ScoutPage> {
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
             decoration: const BoxDecoration(
               border: Border(
-                bottom: BorderSide(color: Color(0x14FFFFFF), width: 1),
+                bottom: BorderSide(color: GsColors.border, width: 1),
               ),
             ),
             child: Row(
@@ -644,13 +520,11 @@ class _ScoutPageState extends ConsumerState<ScoutPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // 8 KPI Grid
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
+          UiMetricGrid(
+            minimumItemWidth: 180,
             children: [
               _buildKpiTile(
-                'RECENT WIN RATE',
+                'VICTORIAS RECIENTES',
                 '${kpis.recentWinRate.toStringAsFixed(1)}%',
                 '${kpis.wins}W · ${kpis.losses}L',
                 GsColors.emerald,
@@ -659,7 +533,7 @@ class _ScoutPageState extends ConsumerState<ScoutPage> {
                 'KDA PROMEDIO',
                 kpis.avgKda?.toStringAsFixed(2) ?? 'Sin datos',
                 'Ratio K+A/D',
-                GsColors.cyan,
+                GsColors.accent,
               ),
               _buildKpiTile(
                 'DAÑO POR MINUTO',
@@ -725,7 +599,7 @@ class _ScoutPageState extends ConsumerState<ScoutPage> {
             ],
           ),
           const SizedBox(height: 20),
-          const Divider(height: 1, color: Color(0x14FFFFFF)),
+          const Divider(height: 1, color: GsColors.border),
           const SizedBox(height: 16),
 
           // Two Breakdown Columns: Top Champions & Lanes Played
@@ -835,7 +709,7 @@ class _ScoutPageState extends ConsumerState<ScoutPage> {
                             Icon(
                               _roleIcon(role.role),
                               size: 16,
-                              color: GsColors.cyan,
+                              color: GsColors.accent,
                             ),
                             const SizedBox(width: 8),
                             SizedBox(
@@ -859,7 +733,7 @@ class _ScoutPageState extends ConsumerState<ScoutPage> {
                                   ),
                                   minHeight: 6,
                                   backgroundColor: GsColors.surfaceElevated,
-                                  color: GsColors.cyan,
+                                  color: GsColors.accent,
                                 ),
                               ),
                             ),
@@ -898,39 +772,33 @@ class _ScoutPageState extends ConsumerState<ScoutPage> {
     String sub,
     Color valueColor,
   ) {
-    return SizedBox(
-      width: 125,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 9,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.5,
-              color: GsColors.textMuted,
-            ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          label,
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+            fontWeight: FontWeight.w600,
+            color: GsColors.textMuted,
           ),
-          const SizedBox(height: 3),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-              letterSpacing: -0.2,
-              color: valueColor,
-            ),
+        ),
+        const SizedBox(height: 3),
+        Text(
+          value,
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.2,
+            color: valueColor,
           ),
-          const SizedBox(height: 1),
-          Text(
-            sub,
-            style: const TextStyle(fontSize: 10, color: GsColors.textSecondary),
-            overflow: TextOverflow.ellipsis,
-          ),
-        ],
-      ),
+        ),
+        const SizedBox(height: 1),
+        Text(
+          sub,
+          style: Theme.of(context).textTheme.bodySmall
+              ?.copyWith(color: GsColors.textSecondary),
+        ),
+      ],
     );
   }
 
@@ -948,7 +816,7 @@ class _ScoutPageState extends ConsumerState<ScoutPage> {
       children: [
         Row(
           children: [
-            const Icon(Icons.history_rounded, size: 18, color: GsColors.cyan),
+            const Icon(Icons.history_rounded, size: 18, color: GsColors.accent),
             const SizedBox(width: 8),
             const Expanded(
               child: Text(
@@ -1029,10 +897,18 @@ class _ScoutPageState extends ConsumerState<ScoutPage> {
   void _search() {
     final gameName = _gameName.text.trim();
     final tagLine = _tagLine.text.trim().replaceFirst('#', '');
-    if (gameName.isEmpty || tagLine.isEmpty) return;
+    if (gameName.isEmpty || tagLine.isEmpty) {
+      setState(() => _showSearchErrors = true);
+      return;
+    }
+    if (_showSearchErrors) setState(() => _showSearchErrors = false);
     ref
         .read(localScoutProvider.notifier)
         .searchRiotId(gameName: gameName, tagLine: tagLine);
+  }
+
+  void _clearSearchErrors() {
+    if (_showSearchErrors) setState(() => _showSearchErrors = false);
   }
 
   IconData _roleIcon(ScoutRole role) => switch (role) {
@@ -1072,13 +948,9 @@ class _ModernMatchCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final isWin = match.isWin;
     final score = match.performanceScore?.value ?? 50;
-    final accentColor = isWin
-        ? const Color(0xFF10B981)
-        : const Color(0xFFEF4444);
-    final cardBg = isWin ? const Color(0xFF071B14) : const Color(0xFF1C0A0E);
-    final cardBorder = isWin
-        ? const Color(0x3310B981)
-        : const Color(0x33EF4444);
+    final accentColor = isWin ? GsColors.emerald : GsColors.crimson;
+    final cardBg = GsColors.surface;
+    final cardBorder = GsColors.border;
 
     return Container(
       decoration: BoxDecoration(
@@ -1090,11 +962,14 @@ class _ModernMatchCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(7),
         child: Column(
           children: [
-            _buildSummary(context, score, accentColor),
+            ColoredBox(
+              color: isWin ? GsColors.emeraldGlow : GsColors.crimsonGlow,
+              child: _buildSummary(context, score, accentColor),
+            ),
 
             // Expanded 5v5 Scoreboard
             if (isExpanded) ...[
-              const Divider(height: 1, color: Color(0x14FFFFFF)),
+              const Divider(height: 1, color: GsColors.border),
               if (loadingDetails)
                 const Padding(
                   padding: EdgeInsets.all(16),
@@ -1220,13 +1095,21 @@ class _ModernMatchCard extends StatelessWidget {
         if (match.spell1IconUrl != null)
           ClipRRect(
             borderRadius: BorderRadius.circular(3),
-            child: _NetworkPortrait(url: match.spell1IconUrl, size: 16),
+            child: _NetworkPortrait(
+              url: match.spell1IconUrl,
+              size: 16,
+              fallback: Icons.bolt_outlined,
+            ),
           ),
         const SizedBox(height: 2),
         if (match.spell2IconUrl != null)
           ClipRRect(
             borderRadius: BorderRadius.circular(3),
-            child: _NetworkPortrait(url: match.spell2IconUrl, size: 16),
+            child: _NetworkPortrait(
+              url: match.spell2IconUrl,
+              size: 16,
+              fallback: Icons.bolt_outlined,
+            ),
           ),
       ],
     );
@@ -1267,7 +1150,7 @@ class _ModernMatchCard extends StatelessWidget {
               style: const TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
-                color: GsColors.cyan,
+                color: GsColors.accent,
               ),
             ),
           ],
@@ -1317,10 +1200,15 @@ class _ModernMatchCard extends StatelessWidget {
               ? ClipRRect(
                   borderRadius: BorderRadius.circular(4),
                   child: _NetworkPortrait(
-                    url: match.patch == null
-                        ? null
-                        : 'https://ddragon.leagueoflegends.com/cdn/${match.patch}/img/item/$itemId.png',
+                    url: scoutItemIcon(itemId),
+                    fallbackUrls: [
+                      if (match.patch != null)
+                        'https://ddragon.leagueoflegends.com/cdn/'
+                            '${match.patch!.split('.').length == 2 ? '${match.patch}.1' : match.patch}'
+                            '/img/item/$itemId.png',
+                    ],
                     size: 22,
+                    fallback: Icons.inventory_2_outlined,
                   ),
                 )
               : null,
@@ -1335,7 +1223,7 @@ class _ModernMatchCard extends StatelessWidget {
           color: score >= 70
               ? GsColors.emeraldGlow
               : score >= 50
-              ? GsColors.cyanGlow
+              ? GsColors.accentTint
               : GsColors.crimsonGlow,
           borderRadius: BorderRadius.circular(6),
         ),
@@ -1350,7 +1238,7 @@ class _ModernMatchCard extends StatelessWidget {
                 color: score >= 70
                     ? GsColors.emerald
                     : score >= 50
-                    ? GsColors.cyan
+                    ? GsColors.accent
                     : GsColors.crimson,
               ),
             ),
@@ -1455,98 +1343,190 @@ class _ModernMatchCard extends StatelessWidget {
   ) {
     final allies = match.participants.where((p) => p.isAlly).toList();
     final enemies = match.participants.where((p) => !p.isAlly).toList();
+    final axisWidth = 48 * MediaQuery.textScalerOf(context).scale(10) / 10;
+    final chartHeight = 112 * MediaQuery.textScalerOf(context).scale(10) / 10;
 
     Widget teamColumn(
       String title,
       List<ScoutMatchParticipant> team,
       bool isWin,
     ) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            color: isWin ? const Color(0x1A10B981) : const Color(0x1AEF4444),
-            child: Row(
+      final color = isWin ? GsColors.emerald : GsColors.crimson;
+      final tint = isWin ? GsColors.emeraldGlow : GsColors.crimsonGlow;
+      final teamKills = team.fold<int>(0, (sum, p) => sum + p.kills);
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          final scale = MediaQuery.textScalerOf(context).scale(11) / 11;
+          final detailed = constraints.maxWidth >= 360 * scale;
+          Widget metric(
+            String text,
+            double width, {
+            Color? color,
+            bool bold = false,
+          }) => SizedBox(
+            width: width * scale,
+            child: Text(
+              text,
+              textAlign: TextAlign.right,
+              style: TextStyle(
+                fontSize: 11,
+                color: color ?? GsColors.textSecondary,
+                fontWeight: bold ? FontWeight.w700 : FontWeight.w500,
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
+            ),
+          );
+          return Container(
+            key: ValueKey('scout-team-$title-${match.matchId}'),
+            decoration: BoxDecoration(
+              color: GsColors.surface,
+              border: Border.all(color: GsColors.border),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Icon(
-                  isWin ? Icons.emoji_events_rounded : Icons.close_rounded,
-                  size: 14,
-                  color: isWin ? GsColors.emerald : GsColors.crimson,
-                ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    '$title · ${isWin ? 'VICTORIA' : 'DERROTA'}',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: isWin ? GsColors.emerald : GsColors.crimson,
-                    ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                  color: tint,
+                  child: Row(
+                    children: [
+                      Icon(
+                        isWin
+                            ? Icons.emoji_events_outlined
+                            : Icons.shield_outlined,
+                        color: color,
+                        size: 16,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          '$title · ${isWin ? 'VICTORIA' : 'DERROTA'}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: color,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Tooltip(
+                        message: 'Eliminaciones del equipo',
+                        child: Text(
+                          '$teamKills',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                            color: color,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 6),
+                  child: Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          'JUGADOR',
+                          style: TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w700,
+                            color: GsColors.textMuted,
+                            letterSpacing: .6,
+                          ),
+                        ),
+                      ),
+                      metric('K / D / A', 76),
+                      if (detailed) metric('CS', 42),
+                      metric('DAÑO', 52),
+                    ],
+                  ),
+                ),
+                for (var index = 0; index < team.length; index++)
+                  Container(
+                    decoration: BoxDecoration(
+                      color: team[index].isSubject
+                          ? GsColors.accentTint
+                          : index.isOdd
+                          ? GsColors.surfaceElevated
+                          : GsColors.surface,
+                      border: Border(
+                        left: BorderSide(
+                          width: 3,
+                          color: team[index].isSubject
+                              ? GsColors.accent
+                              : Colors.transparent,
+                        ),
+                      ),
+                    ),
+                    padding: const EdgeInsets.fromLTRB(9, 9, 12, 9),
+                    child: Row(
+                      children: [
+                        _NetworkPortrait(
+                          url: team[index].championIconUrl,
+                          size: 30,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Tooltip(
+                            message: '${team[index].name}#${team[index].tag}',
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  '${team[index].name}#${team[index].tag}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: team[index].isSubject
+                                        ? FontWeight.w700
+                                        : FontWeight.w500,
+                                    color: team[index].isSubject
+                                        ? GsColors.accent
+                                        : GsColors.textPrimary,
+                                  ),
+                                ),
+                                Text(
+                                  team[index].role.label,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 10,
+                                    color: GsColors.textMuted,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        metric(
+                          '${team[index].kills}/${team[index].deaths}/${team[index].assists}',
+                          76,
+                          color: GsColors.textPrimary,
+                          bold: true,
+                        ),
+                        if (detailed) metric('${team[index].cs}', 42),
+                        metric(
+                          '${(team[index].damage / 1000).toStringAsFixed(1)}K',
+                          52,
+                          color: GsColors.accent,
+                          bold: true,
+                        ),
+                      ],
+                    ),
+                  ),
               ],
             ),
-          ),
-          ...team.map((player) {
-            return Container(
-              color: player.isSubject ? GsColors.cyanGlow : Colors.transparent,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              child: Row(
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(4),
-                    child: _NetworkPortrait(
-                      url: player.championIconUrl,
-                      size: 24,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      '${player.name}#${player.tag}',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: player.isSubject
-                            ? FontWeight.w700
-                            : FontWeight.w500,
-                        color: player.isSubject
-                            ? GsColors.cyan
-                            : GsColors.textPrimary,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  Text(
-                    '${player.kills}/${player.deaths}/${player.assists}',
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: GsColors.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Text(
-                    '${player.cs} CS',
-                    style: const TextStyle(
-                      fontSize: 10,
-                      color: GsColors.textSecondary,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Text(
-                    '${(player.damage / 1000).toStringAsFixed(1)}K',
-                    style: const TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600,
-                      color: GsColors.cyan,
-                    ),
-                  ),
-                ],
-              ),
-            );
-          }),
-        ],
+          );
+        },
       );
     }
 
@@ -1563,8 +1543,8 @@ class _ModernMatchCard extends StatelessWidget {
                 enemies,
                 !match.isWin,
               );
-              if (constraints.maxWidth < 900 ||
-                  MediaQuery.textScalerOf(context).scale(11) > 16) {
+              final scale = MediaQuery.textScalerOf(context).scale(11) / 11;
+              if (constraints.maxWidth < 740 * scale) {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [ownTeam, const SizedBox(height: 12), rivalTeam],
@@ -1583,7 +1563,7 @@ class _ModernMatchCard extends StatelessWidget {
           if (match.goldTimeline.isNotEmpty ||
               match.timelineEvents.isNotEmpty) ...[
             const SizedBox(height: 16),
-            const Divider(height: 1, color: Color(0x14FFFFFF)),
+            const Divider(height: 1, color: GsColors.border),
             const SizedBox(height: 12),
             Text(
               'DESARROLLO DE LA PARTIDA',
@@ -1591,11 +1571,128 @@ class _ModernMatchCard extends StatelessWidget {
                   ?.copyWith(color: GsColors.textMuted, letterSpacing: 0.5),
             ),
             if (match.goldTimeline.length > 1) ...[
-              const SizedBox(height: 10),
-              SizedBox(
-                height: 90,
-                child: CustomPaint(
-                  painter: _ScoutGoldTimelinePainter(match.goldTimeline),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: GsColors.surfaceElevated,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: GsColors.border),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Wrap(
+                      alignment: WrapAlignment.spaceBetween,
+                      spacing: 12,
+                      runSpacing: 6,
+                      children: [
+                        const Text(
+                          'Diferencia de oro',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: GsColors.textPrimary,
+                          ),
+                        ),
+                        Text(
+                          '${match.goldTimeline.last.difference >= 0 ? '+' : ''}'
+                          '${match.goldTimeline.last.difference} oro',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: match.goldTimeline.last.difference >= 0
+                                ? GsColors.emerald
+                                : GsColors.crimson,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    Row(
+                      children: [
+                        SizedBox(
+                          width: axisWidth,
+                          height: chartHeight,
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '+${(_scoutGoldRange(match.goldTimeline) / 1000).toStringAsFixed(1)}k',
+                                style: const TextStyle(
+                                  fontSize: 10,
+                                  color: GsColors.textMuted,
+                                ),
+                              ),
+                              const Text(
+                                '0',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: GsColors.textMuted,
+                                ),
+                              ),
+                              Text(
+                                '−${(_scoutGoldRange(match.goldTimeline) / 1000).toStringAsFixed(1)}k',
+                                style: const TextStyle(
+                                  fontSize: 10,
+                                  color: GsColors.textMuted,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Expanded(
+                          child: RepaintBoundary(
+                            child: SizedBox(
+                              height: chartHeight,
+                              child: CustomPaint(
+                                painter: _ScoutGoldTimelinePainter(
+                                  match.goldTimeline,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    Padding(
+                      padding: EdgeInsets.only(left: axisWidth, top: 8),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            _timelineClock(
+                              match.goldTimeline.first.timestampMilliseconds,
+                            ),
+                            style: const TextStyle(
+                              fontSize: 10,
+                              color: GsColors.textMuted,
+                            ),
+                          ),
+                          const Flexible(
+                            child: Text(
+                              'Ventaja de tu equipo',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: GsColors.textMuted,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            _timelineClock(
+                              match.goldTimeline.last.timestampMilliseconds,
+                            ),
+                            style: const TextStyle(
+                              fontSize: 10,
+                              color: GsColors.textMuted,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -1608,14 +1705,42 @@ class _ModernMatchCard extends StatelessWidget {
                     .where((event) => event.type != 'WARD_PLACED')
                     .take(12)
                     .map(
-                      (event) => GsBadge(
-                        label:
-                            '${_timelineClock(event.timestampMilliseconds)} · ${event.label}',
-                        variant: event.isAlly == true
-                            ? GsBadgeVariant.success
-                            : event.isAlly == false
-                            ? GsBadgeVariant.danger
-                            : GsBadgeVariant.neutral,
+                      (event) => Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: GsColors.surfaceElevated,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: GsColors.border),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              event.type == 'CHAMPION_KILL'
+                                  ? Icons.sports_martial_arts_rounded
+                                  : Icons.flag_outlined,
+                              size: 13,
+                              color: event.isAlly == true
+                                  ? GsColors.emerald
+                                  : event.isAlly == false
+                                  ? GsColors.crimson
+                                  : GsColors.textMuted,
+                            ),
+                            const SizedBox(width: 6),
+                            Flexible(
+                              child: Text(
+                                '${_timelineClock(event.timestampMilliseconds)} · ${event.label}',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: GsColors.textSecondary,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     )
                     .toList(growable: false),
@@ -1633,6 +1758,14 @@ String _timelineClock(int milliseconds) {
   return '${seconds ~/ 60}:${(seconds % 60).toString().padLeft(2, '0')}';
 }
 
+double _scoutGoldRange(List<ScoutGoldTimelinePoint> points) => points
+    .fold<int>(
+      500,
+      (maximum, point) =>
+          point.difference.abs() > maximum ? point.difference.abs() : maximum,
+    )
+    .toDouble();
+
 class _ScoutGoldTimelinePainter extends CustomPainter {
   const _ScoutGoldTimelinePainter(this.points);
 
@@ -1645,52 +1778,60 @@ class _ScoutGoldTimelinePainter extends CustomPainter {
       1,
       double.infinity,
     );
-    final maxDifference = points
-        .map((point) => point.difference.abs())
-        .fold<int>(500, (maximum, value) => value > maximum ? value : maximum)
-        .toDouble();
+    final maxDifference = _scoutGoldRange(points);
     final center = size.height / 2;
-    canvas.drawLine(
-      Offset(0, center),
-      Offset(size.width, center),
-      Paint()..color = const Color(0x28FFFFFF),
-    );
-    final positive = Path();
-    final negative = Path();
-    var positiveStarted = false;
-    var negativeStarted = false;
-    for (final point in points) {
+    final line = Path();
+    for (var index = 0; index < points.length; index++) {
+      final point = points[index];
       final offset = Offset(
         point.timestampMilliseconds / maxTime * size.width,
         center - point.difference / maxDifference * (center - 6),
       );
-      final path = point.difference >= 0 ? positive : negative;
-      final started = point.difference >= 0 ? positiveStarted : negativeStarted;
-      if (!started) {
-        path.moveTo(offset.dx, offset.dy);
-        if (point.difference >= 0) {
-          positiveStarted = true;
-        } else {
-          negativeStarted = true;
-        }
+      if (index == 0) {
+        line.moveTo(offset.dx, offset.dy);
       } else {
-        path.lineTo(offset.dx, offset.dy);
+        line.lineTo(offset.dx, offset.dy);
       }
     }
-    canvas.drawPath(
-      positive,
-      Paint()
-        ..color = GsColors.emerald
-        ..strokeWidth = 2
-        ..style = PaintingStyle.stroke,
-    );
-    canvas.drawPath(
-      negative,
-      Paint()
-        ..color = GsColors.crimson
-        ..strokeWidth = 2
-        ..style = PaintingStyle.stroke,
-    );
+    final area = Path.from(line)
+      ..lineTo(points.last.timestampMilliseconds / maxTime * size.width, center)
+      ..lineTo(
+        points.first.timestampMilliseconds / maxTime * size.width,
+        center,
+      )
+      ..close();
+    for (final upper in [true, false]) {
+      final color = upper ? GsColors.emerald : GsColors.crimson;
+      canvas.save();
+      canvas.clipRect(
+        Rect.fromLTRB(
+          0,
+          upper ? 0 : center,
+          size.width,
+          upper ? center : size.height,
+        ),
+      );
+      canvas.drawPath(area, Paint()..color = color.withValues(alpha: .10));
+      canvas.drawPath(
+        line,
+        Paint()
+          ..color = color
+          ..strokeWidth = 2
+          ..style = PaintingStyle.stroke
+          ..strokeJoin = StrokeJoin.round
+          ..strokeCap = StrokeCap.round,
+      );
+      canvas.restore();
+    }
+    for (final y in [6.0, center, size.height - 6]) {
+      canvas.drawLine(
+        Offset(0, y),
+        Offset(size.width, y),
+        Paint()
+          ..color = GsColors.border
+          ..strokeWidth = y == center ? 1 : .5,
+      );
+    }
   }
 
   @override

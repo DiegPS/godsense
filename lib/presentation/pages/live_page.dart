@@ -5,8 +5,9 @@ class LivePage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final nativeLeague = ref.watch(nativeLeagueProvider);
-    final game = ref.watch(effectiveGameProvider);
+    final watch = ActivePageWatch(context, ref);
+    final nativeLeague = watch(nativeLeagueProvider);
+    final game = watch(effectiveGameProvider);
     final isEnded = game?.gameEnded == true;
     final derived = game?.raw['derived'] is Map
         ? Map<String, dynamic>.from(game!.raw['derived'] as Map)
@@ -27,44 +28,15 @@ class LivePage extends ConsumerWidget {
               .where((enemy) => enemy['role'] == activePlayer['role'])
               .firstOrNull;
 
-    return ListView(
-      padding: GsSizes.pageInsets(context),
+    return GsFeaturePage(
       children: [
         if (game == null)
-          Container(
-            padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 20),
-            decoration: BoxDecoration(
-              color: GsColors.surface,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: GsColors.border),
-            ),
-            child: const Center(
-              child: Column(
-                children: [
-                  Icon(
-                    Icons.hourglass_empty_rounded,
-                    size: 32,
-                    color: GsColors.textMuted,
-                  ),
-                  SizedBox(height: 12),
-                  Text(
-                    'Esperando a que empiece la partida…',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: GsColors.textPrimary,
-                    ),
-                  ),
-                  SizedBox(height: 4),
-                  Text(
-                    'El oro, los objetivos y el estado de línea aparecerán al entrar al juego.',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: GsColors.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
+          const GsCard(
+            padding: EdgeInsets.zero,
+            child: UiEmptyState(
+              icon: Icons.sports_esports_outlined,
+              title: 'Esperando a que empiece la partida…',
+              description: 'El oro, los objetivos y el estado de línea aparecerán al entrar al juego.',
             ),
           )
         else ...[
@@ -75,7 +47,7 @@ class LivePage extends ConsumerWidget {
               decoration: BoxDecoration(
                 color: GsColors.crimsonGlow,
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: const Color(0x4DEF4444)),
+                border: Border.all(color: GsColors.crimson),
               ),
               child: Row(
                 children: [
@@ -125,7 +97,7 @@ class LivePage extends ConsumerWidget {
                   label: 'Fase',
                   value: isEnded ? 'FINALIZADA' : _gamePhaseLabel(game.phase),
                   icon: Icons.flag_outlined,
-                  valueColor: GsColors.cyan,
+                  valueColor: GsColors.accent,
                 ),
                 GsMetricStat(
                   label: 'Estado',
@@ -187,7 +159,7 @@ class LivePage extends ConsumerWidget {
                   color: GsColors.surface,
                   borderRadius: BorderRadius.circular(6),
                   border: Border.all(
-                    color: isAlive ? const Color(0x3310B981) : GsColors.border,
+                    color: isAlive ? GsColors.emeraldGlow : GsColors.border,
                   ),
                 ),
                 child: Row(
@@ -460,7 +432,7 @@ class _PlayerTile extends StatelessWidget {
 
     return Container(
       decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: Color(0x14FFFFFF), width: 1)),
+        border: Border(bottom: BorderSide(color: GsColors.border, width: 1)),
       ),
       child: ExpansionTile(
         tilePadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
@@ -578,7 +550,7 @@ class _LiveMatchup extends StatelessWidget {
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 1,
-                    color: GsColors.cyan,
+                    color: GsColors.accent,
                   ),
                 ),
               ),
@@ -587,7 +559,7 @@ class _LiveMatchup extends StatelessWidget {
           ),
           if (abilities.isNotEmpty) ...[
             const SizedBox(height: 12),
-            const Divider(color: Color(0x14FFFFFF)),
+            const Divider(color: GsColors.border),
             const SizedBox(height: 8),
             Align(
               alignment: Alignment.centerLeft,

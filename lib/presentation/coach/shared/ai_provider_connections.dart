@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_consistent_ui/flutter_consistent_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -207,7 +208,7 @@ class _ApiKeyDialogState extends State<_ApiKeyDialog> {
   @override
   Widget build(BuildContext context) => AlertDialog(
     title: Text('Conectar ${widget.providerId}'),
-    content: TextField(
+    content: UiControls.input(
       controller: _input,
       autofocus: true,
       obscureText: true,

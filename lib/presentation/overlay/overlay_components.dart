@@ -70,7 +70,7 @@ class _CalibrationDangerRing extends StatelessWidget {
         child: DecoratedBox(
           decoration: BoxDecoration(
             border: Border.all(
-              color: danger ? Colors.red : Colors.orange,
+              color: danger ? GsHudColors.crimson : GsHudColors.amber,
               width: 5,
             ),
             borderRadius: BorderRadius.circular(12),
@@ -99,11 +99,11 @@ class _OverlayGlassCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: backgroundColor ?? GsColors.surface.withValues(alpha: .94),
+      color: backgroundColor ?? GsHudColors.surface.withValues(alpha: .94),
       clipBehavior: Clip.antiAlias,
       shape: RoundedRectangleBorder(
         borderRadius: borderRadius ?? BorderRadius.circular(GsSizes.radius),
-        side: BorderSide(color: borderColor ?? GsColors.border, width: 1),
+        side: BorderSide(color: borderColor ?? GsHudColors.border, width: 1),
       ),
       child: Padding(padding: padding ?? EdgeInsets.zero, child: child),
     );
@@ -127,7 +127,7 @@ class _OverlayInfoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accent = accentColor ?? const Color(0xFF38BDF8);
+    final accent = accentColor ?? GsHudColors.cyan;
     return SizedBox(
       width: width,
       child: _OverlayGlassCard(
@@ -185,7 +185,7 @@ class GankAlertHUD extends StatelessWidget {
     final isDanger =
         nativeGank != null || gank?.raw['threat_level'] == 'DANGER';
     final accentColor = isDanger
-        ? const Color(0xFFEF4444)
+        ? GsHudColors.crimson
         : const Color(0xFFF59E0B);
     final champ = nativeGank?.champion ?? gank?.title ?? 'Enemigo';
     final location = nativeGank != null
@@ -336,7 +336,7 @@ class ThreatRadarHUD extends StatelessWidget {
                             style: const TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.w700,
-                              color: Color(0xFF38BDF8),
+                              color: GsHudColors.cyan,
                             ),
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -380,7 +380,7 @@ class ThreatRadarHUD extends StatelessWidget {
                       const Icon(
                         Icons.visibility_rounded,
                         size: 11,
-                        color: Color(0xFF38BDF8),
+                        color: GsHudColors.cyan,
                       ),
                       const SizedBox(width: 4),
                       Text(
@@ -396,7 +396,7 @@ class ThreatRadarHUD extends StatelessWidget {
                         style: const TextStyle(
                           fontSize: 9,
                           fontWeight: FontWeight.w700,
-                          color: Color(0xFF38BDF8),
+                          color: GsHudColors.cyan,
                         ),
                       ),
                     ],
@@ -421,8 +421,8 @@ class ThreatRadarHUD extends StatelessWidget {
                   : isMia
                   ? const Color(0xFFF59E0B)
                   : isJungle
-                  ? const Color(0xFFEF4444)
-                  : const Color(0xFF10B981);
+                  ? GsHudColors.crimson
+                  : GsHudColors.emerald;
 
               final timer = (enemy['respawn_timer'] as num?)?.toDouble() ?? 0;
               final miaDuration = (enemy['mia_duration'] as num?)?.floor() ?? 0;
@@ -585,7 +585,7 @@ class MatchupInfoHUD extends StatelessWidget {
     return _OverlayInfoCard(
       title: 'Enfrentamiento',
       icon: Icons.bolt_rounded,
-      accentColor: const Color(0xFF38BDF8),
+      accentColor: GsHudColors.cyan,
       width: 340,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -681,10 +681,10 @@ class PriorityDirectivesHUD extends StatelessWidget {
                     builder: (context) {
                       final directive = directives[i];
                       final accent = i == 0
-                          ? const Color(0xFFEF4444)
+                          ? GsHudColors.crimson
                           : i == 1
                           ? const Color(0xFFF59E0B)
-                          : const Color(0xFF38BDF8);
+                          : GsHudColors.cyan;
                       final label = i == 0
                           ? 'P1'
                           : i == 1
@@ -817,21 +817,33 @@ class EsportsCompositionHUD extends StatelessWidget {
       icon: Icons.group_work_rounded,
       accentColor: const Color(0xFF818CF8),
       width: 340,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          teamLine(game!.allies, const Color(0xFF38BDF8)),
-          const Text(
-            'VS',
-            style: TextStyle(
-              fontSize: 9,
-              fontWeight: FontWeight.w900,
-              color: Color(0x66FFFFFF),
-              letterSpacing: 0.5,
+      child: LayoutBuilder(
+        builder: (context, constraints) => Flex(
+          direction: constraints.maxWidth < 290
+              ? Axis.vertical
+              : Axis.horizontal,
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: teamLine(game!.allies, GsHudColors.cyan),
             ),
-          ),
-          teamLine(game!.enemies, const Color(0xFFEF4444)),
-        ],
+            const Text(
+              'VS',
+              style: TextStyle(
+                fontSize: 9,
+                fontWeight: FontWeight.w900,
+                color: Color(0x66FFFFFF),
+                letterSpacing: 0.5,
+              ),
+            ),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: teamLine(game!.enemies, GsHudColors.crimson),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -848,9 +860,9 @@ class MiniGoldBadgeHUD extends StatelessWidget {
     final isAhead = diff > 0;
     final isBehind = diff < 0;
     final accentColor = isAhead
-        ? const Color(0xFF10B981)
+        ? GsHudColors.emerald
         : isBehind
-        ? const Color(0xFFEF4444)
+        ? GsHudColors.crimson
         : const Color(0xFF94A3B8);
     final valueColor = isAhead
         ? const Color(0xFF34D399)
@@ -942,8 +954,9 @@ class _EditableOverlayPanel extends ConsumerWidget {
                   ? const SizedBox.shrink()
                   : Padding(
                       padding: EdgeInsets.only(top: state.editing ? 40 : 0),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
+                      // Cards own their rounded shape and border. A second,
+                      // larger corner radius here cuts through their borders.
+                      child: ClipRect(
                         child: SingleChildScrollView(
                           primary: false,
                           child: child,
@@ -1156,7 +1169,7 @@ class LinearBuildsHUD extends StatelessWidget {
             style: const TextStyle(
               fontSize: 9,
               fontWeight: FontWeight.w700,
-              color: Color(0xFF38BDF8),
+              color: GsHudColors.cyan,
             ),
           ),
       ],

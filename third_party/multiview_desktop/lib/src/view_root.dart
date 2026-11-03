@@ -1143,7 +1143,7 @@ class _ViewsManagerImpl implements ViewsManager {
     int loopCycle = 1,
     int maxLoopCycles = 10,
   }) async {
-    cascadeCloseService.clear();
+    // Nested child closes must preserve the parent cascade waiters.
     final descendants = _descendantIdsDeepestFirst(rootId).toList()..sort();
     for (final id in descendants.reversed) {
       final closed =
@@ -1178,7 +1178,7 @@ class _ViewsManagerImpl implements ViewsManager {
     int loopCycle = 1,
     int maxLoopCycles = 10,
   }) async {
-    cascadeCloseService.clear();
+    // Nested child closes must preserve the parent cascade waiters.
     final descendants = _descendantIdsDeepestFirst(rootId).toList()..sort();
     for (final id in descendants.reversed) {
       final closed =
@@ -2542,10 +2542,15 @@ class _ViewsManagerImpl implements ViewsManager {
     );
   }
 
+  Future<bool>? _appCloseOperation;
+
   @override
-  Future<bool> closeApp({CloseMode? closeMode}) async {
-    final mode = closeMode ?? config.generalParams.closeMode;
-    return await _closeApp(mode);
+  Future<bool> closeApp({CloseMode? closeMode}) {
+    // Repeated X clicks join the existing cascade instead of creating competing
+    // waiters and sending duplicate native destruction requests.
+    return _appCloseOperation ??= _closeApp(
+      closeMode ?? config.generalParams.closeMode,
+    ).whenComplete(() => _appCloseOperation = null);
   }
 
   /// Closes every registered window (all roots and their subtrees).

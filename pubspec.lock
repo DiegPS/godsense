@@ -229,8 +229,8 @@ packages:
     dependency: "direct main"
     description:
       path: "."
-      ref: "9b730cf62e6bdcde773e4fa7acf64c5da6434461"
-      resolved-ref: "9b730cf62e6bdcde773e4fa7acf64c5da6434461"
+      ref: "2f0c458650b46f41f00e9dd11cf6980bfdd8ef6c"
+      resolved-ref: "2f0c458650b46f41f00e9dd11cf6980bfdd8ef6c"
       url: "https://github.com/DiegPS/dart_ai_runtime.git"
     source: git
     version: "0.3.6"
@@ -375,6 +375,15 @@ packages:
     description: flutter
     source: sdk
     version: "0.0.0"
+  flutter_consistent_ui:
+    dependency: "direct main"
+    description:
+      path: "."
+      ref: "8e774e1fab0d5b4fa370ed86dd6aa1e79368a046"
+      resolved-ref: "8e774e1fab0d5b4fa370ed86dd6aa1e79368a046"
+      url: "https://github.com/DiegPS/flutter_consistent_ui.git"
+    source: git
+    version: "0.6.0"
   flutter_driver:
     dependency: transitive
     description: flutter
@@ -1294,4 +1303,4 @@ packages:
     version: "2.2.4"
 sdks:
   dart: ">=3.13.1 <4.0.0"
-  flutter: ">=3.44.0"
+  flutter: ">=3.47.0"

@@ -1,5 +1,84 @@
 # Fluidez de GodSense en Windows
 
+## Revisión del detalle de Scout — 2 de noviembre de 2026
+
+Se volvió a ejecutar `tool/profile_windows.ps1` sobre el árbol de trabajo
+actual, después del rediseño, conservando sus límites de 100 ms para navegación
+y 250 ms para el intervalo del event loop. El informe nuevo terminó y aprobó:
+`build/performance/navigation-407973d86bb645a89b3609451cc087e7.json`.
+
+| Escenario en profile | Navegación p95 | Construcción p95 | Rasterizado p95 |
+| --- | ---: | ---: | ---: |
+| Primera visita | 20,206 ms | 11,960 ms | 3,010 ms |
+| Cambios repetidos | 16,449 ms | 2,348 ms | 2,470 ms |
+| Navegación con captura | 13,732 ms | 2,282 ms | 2,368 ms |
+
+Hubo 47 capturas sin errores. El intervalo máximo del event loop fue 42,068 ms
+en la primera visita, 23,483 ms en navegación repetida y 22,822 ms con captura.
+El catálogo real completó sus tres refrescos, con máximo intervalo de 16,709 ms.
+Las cifras de navegación anteriores (19,077 / 13,478 / 11,703 ms) eran menores;
+estas dos ejecuciones no constituyen una comparación controlada de causa y efecto.
+
+También se midió la instancia debug que el usuario tenía abierta, con su
+historial local: 18 cambios de página, 16 aperturas/cierres del primer detalle
+y ocho desplazamientos animados. Se restauraron la pestaña, las expansiones,
+el desplazamiento y el foco al terminar. Navegación máxima: 74,228 ms;
+apertura/cierre máximo: 45,833 ms; construcción p95: 11,518 ms;
+rasterizado p95: 5,637 ms; máximo intervalo del event loop: 76,420 ms.
+Evidencia: `build/testing/scout-redesign-live-stress.txt`. Esta segunda medición
+es debug y no se compara directamente con profile. No hubo errores de ejecución.
+
+El perfilador general no abre el detalle de Scout; esa interacción se comprobó
+por separado en debug. Estos resultados no validan una partida real activa ni
+garantizan que todos los cuadros cumplan 16,7 ms. No se repitió la antigua suite
+completa de 736 pruebas y 131 casos de interfaz durante esta revisión.
+
+## Revisión de carga de páginas — 31 de octubre de 2026
+
+Se midió el árbol de trabajo con la renovación visual y los cambios de Scout
+presentes, no únicamente el commit `668473a`. El inventario inicial está en
+`build/testing/speed-review-20261031-source-before.json`; esos cambios previos
+se conservaron. La medición inicial aprobó con p95 de 27,857 ms en la primera
+visita, 14,072 ms en navegación repetida y 11,787 ms con captura. No reprodujo
+las antiguas congelaciones de varios segundos.
+
+Se reprodujo una carga innecesaria al redimensionar: `Offstage` conserva las
+páginas pero sigue realizando su layout. Una página oculta volvía a calcular
+su distribución para cada ancho nuevo. `RetainedPageStack` ahora evita propagar
+esos cambios de tamaño al contenido oculto y realiza su layout con las medidas
+actuales al volver. No desmonta páginas ni pierde borradores/desplazamiento.
+Las actualizaciones propias de los widgets ocultos pueden seguir ejecutándose;
+no se afirma que toda su actividad quede suspendida.
+
+La regresión se reprodujo antes del cambio (`page-loading-layout-red.log`) y
+las seis pruebas de retención/desplazamiento aprobaron después
+(`page-loading-layout-final.log`), dentro de `build/testing/`. Comprueban también
+la actualización de datos durante la ocultación y el ancho correcto al volver.
+
+Profile posterior: primera visita p95 **19,077 ms**, navegación repetida
+**13,478 ms**, navegación con captura **11,703 ms**, 47 capturas sin errores y
+máximo intervalo del hilo de eventos de 26,134 ms durante el catálogo real.
+Informe: `build/performance/navigation-2d19fd10770742f8aea637afb81fb191.json`.
+La variación respecto a la primera medición no se atribuye íntegramente a este
+cambio; la prueba de regresión demuestra el trabajo de layout que se evita.
+
+El nuevo `tool/profile_page_resize.dart` visita las seis páginas y realiza
+24 cambios de tamaño nativos, restaurando el tamaño/posición originales.
+Resultado: p95 de 33,301 ms, máximo de 53,860 ms e intervalo máximo del hilo
+de eventos de 33,807 ms. Log: `build/testing/page-loading-resize-profile.log`.
+Estas mediciones corresponden al equipo/configuración actuales y no equivalen
+a una partida real ni a cargar una biblioteca de historial de cualquier tamaño.
+
+Validación posterior: 736 pruebas de base aprobadas y 30 omisiones explícitas
+(`page-loading-base-final.log`), 131 casos de interfaz en el motor Windows
+(`page-loading-windows-ui.log`), y analizador limpio para la implementación,
+la regresión y la herramienta (`page-loading-analysis-final.log`). Los logs
+están en `build/testing/`. La prueba de interfaz conserva borradores, navega
+entre las seis páginas y comprueba ventanas pequeñas y texto ampliado.
+El arranque debug y la recarga en caliente (317 ms) aprobaron, con captura DXGI
+activa y sin excepciones reportadas por Dart MCP. Se cerró la aplicación al
+terminar; la calibración guardada no se cambió.
+
 Revisión del 24 de octubre de 2026, Flutter 3.47.2 / Dart 3.13.2.
 
 ## Causas corregidas
@@ -109,3 +188,36 @@ sigue tardando aproximadamente un segundo; ese tiempo ya no congela la UI.
 En esa ejecución la navegación repetida tuvo un máximo de 13,7 ms y la
 navegación con captura de 12,0 ms, con 47 capturas y ningún error. Son medidas
 de esta máquina, no garantías para cualquier hardware.
+
+## Clics de navegación y cierre del HUD (2026-11-01)
+
+La navegación superior no participa en el gesto para mover la ventana. Un
+`onPanStart` ancestral cancelaba clics de ratón con un desplazamiento vertical
+pequeño: la regresión reproduce una pulsación de Ajustes, Coach y Scout con
+8 píxeles de movimiento a 900 y 1400 píxeles de ancho. La marca y el estado
+conservan sus áreas explícitas de arrastre.
+
+En Windows, los mensajes de todas las ventanas se entregan a los delegados del
+motor para permitir callbacks de audio. Al destruir una vista, el controlador
+se desvincula de la ventana **antes** de llamar a
+`FlutterDesktopViewControllerDestroy`: esa llamada genera mensajes HWND
+sincrónicos durante la destrucción. Reenviarlos a un controlador que ya perdió
+su vista producía un acceso nulo en `FlutterWindowsView::GetEngine`, confirmado
+con el volcado de Windows.
+
+El cierre en cascada conserva los completers de los padres al cerrar hijos.
+Borrarlos durante un cierre anidado dejaba la operación esperando para siempre.
+Las pulsaciones repetidas de cerrar comparten una única operación, y las
+notificaciones de cierre duplicadas son idempotentes.
+
+Verificación local:
+
+```powershell
+flutter test test/presentation/titlebar_navigation_test.dart test/presentation/window_cascade_close_test.dart test/widget_test.dart test/presentation/retained_page_stack_test.dart --no-pub
+flutter test integration_test/ui/native_window_test.dart -d windows --no-pub
+```
+
+La prueba nativa conserva el proceso principal, abre y destruye cuatro overlays
+adicionales (visibles y ocultos) y vuelve a navegar después de cada cierre.
+El cierre de toda la aplicación también se comprueba manualmente en el proceso
+real; no se representa como un widget test que podría ocultar un crash nativo.

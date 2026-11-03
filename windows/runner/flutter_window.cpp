@@ -3,11 +3,18 @@
 #include "desktop_capture_plugin.h"
 
 #include <flutter_secure_storage_windows/flutter_secure_storage_windows_plugin.h>
+#include <record_windows/record_windows_plugin_c_api.h>
+#include <file_selector_windows/file_selector_windows.h>
 #include <multiview_desktop/multi_view_desktop_plugin.h>
 
 namespace {
 
 void RegisterApplicationPlugins(FlutterDesktopEngineRef engine) {
+  // The multiview engine bypasses generated_plugin_registrant.cc.
+  RecordWindowsPluginCApiRegisterWithRegistrar(
+      FlutterDesktopEngineGetPluginRegistrar(engine, "RecordWindowsPluginCApi"));
+  FileSelectorWindowsRegisterWithRegistrar(
+      FlutterDesktopEngineGetPluginRegistrar(engine, "FileSelectorWindows"));
   DesktopCapturePluginRegisterWithRegistrar(
       FlutterDesktopEngineGetPluginRegistrar(engine, "DesktopCapturePlugin"));
   FlutterSecureStorageWindowsPluginRegisterWithRegistrar(

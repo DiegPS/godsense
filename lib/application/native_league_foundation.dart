@@ -150,6 +150,12 @@ class NativeLeagueFoundation {
     return _scoutRepository!.loadLatestRanked(puuid);
   }
 
+  Future<List<LeagueAccountProfile>> loadKnownScoutAccounts() async {
+    await _ensureInitialized();
+    if (_disposed) return const [];
+    return _accountRepository!.loadAllAccounts();
+  }
+
   Future<LocalMatchRecord> loadScoutMatchDetails(
     LocalMatchRecord cached,
   ) async {
@@ -230,6 +236,11 @@ class NativeLeagueFoundation {
   }) async {
     await _ensureInitialized();
     final connected = _accounts?.state.context?.account;
+    if (connected != null && connected.platformId != account.platformId) {
+      throw StateError(
+        'Abre League en ${account.platformId.value} para actualizar este perfil. Sus datos guardados siguen disponibles.',
+      );
+    }
     return _scoutSync!.synchronize(
       puuid: account.puuid,
       platformId: account.platformId,

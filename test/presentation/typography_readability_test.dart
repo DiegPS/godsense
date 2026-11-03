@@ -20,6 +20,7 @@ class _InstalledSpeechController extends NativeSpeechController {
       modelsChecked: true,
       speechModelInstalled: true,
       ttsModelInstalled: true,
+      settings: NativeSpeechSettings(pushToTalkEnabled: true, ttsEnabled: true),
     );
   }
 
@@ -117,7 +118,7 @@ void main() {
         final dropdowns = tester.widgetList<DropdownButton<String>>(
           find.byType(DropdownButton<String>),
         );
-        expect(dropdowns, hasLength(5));
+        expect(dropdowns, hasLength(4));
         for (final dropdown in dropdowns) {
           expect(dropdown.style!.fontFamily, 'InterVariable');
           expect(dropdown.style!.fontSize, 14);
@@ -125,7 +126,11 @@ void main() {
             ui.FontVariation.opticalSize(14),
           ]);
         }
-        expect(find.text('Instalado'), findsOneWidget);
+        expect(
+          find.text('Reconocimiento instalado en este equipo'),
+          findsOneWidget,
+        );
+        expect(find.textContaining('Voz descargada ·'), findsOneWidget);
         expect(find.textContaining('Descargar voz'), findsNothing);
         final capturePath = Platform.environment['GODSENSE_TYPOGRAPHY_CAPTURE'];
         if (config.$2 == 1 && capturePath != null) {

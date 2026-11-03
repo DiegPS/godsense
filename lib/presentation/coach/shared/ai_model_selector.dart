@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_consistent_ui/flutter_consistent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../application/dependencies.dart';
@@ -52,16 +53,6 @@ class _AiModelSelectorState extends ConsumerState<AiModelSelector> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
-          children: [
-            Expanded(child: Text('Motor activo: ${runtime.kind!.displayName}')),
-            IconButton(
-              tooltip: 'Actualizar modelos',
-              onPressed: enabled ? controller.refresh : null,
-              icon: const Icon(Icons.refresh_rounded),
-            ),
-          ],
-        ),
         if (catalog.loading) ...[
           const LinearProgressIndicator(semanticsLabel: 'Cargando modelos'),
           const SizedBox(height: 8),
@@ -77,14 +68,29 @@ class _AiModelSelectorState extends ConsumerState<AiModelSelector> {
             'Este motor no tiene proveedores conectados con modelos de chat. '
             'Las cuentas de otras instalaciones no se importan automáticamente.',
           ),
+        if (providers.isEmpty)
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: TextButton.icon(
+              onPressed: enabled ? controller.refresh : null,
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Actualizar modelos'),
+            ),
+          ),
         if (providers.isNotEmpty) ...[
-          const SizedBox(height: 12),
-          DropdownButtonFormField<String>(
+          if (catalog.loading || catalog.error != null)
+            const SizedBox(height: 12),
+          UiControls.select<String>(
             key: ValueKey('provider-${runtime.kind?.id}-$providerId'),
             initialValue: providerId,
             isExpanded: true,
-            decoration: const InputDecoration(
-              labelText: 'Proveedor de modelos',
+            decoration: InputDecoration(
+              labelText: 'Proveedor',
+              suffixIcon: IconButton(
+                tooltip: 'Actualizar modelos',
+                onPressed: enabled ? controller.refresh : null,
+                icon: const Icon(Icons.refresh_rounded),
+              ),
             ),
             items: [
               for (final provider in providers)
@@ -98,21 +104,17 @@ class _AiModelSelectorState extends ConsumerState<AiModelSelector> {
                 : null,
           ),
           const SizedBox(height: 16),
-          DropdownMenu<String>(
+          UiControls.searchableSelect<String>(
             key: ValueKey(
               'model-${runtime.kind?.id}-$providerId-${selected?.key}',
             ),
             enabled: enabled,
-            expandedInsets: EdgeInsets.zero,
-            menuHeight: 280,
-            enableFilter: true,
-            requestFocusOnTap: true,
             label: const Text('Modelo'),
             hintText: 'Buscar y seleccionar modelo',
             initialSelection: selected?.providerId == providerId
                 ? selected?.key
                 : null,
-            dropdownMenuEntries: [
+            entries: [
               for (final model in models)
                 DropdownMenuEntry(
                   value: model.key,
@@ -143,12 +145,11 @@ class _AiModelSelectorState extends ConsumerState<AiModelSelector> {
                   }
                 : null,
           ),
-          const SizedBox(height: 8),
-          Text(
-            selected == null
-                ? 'Selecciona un modelo para habilitar el chat.'
-                : 'Se usará: ${selected.providerId} / ${selected.name}.',
-          ),
+          if (selected == null) ...[
+            const SizedBox(height: 8),
+            const Text('Selecciona un modelo para habilitar el chat.'),
+          ],
+          if (selected != null && !selected.isFree) const SizedBox(height: 8),
           if (selected != null && !selected.isFree)
             const Text(
               'Este modelo puede consumir saldo de tu proveedor al enviar mensajes.',

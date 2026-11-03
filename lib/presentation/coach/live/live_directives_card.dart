@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:godsense/presentation/shared/gs_tokens.dart';
 
 import '../../../domain/tactical/tactical_models.dart';
 import '../shared/coach_surface.dart';
@@ -39,16 +40,16 @@ class _DirectiveCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (accent, label, icon) = switch (directive.priority) {
-      1 => (const Color(0xFFF43F5E), 'CRÍTICA', Icons.warning_amber_rounded),
-      2 => (const Color(0xFFFBBF24), 'OPORTUNIDAD', Icons.flag_outlined),
-      _ => (const Color(0xFF38BDF8), 'MACRO', Icons.lightbulb_outline_rounded),
+      1 => (GsColors.crimson, 'CRÍTICA', Icons.warning_amber_rounded),
+      2 => (GsColors.amber, 'OPORTUNIDAD', Icons.flag_outlined),
+      _ => (GsColors.accent, 'MACRO', Icons.lightbulb_outline_rounded),
     };
 
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFF0C1017),
+        color: GsColors.surfaceElevated,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0x1AFFFFFF)),
+        border: Border.all(color: GsColors.border),
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(8),
@@ -95,7 +96,7 @@ class _DirectiveCard extends StatelessWidget {
                             style: const TextStyle(
                               fontSize: 10,
                               fontWeight: FontWeight.w600,
-                              color: Color(0xFF64748B),
+                              color: GsColors.textMuted,
                             ),
                           ),
                         ],

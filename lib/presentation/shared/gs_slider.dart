@@ -82,7 +82,7 @@ class _GsSliderState extends State<GsSlider> {
         child: DecoratedBox(
           decoration: BoxDecoration(
             border: Border.all(
-              color: _focused ? GsColors.cyan : const Color(0x00000000),
+              color: _focused ? GsColors.accent : const Color(0x00000000),
             ),
             borderRadius: BorderRadius.circular(8),
           ),
@@ -91,7 +91,7 @@ class _GsSliderState extends State<GsSlider> {
             min: widget.min,
             max: widget.max,
             divisions: widget.divisions,
-            activeColor: GsColors.cyan,
+            activeColor: GsColors.accent,
             thumbColor: GsColors.textPrimary,
             onChanged: widget.onChanged,
           ),

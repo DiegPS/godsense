@@ -32,7 +32,10 @@ import 'package:godsense/infrastructure/native_vision/dartcv_minimap_tracker.dar
 import 'package:godsense/presentation/coach/coach_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-const _output = 'design/store/screenshots';
+const _output = String.fromEnvironment(
+  'GODSENSE_CAPTURE_OUTPUT',
+  defaultValue: 'design/store/screenshots',
+);
 const _boundary = Key('store-capture');
 const _now = '2026-10-25T12:00:00Z';
 const _art = 'https://ddragon.leagueoflegends.com/cdn/16.21.1/img/champion';
@@ -95,6 +98,7 @@ void main() {
       Widget child,
       CoachInputs inputs, {
       double scroll = 0,
+      String? settingsSection,
     }) async {
       final coach = CoachController(
         importRunes: (_) async {},
@@ -150,17 +154,14 @@ void main() {
                     ),
                     Container(
                       width: double.infinity,
-                      color: const Color(0xff142437),
+                      color: GsColors.accentTint,
                       padding: const EdgeInsets.symmetric(
                         horizontal: 24,
                         vertical: 10,
                       ),
                       child: const Text(
                         'DATOS DE DEMOSTRACIÓN · Perfil y estadísticas ficticios · Sin vinculación con jugadores reales',
-                        style: TextStyle(
-                          color: Color(0xffb8d2e8),
-                          fontSize: 12,
-                        ),
+                        style: TextStyle(color: GsColors.focus, fontSize: 12),
                       ),
                     ),
                     Expanded(child: child),
@@ -178,10 +179,22 @@ void main() {
         () async => Future<void>.delayed(const Duration(milliseconds: 150)),
       );
       await tester.pumpAndSettle();
+      if (settingsSection != null) {
+        await tester.tap(find.text(settingsSection));
+        await tester.pumpAndSettle();
+      }
       if (scroll > 0) {
-        await tester.drag(find.byType(Scrollable).first, Offset(0, -scroll));
+        final pageScroll = find
+            .descendant(
+              of: find.byType(GsFeaturePage),
+              matching: find.byType(Scrollable),
+            )
+            .first;
+        await tester.drag(pageScroll, Offset(0, -scroll));
         await tester.pumpAndSettle();
         final export = find.text('Exportar mis datos');
+        await tester.scrollUntilVisible(export, 320, scrollable: pageScroll);
+        await tester.pumpAndSettle();
         expect(export, findsOneWidget);
         expect(tester.getRect(export).bottom, lessThan(1000));
       }
@@ -211,15 +224,22 @@ void main() {
       const CoachPage(),
       _inputs(live: true),
     );
-    await capture('04-voz-y-privacidad', 5, const SettingsPage(), _inputs());
+    await capture(
+      '04-voz-y-privacidad',
+      5,
+      const SettingsPage(),
+      _inputs(),
+      settingsSection: 'Voz y micrófono',
+    );
     await capture(
       '05-datos-locales',
       5,
       const SettingsPage(),
       _inputs(),
-      scroll: 1600,
+      settingsSection: 'Datos y privacidad',
     );
     await capture('06-mapa', 2, const VisionPage(), _inputs());
+    await capture('07-inicio', 0, const OverviewPage(), _inputs());
     await tester.runAsync(() async {
       final allowedPrefix =
           '${Directory.systemTemp.resolveSymbolicLinksSync()}${Platform.pathSeparator}godsense-store-demo-';

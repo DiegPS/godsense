@@ -24,7 +24,7 @@ class PickAdviceCard extends StatelessWidget {
                     contentPadding: EdgeInsets.zero,
                     leading: const Icon(
                       Icons.shield_outlined,
-                      color: CoachColors.cyan,
+                      color: CoachColors.accent,
                     ),
                     title: Text(suggestion.champion),
                     subtitle: suggestion.reasons.isEmpty

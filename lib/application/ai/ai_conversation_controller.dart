@@ -107,6 +107,7 @@ class AiConversationController extends StateNotifier<AiConversationState> {
         modelId: selection.modelId,
         systemPrompt: _systemPrompt(systemPrompt),
       );
+      if (!_disposed) _applyCoreState(_core.state);
     } catch (error) {
       if (_disposed) return;
       state = state.copyWith(

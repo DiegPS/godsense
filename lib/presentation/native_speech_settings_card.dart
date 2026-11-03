@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_consistent_ui/flutter_consistent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../app/godsense_app.dart';
@@ -26,475 +27,506 @@ class NativeSpeechSettingsCard extends ConsumerWidget {
 
     Future<void> update(dynamic next) => controller.updateSettings(next);
 
-    return GsCard(
-      title: 'Voz y atajo para hablar',
-      subtitle: 'Habla con el coach y escucha sus respuestas. Tu voz se procesa en este equipo.',
-      icon: Icons.mic_external_on_rounded,
-      padding: EdgeInsets.zero,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          GsToggleSwitch(
-            title: 'Hablar con el coach',
-            subtitle: _speechStatus(state),
+    final inputEnabled = settings.pushToTalkEnabled && !state.loading;
+    final outputEnabled =
+        settings.ttsEnabled && !state.loading && !state.tts.isLoading;
+
+    Future<void> removeVoice() async {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('¿Eliminar esta voz del equipo?'),
+          content: Text(
+            'Se eliminará la descarga de ${selectedModel.name}. '
+            'Podrás descargarla de nuevo. No se borrarán tus partidas ni tus ajustes.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: GsColors.dangerAction,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('Eliminar descarga'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed == true && context.mounted) {
+        await controller.removeTtsModel(selectedModel.id);
+      }
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Padding(
+          padding: EdgeInsets.only(bottom: 16),
+          child: Text(
+            'Dos funciones independientes: tu micrófono convierte lo que dices en una pregunta; '
+            'la voz del coach lee su respuesta. Puedes activar una, ambas o ninguna. '
+            'El audio se procesa en este equipo; al consultar IA, la pregunta en texto y el contexto '
+            'necesario se envían al proveedor elegido.',
+          ),
+        ),
+        UiSplitView(
+          breakpoint: 1000,
+          primaryFraction: .5,
+          spacing: 20,
+          primary: GsCard(
+            title: 'Tu micrófono',
+            subtitle: 'Lo que tú le dices al coach.',
             icon: Icons.mic_none_rounded,
-            value: settings.pushToTalkEnabled,
-            onChanged: state.loading
-                ? null
-                : (value) =>
-                      update(settings.copyWith(pushToTalkEnabled: value)),
-          ),
-          MicrophoneTestPanel(
-            state: state.microphoneTest,
-            enabled:
-                !state.loading &&
-                !state.pushToTalkPressed &&
-                !state.speech.isListening,
-            onStart: controller.testMicrophone,
-            onCancel: controller.cancelMicrophoneTest,
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            child: Wrap(
-              spacing: 12,
-              runSpacing: 16,
-              crossAxisAlignment: WrapCrossAlignment.start,
+            padding: EdgeInsets.zero,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                GsSelect<String>(
-                  compact: true,
-                  label: 'Tecla para hablar',
-                  value: settings.pushToTalkKey,
-                  width: 140,
-                  items: const {
-                    'delete': 'Delete',
-                    'space': 'Space',
-                    'f8': 'F8',
-                    'f9': 'F9',
-                    'f10': 'F10',
-                    'f11': 'F11',
-                    'f12': 'F12',
-                  },
-                  onChanged: (value) =>
-                      update(settings.copyWith(pushToTalkKey: value)),
+                GsToggleSwitch(
+                  title: 'Hablar con el coach',
+                  subtitle: _speechStatus(state),
+                  icon: Icons.record_voice_over_outlined,
+                  value: settings.pushToTalkEnabled,
+                  onChanged: state.loading
+                      ? null
+                      : (value) =>
+                            update(settings.copyWith(pushToTalkEnabled: value)),
                 ),
-                GsSelect<String>(
-                  compact: true,
-                  label: 'Idioma que hablas',
-                  value: settings.sttLanguage,
-                  width: 170,
-                  items: {
-                    for (final language in SpeechModelCatalog.canary.languages)
-                      language.code: language.label,
-                  },
-                  onChanged: (value) =>
-                      update(settings.copyWith(sttLanguage: value)),
-                ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text(
-                      'Claridad del micrófono',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: GsColors.textSecondary,
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                  child: UiFormFields(
+                    children: [
+                      _AudioSetupStatus(
+                        checking: !state.modelsChecked,
+                        installed: state.speechModelInstalled,
+                        readyText: 'Reconocimiento instalado en este equipo',
+                        missingText: 'Falta descargar el reconocimiento para entender tus preguntas.',
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    GsPillToggle(
-                      label: 'Reducir ruido de fondo',
-                      icon: Icons.graphic_eq_rounded,
-                      selected: settings.sttDenoise,
-                      onToggle: (value) =>
-                          update(settings.copyWith(sttDenoise: value)),
-                    ),
-                  ],
-                ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text(
-                      'Reconocimiento de voz',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: GsColors.textSecondary,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    if (!state.modelsChecked)
-                      const _ModelAvailability(checking: true)
-                    else if (state.speechModelInstalled)
-                      const _ModelAvailability()
-                    else
-                      GsButton(
-                        label:
-                            'Descargar (${_megabytes(SpeechModelCatalog.canary.package.downloadBytes)})',
-                        icon: Icons.download_rounded,
-                        variant: GsButtonVariant.secondary,
-                        compact: true,
-                        loading:
-                            state.speech.phase == LiveCaptionsPhase.downloading,
-                        onPressed:
-                            state.speech.phase == LiveCaptionsPhase.downloading
-                            ? null
-                            : controller.downloadSpeechModel,
-                      ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          if (state.speech.phase == LiveCaptionsPhase.downloading)
-            if (state.speech.progress case final progress?) ...[
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 6,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
+                      if (state.modelsChecked && !state.speechModelInstalled)
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: GsButton(
+                            label:
+                                'Descargar reconocimiento (${_megabytes(SpeechModelCatalog.canary.package.downloadBytes)})',
+                            icon: Icons.download_rounded,
+                            loading:
+                                state.speech.phase ==
+                                LiveCaptionsPhase.downloading,
+                            onPressed:
+                                !inputEnabled ||
+                                    state.speech.phase ==
+                                        LiveCaptionsPhase.downloading
+                                ? null
+                                : controller.downloadSpeechModel,
+                          ),
+                        ),
+                      if (!settings.pushToTalkEnabled)
                         const Text(
-                          'Descargando modelo de reconocimiento…',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: GsColors.textSecondary,
-                          ),
+                          'Activa “Hablar con el coach” para cambiar la tecla y el idioma. La prueba de micrófono funciona por separado.',
                         ),
-                        Text(
-                          '${(progress * 100).toInt()}%',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: GsColors.cyan,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    LinearProgressIndicator(
-                      value: progress,
-                      backgroundColor: GsColors.surfaceElevated,
-                      color: GsColors.cyan,
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          if (state.transcript.isNotEmpty) ...[
-            Container(
-              margin: const EdgeInsets.fromLTRB(14, 6, 14, 10),
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: GsColors.surfaceElevated,
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.record_voice_over_outlined,
-                    size: 16,
-                    color: GsColors.cyan,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: SelectableText(
-                      'Última transcripción: "${state.transcript}"',
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: GsColors.textPrimary,
+                      GsSelect<String>(
+                        key: const Key('speech-input-device'),
+                        label: 'Micrófono de entrada',
+                        value: settings.inputDeviceId,
+                        items: {
+                          '': 'Predeterminado de Windows',
+                          for (final device in state.inputDevices)
+                            device.id: device.label,
+                          if (settings.inputDeviceId.isNotEmpty &&
+                              !state.inputDevices.any(
+                                (d) => d.id == settings.inputDeviceId,
+                              ))
+                            settings.inputDeviceId:
+                                'Micrófono guardado (no disponible)',
+                        },
+                        onChanged:
+                            state.loading ||
+                                state.microphoneTest.active ||
+                                state.speech.isListening ||
+                                state.pushToTalkPressed
+                            ? null
+                            : (id) =>
+                                  update(settings.copyWith(inputDeviceId: id)),
                       ),
-                    ),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: TextButton.icon(
+                          onPressed:
+                              state.loadingInputDevices ||
+                                  state.microphoneTest.active ||
+                                  state.speech.isListening ||
+                                  state.pushToTalkPressed
+                              ? null
+                              : controller.refreshInputDevices,
+                          icon: const Icon(Icons.refresh_rounded),
+                          label: Text(
+                            state.loadingInputDevices
+                                ? 'Buscando micrófonos…'
+                                : 'Actualizar micrófonos',
+                          ),
+                        ),
+                      ),
+                      if (state.inputDevicesError != null)
+                        Text(state.inputDevicesError!),
+                      UiFormGrid(
+                        children: [
+                          GsSelect<String>(
+                            key: const Key('speech-hotkey'),
+                            label: 'Tecla que mantienes al hablar',
+                            value: settings.pushToTalkKey,
+                            items: const {
+                              'delete': 'Delete',
+                              'space': 'Space',
+                              'f8': 'F8',
+                              'f9': 'F9',
+                              'f10': 'F10',
+                              'f11': 'F11',
+                              'f12': 'F12',
+                            },
+                            onChanged: inputEnabled
+                                ? (value) => update(
+                                    settings.copyWith(pushToTalkKey: value),
+                                  )
+                                : null,
+                          ),
+                          GsSelect<String>(
+                            label: 'Idioma de tu pregunta',
+                            value: settings.sttLanguage,
+                            items: {
+                              for (final language
+                                  in SpeechModelCatalog.canary.languages)
+                                language.code: language.label,
+                            },
+                            onChanged: inputEnabled
+                                ? (value) => update(
+                                    settings.copyWith(sttLanguage: value),
+                                  )
+                                : null,
+                          ),
+                        ],
+                      ),
+                      SwitchListTile.adaptive(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Reducir ruido de fondo'),
+                        subtitle: const Text(
+                          'Ayuda a reconocer tu voz cuando hay sonido ambiente.',
+                        ),
+                        value: settings.sttDenoise,
+                        onChanged: inputEnabled
+                            ? (value) =>
+                                  update(settings.copyWith(sttDenoise: value))
+                            : null,
+                      ),
+                      if (state.speech.phase == LiveCaptionsPhase.downloading)
+                        _AudioDownloadProgress(
+                          label: 'Descargando reconocimiento…',
+                          progress: state.speech.progress,
+                        ),
+                      if (state.transcript.isNotEmpty)
+                        SelectableText(
+                          'Última transcripción: "${state.transcript}"',
+                        ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+                const Divider(height: 1),
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(20, 16, 20, 0),
+                  child: Text(
+                    'Comprueba tu equipo',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                ),
+                MicrophoneTestPanel(
+                  state: state.microphoneTest,
+                  enabled:
+                      !state.loading &&
+                      !state.pushToTalkPressed &&
+                      !state.speech.isListening,
+                  onStart: controller.testMicrophone,
+                  onCancel: controller.cancelMicrophoneTest,
+                ),
+              ],
             ),
-          ],
-          const Divider(height: 1, color: Color(0x14FFFFFF)),
-          GsToggleSwitch(
-            title: 'Escuchar las respuestas',
-            subtitle: _ttsStatus(state),
+          ),
+          secondary: GsCard(
+            title: 'Voz del coach',
+            subtitle: 'Cómo escuchas las respuestas que recibes.',
             icon: Icons.volume_up_outlined,
-            value: settings.ttsEnabled,
-            onChanged: state.loading
-                ? null
-                : (value) => update(settings.copyWith(ttsEnabled: value)),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            child: Wrap(
-              spacing: 12,
-              runSpacing: 16,
-              crossAxisAlignment: WrapCrossAlignment.start,
+            padding: EdgeInsets.zero,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                GsSelect<String>(
-                  compact: true,
-                  label: 'Tipo de voz',
-                  value: selectedModel.id,
-                  width: 280,
-                  items: {
-                    for (final model in TtsModelCatalog.models)
-                      model.id: '${model.name} · ${model.description}',
-                  },
-                  onChanged: (value) {
-                    final model = TtsModelCatalog.byId(value);
-                    unawaited(
-                      update(
-                        settings.copyWith(
-                          ttsModelId: model.id,
-                          ttsVoice: model.voices.first.id,
-                          ttsLanguage: model.languages.first.code,
-                          ttsSteps: model.defaultSteps,
+                GsToggleSwitch(
+                  title: 'Escuchar las respuestas',
+                  subtitle: _ttsStatus(state),
+                  icon: Icons.headphones_outlined,
+                  value: settings.ttsEnabled,
+                  onChanged: state.loading
+                      ? null
+                      : (value) => update(settings.copyWith(ttsEnabled: value)),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                  child: UiFormFields(
+                    children: [
+                      _AudioSetupStatus(
+                        checking: !state.modelsChecked,
+                        installed: state.ttsModelInstalled,
+                        readyText: 'Voz descargada · ${selectedModel.name}',
+                        missingText: 'Descarga la voz seleccionada para escuchar al coach.',
+                      ),
+                      if (!settings.ttsEnabled)
+                        const Text(
+                          'Activa “Escuchar las respuestas” para cambiar o probar la voz. Tus preferencias se conservan.',
                         ),
+                      UiFormGrid(
+                        children: [
+                          GsSelect<String>(
+                            label: 'Idioma de respuesta',
+                            value:
+                                selectedModel.supportsLanguage(
+                                  settings.ttsLanguage,
+                                )
+                                ? settings.ttsLanguage
+                                : selectedModel.languages.first.code,
+                            items: {
+                              for (final language in selectedModel.languages)
+                                language.code: language.label,
+                            },
+                            onChanged: outputEnabled
+                                ? (value) => update(
+                                    settings.copyWith(ttsLanguage: value),
+                                  )
+                                : null,
+                          ),
+                          GsSelect<String>(
+                            label: 'Voz',
+                            value: selectedModel.voice(settings.ttsVoice).id,
+                            items: {
+                              for (final voice in selectedModel.voices)
+                                voice.id: voice.label,
+                            },
+                            onChanged: outputEnabled
+                                ? (value) =>
+                                      update(settings.copyWith(ttsVoice: value))
+                                : null,
+                          ),
+                        ],
                       ),
-                    );
-                  },
-                ),
-                GsSelect<String>(
-                  compact: true,
-                  label: 'Voz',
-                  value: selectedModel.voice(settings.ttsVoice).id,
-                  width: 170,
-                  items: {
-                    for (final voice in selectedModel.voices)
-                      voice.id: voice.label,
-                  },
-                  onChanged: (value) =>
-                      update(settings.copyWith(ttsVoice: value)),
-                ),
-                GsSelect<String>(
-                  compact: true,
-                  label: 'Idioma de respuesta',
-                  value: selectedModel.supportsLanguage(settings.ttsLanguage)
-                      ? settings.ttsLanguage
-                      : selectedModel.languages.first.code,
-                  width: 160,
-                  items: {
-                    for (final language in selectedModel.languages)
-                      language.code: language.label,
-                  },
-                  onChanged: (value) =>
-                      update(settings.copyWith(ttsLanguage: value)),
-                ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-            child: Row(
-              children: [
-                const SizedBox(
-                  width: 80,
-                  child: Text(
-                    'Velocidad',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: GsColors.textSecondary,
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: GsSlider(
-                    value: settings.ttsSpeed,
-                    min: 0.6,
-                    max: 1.6,
-                    divisions: 20,
-                    label: 'Velocidad de voz',
-                    onChanged: (value) =>
-                        update(settings.copyWith(ttsSpeed: value)),
-                  ),
-                ),
-                SizedBox(
-                  width: 56,
-                  child: Text(
-                    '${settings.ttsSpeed.toStringAsFixed(2)}x',
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: GsColors.cyan,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (selectedModel.needsReferenceAudio) ...[
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-              child: Wrap(
-                spacing: 12,
-                runSpacing: 8,
-                crossAxisAlignment: WrapCrossAlignment.start,
-                children: [
-                  GsButton(
-                    label: 'Elegir WAV autorizado',
-                    icon: Icons.audio_file_outlined,
-                    variant: GsButtonVariant.secondary,
-                    compact: true,
-                    onPressed: () async {
-                      const typeGroup = XTypeGroup(
-                        label: 'WAV',
-                        extensions: ['wav'],
-                      );
-                      final file = await openFile(
-                        acceptedTypeGroups: const [typeGroup],
-                      );
-                      if (file != null) {
-                        await update(
-                          settings.copyWith(referenceAudioPath: file.path),
-                        );
-                      }
-                    },
-                  ),
-                  SizedBox(
-                    width: 300,
-                    child: Text(
-                      settings.referenceAudioPath.isEmpty
-                          ? 'Usará la muestra incluida del modelo'
-                          : settings.referenceAudioPath,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: GsColors.textSecondary,
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Wrap(
+                            spacing: 12,
+                            runSpacing: 4,
+                            children: [
+                              const Text(
+                                'Velocidad de lectura',
+                                style: TextStyle(fontWeight: FontWeight.w600),
+                              ),
+                              Text(
+                                '${settings.ttsSpeed.toStringAsFixed(2)}x',
+                                style: const TextStyle(
+                                  color: GsColors.accent,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              const Text('1.00x es la velocidad normal.'),
+                            ],
+                          ),
+                          GsSlider(
+                            value: settings.ttsSpeed,
+                            min: .6,
+                            max: 1.6,
+                            divisions: 20,
+                            label: 'Velocidad de voz',
+                            onChanged: outputEnabled
+                                ? (value) =>
+                                      update(settings.copyWith(ttsSpeed: value))
+                                : null,
+                          ),
+                        ],
                       ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            if (selectedModel.needsReferenceText)
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 6,
-                ),
-                child: TextFormField(
-                  initialValue: settings.referenceText,
-                  decoration: const InputDecoration(
-                    labelText: 'Transcripción exacta del WAV',
-                  ),
-                  onFieldSubmitted: (value) =>
-                      update(settings.copyWith(referenceText: value)),
-                ),
-              ),
-          ],
-          Padding(
-            padding: const EdgeInsets.fromLTRB(14, 8, 14, 14),
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                if (!state.modelsChecked)
-                  const _ModelAvailability(checking: true)
-                else if (!state.ttsModelInstalled)
-                  GsButton(
-                    label:
-                        'Descargar voz (${_megabytes(selectedModel.downloadBytes)})',
-                    icon: Icons.download_rounded,
-                    compact: true,
-                    loading: state.tts.isLoading,
-                    onPressed: state.tts.isLoading
-                        ? null
-                        : controller.downloadTtsModel,
-                  )
-                else ...[
-                  GsButton(
-                    label: 'Probar voz',
-                    icon: Icons.volume_up_rounded,
-                    variant: GsButtonVariant.secondary,
-                    compact: true,
-                    onPressed:
-                        state.tts.isLoading ||
-                            state.ttsBusy ||
-                            state.microphoneTest.active
-                        ? null
-                        : controller.testTts,
-                  ),
-                  GsButton(
-                    label: 'Eliminar voz descargada',
-                    icon: Icons.delete_outline_rounded,
-                    variant: GsButtonVariant.ghost,
-                    compact: true,
-                    onPressed: state.tts.isLoading
-                        ? null
-                        : () => controller.removeTtsModel(selectedModel.id),
-                  ),
-                ],
-                if (state.ttsBusy)
-                  GsButton(
-                    label: 'Detener voz',
-                    icon: Icons.stop_circle_outlined,
-                    variant: GsButtonVariant.secondary,
-                    compact: true,
-                    onPressed: controller.stopSpeaking,
-                  ),
-              ],
-            ),
-          ),
-          if (state.tts.isLoading)
-            if (state.tts.progress case final progress?) ...[
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 6,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          state.tts.phase == TtsLoadPhase.downloading
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          if (state.modelsChecked && !state.ttsModelInstalled)
+                            GsButton(
+                              label:
+                                  'Descargar voz (${_megabytes(selectedModel.downloadBytes)})',
+                              icon: Icons.download_rounded,
+                              loading: state.tts.isLoading,
+                              onPressed: outputEnabled
+                                  ? controller.downloadTtsModel
+                                  : null,
+                            ),
+                          if (state.ttsModelInstalled)
+                            GsButton(
+                              label: 'Probar voz',
+                              icon: Icons.volume_up_rounded,
+                              variant: GsButtonVariant.secondary,
+                              onPressed:
+                                  !outputEnabled ||
+                                      state.ttsBusy ||
+                                      state.microphoneTest.active
+                                  ? null
+                                  : controller.testTts,
+                            ),
+                          if (state.ttsBusy)
+                            GsButton(
+                              label: 'Detener voz',
+                              icon: Icons.stop_circle_outlined,
+                              variant: GsButtonVariant.secondary,
+                              onPressed: controller.stopSpeaking,
+                            ),
+                        ],
+                      ),
+                      if (state.tts.isLoading)
+                        _AudioDownloadProgress(
+                          label: state.tts.phase == TtsLoadPhase.downloading
                               ? 'Descargando modelo de voz…'
                               : 'Preparando voz…',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: GsColors.textSecondary,
-                          ),
+                          progress: state.tts.progress,
+                        ),
+                    ],
+                  ),
+                ),
+                UiDisclosure(
+                  key: const ValueKey('voice-advanced'),
+                  maintainState: true,
+                  title: const Text('Opciones avanzadas de voz'),
+                  subtitle: const Text(
+                    'Motor de síntesis, muestra de voz y descargas.',
+                  ),
+                  childrenPadding: const EdgeInsets.all(20),
+                  children: [
+                    UiFormFields(
+                      children: [
+                        GsSelect<String>(
+                          label: 'Motor de voz',
+                          value: selectedModel.id,
+                          items: {
+                            for (final model in TtsModelCatalog.models)
+                              model.id: model.family == TtsModelFamily.vits
+                                  ? '${model.name} · ${model.voices.first.label}'
+                                  : model.name,
+                          },
+                          onChanged: !outputEnabled || state.ttsBusy
+                              ? null
+                              : (value) {
+                                  final model = TtsModelCatalog.byId(value);
+                                  unawaited(
+                                    update(
+                                      settings.copyWith(
+                                        ttsModelId: model.id,
+                                        ttsVoice: model.voices.first.id,
+                                        ttsLanguage: model.languages.first.code,
+                                        ttsSteps: model.defaultSteps,
+                                      ),
+                                    ),
+                                  );
+                                },
                         ),
                         Text(
-                          '${(progress * 100).toInt()}%',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: GsColors.cyan,
-                          ),
+                          '${selectedModel.voices.length} voces y ${selectedModel.languages.length} idiomas disponibles en este motor.',
                         ),
+                        const Text(
+                          'Cambiar de motor puede requerir otra descarga. No necesitas modificarlo para usar la voz actual.',
+                        ),
+                        if (selectedModel.needsReferenceAudio) ...[
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: GsButton(
+                              label: 'Elegir WAV autorizado',
+                              icon: Icons.audio_file_outlined,
+                              variant: GsButtonVariant.secondary,
+                              onPressed: outputEnabled
+                                  ? () async {
+                                      const typeGroup = XTypeGroup(
+                                        label: 'WAV',
+                                        extensions: ['wav'],
+                                      );
+                                      final file = await openFile(
+                                        acceptedTypeGroups: const [typeGroup],
+                                      );
+                                      if (file != null && context.mounted) {
+                                        await update(
+                                          settings.copyWith(
+                                            referenceAudioPath: file.path,
+                                          ),
+                                        );
+                                      }
+                                    }
+                                  : null,
+                            ),
+                          ),
+                          SelectableText(
+                            settings.referenceAudioPath.isEmpty
+                                ? 'Se usará la muestra incluida del modelo.'
+                                : settings.referenceAudioPath,
+                          ),
+                          if (selectedModel.needsReferenceText)
+                            UiControls.formInput(
+                              key: ValueKey(
+                                'voice-reference-${selectedModel.id}',
+                              ),
+                              initialValue: settings.referenceText,
+                              enabled: outputEnabled,
+                              decoration: const InputDecoration(
+                                labelText: 'Transcripción exacta del WAV',
+                                helperText: 'Escribe lo que dice la muestra y pulsa Enter para guardar.',
+                              ),
+                              onFieldSubmitted: (value) => update(
+                                settings.copyWith(referenceText: value),
+                              ),
+                            ),
+                        ],
+                        if (state.ttsModelInstalled)
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: GsButton(
+                              label: 'Eliminar voz descargada',
+                              icon: Icons.delete_outline_rounded,
+                              variant: GsButtonVariant.danger,
+                              onPressed:
+                                  state.loading ||
+                                      state.tts.isLoading ||
+                                      state.ttsBusy
+                                  ? null
+                                  : removeVoice,
+                            ),
+                          ),
                       ],
-                    ),
-                    const SizedBox(height: 6),
-                    LinearProgressIndicator(
-                      value: progress,
-                      backgroundColor: GsColors.surfaceElevated,
-                      color: GsColors.cyan,
                     ),
                   ],
                 ),
-              ),
-            ],
-          if (state.error != null) ...[
-            Container(
-              margin: const EdgeInsets.fromLTRB(14, 0, 14, 12),
-              padding: const EdgeInsets.all(10),
+              ],
+            ),
+          ),
+        ),
+        if (state.error != null) ...[
+          const SizedBox(height: 16),
+          Semantics(
+            liveRegion: true,
+            child: Container(
+              padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: GsColors.crimsonGlow,
-                borderRadius: BorderRadius.circular(6),
+                borderRadius: BorderRadius.circular(GsSizes.radius),
               ),
-              child: Text(
+              child: const Text(
                 'No pudimos preparar el audio. Vuelve a intentarlo o elige otra voz.',
-                style: const TextStyle(color: GsColors.crimson, fontSize: 13),
+                style: TextStyle(color: GsColors.crimson),
               ),
             ),
-          ],
+          ),
         ],
-      ),
+      ],
     );
   }
 
@@ -538,36 +570,66 @@ class NativeSpeechSettingsCard extends ConsumerWidget {
   String _megabytes(int bytes) => '${(bytes / 1024 / 1024).round()} MB';
 }
 
-class _ModelAvailability extends StatelessWidget {
-  const _ModelAvailability({this.checking = false});
-
-  final bool checking;
-
+class _AudioSetupStatus extends StatelessWidget {
+  const _AudioSetupStatus({
+    required this.checking,
+    required this.installed,
+    required this.readyText,
+    required this.missingText,
+  });
+  final bool checking, installed;
+  final String readyText, missingText;
   @override
   Widget build(BuildContext context) => Row(
-    mainAxisSize: MainAxisSize.min,
+    crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      if (checking)
-        const SizedBox(
-          width: 14,
-          height: 14,
-          child: CircularProgressIndicator(strokeWidth: 2),
-        )
-      else
-        const Icon(
-          Icons.check_circle_rounded,
-          size: 16,
-          color: GsColors.emerald,
-        ),
-      const SizedBox(width: 6),
-      Text(
-        checking ? 'Comprobando…' : 'Instalado',
-        style: TextStyle(
-          fontSize: 13,
-          fontWeight: FontWeight.w600,
-          color: checking ? GsColors.textSecondary : GsColors.emerald,
+      Icon(
+        checking
+            ? Icons.hourglass_top_rounded
+            : installed
+            ? Icons.check_circle_outline
+            : Icons.download_outlined,
+        size: 18,
+        color: installed ? GsColors.emerald : GsColors.textSecondary,
+      ),
+      const SizedBox(width: 8),
+      Expanded(
+        child: Text(
+          checking
+              ? 'Comprobando archivos del equipo…'
+              : installed
+              ? readyText
+              : missingText,
+          style: TextStyle(
+            color: installed ? GsColors.emerald : GsColors.textSecondary,
+          ),
         ),
       ),
     ],
+  );
+}
+
+class _AudioDownloadProgress extends StatelessWidget {
+  const _AudioDownloadProgress({required this.label, this.progress});
+  final String label;
+  final double? progress;
+  @override
+  Widget build(BuildContext context) => Semantics(
+    liveRegion: true,
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Wrap(
+          spacing: 12,
+          runSpacing: 4,
+          children: [
+            Text(label),
+            if (progress != null) Text('${(progress! * 100).toInt()}%'),
+          ],
+        ),
+        const SizedBox(height: 8),
+        LinearProgressIndicator(value: progress, semanticsLabel: label),
+      ],
+    ),
   );
 }

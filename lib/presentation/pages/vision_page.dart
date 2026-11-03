@@ -5,15 +5,15 @@ class VisionPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final game = ref.watch(effectiveGameProvider);
-    final calibrationState = ref.watch(nativeCalibrationProvider);
+    final watch = ActivePageWatch(context, ref);
+    final game = watch(effectiveGameProvider);
+    final calibrationState = watch(nativeCalibrationProvider);
     final calibration = calibrationState.calibration;
-    final native = ref.watch(nativeVisionProvider);
+    final native = watch(nativeVisionProvider);
     final positionedEnemies =
         game?.enemies.where((enemy) => enemy['position'] is Map).length ?? 0;
 
-    return ListView(
-      padding: GsSizes.pageInsets(context),
+    return GsFeaturePage(
       children: [
         // 1. Player-facing status
         GsCard(
@@ -68,51 +68,39 @@ class VisionPage extends ConsumerWidget {
 
         // 2. Calibration action
         GsCard(
-          child: Row(
-            children: [
-              const Icon(
-                Icons.center_focus_strong_rounded,
-                color: GsColors.cyan,
-                size: 20,
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  _calibrationDescription(calibration),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: GsColors.textPrimary,
-                  ),
+          child: GsSectionHeading(
+            title: 'Área del minimapa',
+            subtitle: _calibrationDescription(calibration),
+            icon: Icons.center_focus_strong_rounded,
+            action: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                GsButton(
+                  label: 'Calibrar automáticamente',
+                  icon: Icons.auto_fix_high_rounded,
+                  compact: true,
+                  loading: native.processing,
+                  onPressed: native.processing
+                      ? null
+                      : () => ref
+                            .read(nativeVisionProvider.notifier)
+                            .detectCalibration(),
                 ),
-              ),
-              const SizedBox(width: 10),
-              GsButton(
-                label: 'Calibrar automáticamente',
-                icon: Icons.auto_fix_high_rounded,
-                compact: true,
-                loading: native.processing,
-                onPressed: native.processing
-                    ? null
-                    : () => ref
-                          .read(nativeVisionProvider.notifier)
-                          .detectCalibration(),
-              ),
-              const SizedBox(width: 8),
-              GsButton(
-                label: 'Comprobar ahora',
-                icon: Icons.camera_alt_outlined,
-                variant: GsButtonVariant.secondary,
-                compact: true,
-                onPressed:
-                    calibration?.effectiveBounds == null || native.processing
-                    ? null
-                    : () => ref
-                          .read(nativeVisionProvider.notifier)
-                          .captureOnce(calibration!.effectiveBounds!),
-              ),
-            ],
+                GsButton(
+                  label: 'Comprobar ahora',
+                  icon: Icons.camera_alt_outlined,
+                  variant: GsButtonVariant.secondary,
+                  compact: true,
+                  onPressed:
+                      calibration?.effectiveBounds == null || native.processing
+                      ? null
+                      : () => ref
+                            .read(nativeVisionProvider.notifier)
+                            .captureOnce(calibration!.effectiveBounds!),
+                ),
+              ],
+            ),
           ),
         ),
         const SizedBox(height: 16),
@@ -123,7 +111,7 @@ class VisionPage extends ConsumerWidget {
             decoration: BoxDecoration(
               color: GsColors.crimsonGlow,
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: const Color(0x4DEF4444)),
+              border: Border.all(color: GsColors.crimson),
             ),
             child: const Row(
               children: [
@@ -147,9 +135,7 @@ class VisionPage extends ConsumerWidget {
         ],
 
         // 3. Useful previews
-        Wrap(
-          spacing: 12,
-          runSpacing: 12,
+        UiFormGrid(
           children: [
             _VisionPreview(
               title: 'Minimapa observado',
@@ -245,7 +231,7 @@ class VisionPage extends ConsumerWidget {
                           const Icon(
                             Icons.visibility_outlined,
                             size: 16,
-                            color: GsColors.cyan,
+                            color: GsColors.accent,
                           ),
                           const SizedBox(width: 10),
                           Expanded(
@@ -290,13 +276,13 @@ class _VisionPreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 320,
-      child: GsCard(
-        title: title,
-        padding: EdgeInsets.zero,
+    return GsCard(
+      title: title,
+      padding: EdgeInsets.zero,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxHeight: 280),
         child: AspectRatio(
-          aspectRatio: 1,
+          aspectRatio: 16 / 9,
           child: ColoredBox(
             color: Colors.black,
             child: bytes == null

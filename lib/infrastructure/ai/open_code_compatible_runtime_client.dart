@@ -6,10 +6,11 @@ import 'package:dart_ai_runtime/dart_ai_runtime.dart' as runtime;
 export 'package:dart_ai_runtime/dart_ai_runtime.dart'
     show OpenCodeCompatibleRuntimeClient;
 
+// Delegates protocol selection to dart_ai_runtime for all operations.
 // Provider catalogs contain thousands of models, including disconnected
 // providers. Fetch, decode and construct the shared DTOs away from the UI.
 class BackgroundCatalogRuntimeClient
-    extends runtime.OpenCodeCompatibleRuntimeClient {
+    implements runtime.AiRuntimeClient, runtime.AiProviderAuthClient {
   static const defaultRequestTimeout = Duration(seconds: 30);
   // OpenCode initializes its workspace and installs its internal npm
   // dependencies on the first provider request, after global health is ready.
@@ -17,17 +18,27 @@ class BackgroundCatalogRuntimeClient
   static const defaultInitialCatalogTimeout = Duration(seconds: 60);
 
   BackgroundCatalogRuntimeClient({
-    required super.endpoint,
-    required super.workspaceDirectory,
-    super.systemPromptService,
+    required this.endpoint,
+    required this.workspaceDirectory,
+    runtime.AiRuntimeSystemPromptService? systemPromptService,
     Duration? requestTimeout,
     Duration? initialCatalogTimeout,
   }) : initialCatalogTimeout =
            initialCatalogTimeout ??
            requestTimeout ??
            defaultInitialCatalogTimeout,
-       super(requestTimeout: requestTimeout ?? defaultRequestTimeout);
+       requestTimeout = requestTimeout ?? defaultRequestTimeout,
+       _delegate = runtime.createAiRuntimeClient(
+         endpoint: endpoint,
+         workspaceDirectory: workspaceDirectory,
+         systemPromptService: systemPromptService,
+         requestTimeout: requestTimeout ?? defaultRequestTimeout,
+       );
 
+  final runtime.AiRuntimeEndpoint endpoint;
+  final String workspaceDirectory;
+  final Duration requestTimeout;
+  final runtime.AiRuntimeClient _delegate;
   final Duration initialCatalogTimeout;
   _CatalogRequest? _catalog;
   bool _initialized = false;
@@ -61,8 +72,57 @@ class BackgroundCatalogRuntimeClient
   void dispose() {
     _disposed = true;
     _catalog?.cancel();
-    super.dispose();
+    _delegate.dispose();
   }
+
+  runtime.AiProviderAuthClient get _auth {
+    final Object client = _delegate;
+    if (client is runtime.AiProviderAuthClient) return client;
+    throw UnsupportedError(
+      'Este motor administra las conexiones de proveedores desde su configuración nativa.',
+    );
+  }
+
+  @override
+  Future<List<runtime.AiAuthMethod>> authMethods() => _delegate.authMethods();
+  @override
+  Future<runtime.AiSession> createSession({String? title}) =>
+      _delegate.createSession(title: title);
+  @override
+  Future<runtime.AiSession> session(String id) => _delegate.session(id);
+  @override
+  Future<List<Map<String, dynamic>>> messages(String id) =>
+      _delegate.messages(id);
+  @override
+  Future<void> promptAsync(String id, runtime.AiPrompt prompt) =>
+      _delegate.promptAsync(id, prompt);
+  @override
+  Future<void> abort(String id) => _delegate.abort(id);
+  @override
+  Future<void> deleteSession(String id) => _delegate.deleteSession(id);
+  @override
+  Future<Stream<runtime.AiRuntimeEvent>> connectEvents() =>
+      _delegate.connectEvents();
+  @override
+  Stream<runtime.AiRuntimeEvent> events() => _delegate.events();
+  @override
+  Future<void> setApiKey(String providerId, String apiKey) =>
+      _auth.setApiKey(providerId, apiKey);
+  @override
+  Future<runtime.AiOAuthAuthorization> beginOAuth(
+    String providerId, {
+    required int methodIndex,
+    Map<String, String> inputs = const {},
+  }) => _auth.beginOAuth(providerId, methodIndex: methodIndex, inputs: inputs);
+  @override
+  Future<void> completeOAuth(
+    String providerId, {
+    required int methodIndex,
+    String? code,
+  }) => _auth.completeOAuth(providerId, methodIndex: methodIndex, code: code);
+  @override
+  Future<void> disconnectProvider(String providerId) =>
+      _auth.disconnectProvider(providerId);
 }
 
 class _CatalogRequest {
@@ -146,7 +206,7 @@ class _CatalogRequest {
 // A top-level entrypoint cannot capture the client's HTTP or prompt resources.
 Future<void> _catalogWorker(List<Object> input) async {
   final reply = input[0] as SendPort;
-  final client = runtime.OpenCodeCompatibleRuntimeClient(
+  final client = runtime.createAiRuntimeClient(
     endpoint: input[1] as runtime.AiRuntimeEndpoint,
     workspaceDirectory: input[2] as String,
     requestTimeout: input[3] as Duration,

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_consistent_ui/flutter_consistent_ui.dart';
 
 import '../../../domain/ai/ai_runtime_api_models.dart';
 
@@ -31,53 +32,47 @@ class _AiAuthInputsDialogState extends State<AiAuthInputsDialog> {
       child: SingleChildScrollView(
         child: Form(
           key: _form,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+          child: UiFormFields(
             children: [
               for (final prompt in widget.method.prompts)
                 if (prompt.visible(_inputs))
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 16),
-                    child: prompt.type == 'select'
-                        ? DropdownButtonFormField<String>(
-                            key: ValueKey(prompt.key),
-                            initialValue: _inputs[prompt.key],
-                            isExpanded: true,
-                            decoration: InputDecoration(
-                              labelText: prompt.label,
-                            ),
-                            items: prompt.options.entries
-                                .map(
-                                  (option) => DropdownMenuItem(
-                                    value: option.key,
-                                    child: Text(option.value),
-                                  ),
-                                )
-                                .toList(),
-                            onChanged: (value) => setState(() {
-                              if (value != null) _inputs[prompt.key] = value;
-                            }),
-                            validator: (value) =>
-                                value == null ? 'Selecciona una opción.' : null,
-                          )
-                        : TextFormField(
-                            key: ValueKey(prompt.key),
-                            initialValue: _inputs[prompt.key],
-                            decoration: InputDecoration(
-                              labelText: prompt.label,
-                              hintText: prompt.placeholder,
-                            ),
-                            autocorrect: false,
-                            enableSuggestions: false,
-                            onChanged: (value) =>
-                                setState(() => _inputs[prompt.key] = value),
-                            validator: (value) =>
-                                prompt.key == 'code' &&
-                                    (value?.trim().isEmpty ?? true)
-                                ? 'Introduce el código.'
-                                : null,
+                  prompt.type == 'select'
+                      ? UiControls.select<String>(
+                          key: ValueKey(prompt.key),
+                          initialValue: _inputs[prompt.key],
+                          isExpanded: true,
+                          decoration: InputDecoration(labelText: prompt.label),
+                          items: prompt.options.entries
+                              .map(
+                                (option) => DropdownMenuItem(
+                                  value: option.key,
+                                  child: Text(option.value),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: (value) => setState(() {
+                            if (value != null) _inputs[prompt.key] = value;
+                          }),
+                          validator: (value) =>
+                              value == null ? 'Selecciona una opción.' : null,
+                        )
+                      : UiControls.formInput(
+                          key: ValueKey(prompt.key),
+                          initialValue: _inputs[prompt.key],
+                          decoration: InputDecoration(
+                            labelText: prompt.label,
+                            hintText: prompt.placeholder,
                           ),
-                  ),
+                          autocorrect: false,
+                          enableSuggestions: false,
+                          onChanged: (value) =>
+                              setState(() => _inputs[prompt.key] = value),
+                          validator: (value) =>
+                              prompt.key == 'code' &&
+                                  (value?.trim().isEmpty ?? true)
+                              ? 'Introduce el código.'
+                              : null,
+                        ),
             ],
           ),
         ),

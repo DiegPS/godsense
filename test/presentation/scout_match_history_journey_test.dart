@@ -55,10 +55,12 @@ void main() {
         expect(tester.takeException(), isNull);
         expect(find.byTooltip('Abrir detalle de partida'), findsNWidgets(3));
         await tester.ensureVisible(find.text('Mostrar 3 partidas más'));
+        await tester.pumpAndSettle();
         await tester.tap(find.text('Mostrar 3 partidas más'));
         await tester.pumpAndSettle();
         expect(find.byTooltip('Abrir detalle de partida'), findsNWidgets(6));
         await tester.ensureVisible(find.text('Mostrar 1 partida más'));
+        await tester.pumpAndSettle();
         await tester.tap(find.text('Mostrar 1 partida más'));
         await tester.pumpAndSettle();
         expect(find.byTooltip('Abrir detalle de partida'), findsNWidgets(7));

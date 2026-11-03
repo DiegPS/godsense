@@ -79,6 +79,7 @@ void main() {
     expect(calls, 1);
     await tester.pumpWidget(app(true));
     expect(tester.getSize(find.byType(GsButton)), before);
+    expect(find.text('Actualizar perfil').hitTestable(), findsOneWidget);
     await tester.tap(find.byType(GsButton));
     expect(calls, 1);
   });

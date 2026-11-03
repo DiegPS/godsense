@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:godsense/presentation/shared/gs_tokens.dart';
 
 import '../../../application/coach_controller.dart';
 import '../../shared/resilient_network_image.dart';
@@ -42,19 +43,15 @@ class _ThreatRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isFresh = DateTime.now().difference(threat.observedAt).inSeconds < 12;
-    final accent = threat.isGank
-        ? const Color(0xFFF43F5E)
-        : const Color(0xFF38BDF8);
+    final accent = threat.isGank ? GsColors.crimson : GsColors.accent;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: const Color(0xFF0C1017),
+        color: GsColors.surfaceElevated,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: threat.isGank
-              ? const Color(0x33F43F5E)
-              : const Color(0x1AFFFFFF),
+          color: threat.isGank ? GsColors.crimsonGlow : GsColors.border,
         ),
       ),
       child: Row(
@@ -64,9 +61,6 @@ class _ThreatRow extends StatelessWidget {
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               border: Border.all(color: accent, width: 1.5),
-              boxShadow: threat.isGank
-                  ? const [BoxShadow(color: Color(0x40F43F5E), blurRadius: 6)]
-                  : null,
             ),
             child: AssetPortrait(
               semanticLabel: threat.champion,
@@ -83,7 +77,10 @@ class _ThreatRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                     Text(
                       threat.champion,
@@ -93,7 +90,6 @@ class _ThreatRow extends StatelessWidget {
                         color: CoachColors.primaryText,
                       ),
                     ),
-                    const SizedBox(width: 6),
                     Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 5,
@@ -130,9 +126,7 @@ class _ThreatRow extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
             decoration: BoxDecoration(
-              color: isFresh
-                  ? accent.withValues(alpha: .12)
-                  : const Color(0x0FFFFFFF),
+              color: isFresh ? accent.withValues(alpha: .12) : GsColors.border,
               borderRadius: BorderRadius.circular(5),
             ),
             child: Row(

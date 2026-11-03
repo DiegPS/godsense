@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:path/path.dart' as p;
+import 'package:flutter/services.dart';
 import 'package:record/record.dart';
 
 import '../diagnostics/app_logger.dart';
@@ -26,12 +27,16 @@ class MicrophoneTestState {
     this.silent = false,
     this.permissionDenied = false,
     this.cleanupFailed = false,
+    this.backendUnavailable = false,
+    this.playbackFailed = false,
   });
   final MicrophoneTestPhase phase;
   final double level;
   final bool silent;
   final bool permissionDenied;
   final bool cleanupFailed;
+  final bool backendUnavailable;
+  final bool playbackFailed;
   bool get active => switch (phase) {
     MicrophoneTestPhase.preparing ||
     MicrophoneTestPhase.recording ||
@@ -61,6 +66,20 @@ class MicrophoneTestService {
       throw ArgumentError.value(recordDuration, 'recordDuration');
     }
   }
+  void selectInputDevice(String id) {
+    final capture = _capture;
+    if (capture is _TestCapture) capture.inputDeviceId = id;
+  }
+
+  Future<List<InputDevice>> listInputDevices() async {
+    final recorder = AudioRecorder();
+    try {
+      return await recorder.listInputDevices();
+    } finally {
+      await recorder.dispose();
+    }
+  }
+
   final SpeechAudioCapture _capture;
   final NativeAudioPlaybackService _playback;
   final Duration recordDuration;
@@ -171,6 +190,8 @@ class MicrophoneTestService {
         result = MicrophoneTestState(
           phase: MicrophoneTestPhase.error,
           permissionDenied: error is MicrophonePermissionDenied,
+          backendUnavailable: error is MissingPluginException,
+          playbackFailed: _state.phase == MicrophoneTestPhase.playing,
         );
       }
     } finally {
@@ -237,6 +258,7 @@ class MicrophoneTestService {
 }
 
 class _TestCapture implements SpeechAudioCapture {
+  String inputDeviceId = "";
   AudioRecorder? _recorder;
   @override
   Future<Stream<Uint8List>> start() async {
@@ -245,7 +267,10 @@ class _TestCapture implements SpeechAudioCapture {
       throw const MicrophonePermissionDenied();
     }
     return recorder.startStream(
-      const RecordConfig(
+      RecordConfig(
+        device: inputDeviceId.isEmpty
+            ? null
+            : InputDevice(id: inputDeviceId, label: ""),
         encoder: AudioEncoder.pcm16bits,
         sampleRate: 16000,
         numChannels: 1,

@@ -59,6 +59,7 @@ void main() {
       );
       await tester.tap(find.text('Buscar'));
       await tester.pump();
+      expect(find.text('Escribe el nombre de Riot.'), findsOneWidget);
       expect(
         resolutions,
         0,
@@ -67,6 +68,8 @@ void main() {
       final fields = find.byType(TextField);
       await tester.enterText(fields.at(0), '  Hide on bush  ');
       await tester.enterText(fields.at(1), ' #KR1 ');
+      await tester.pump();
+      expect(find.text('Escribe el nombre de Riot.'), findsNothing);
       response = Completer<LeagueAccountProfile>();
       await tester.tap(find.text('Buscar'));
       await tester.pump();
@@ -97,10 +100,10 @@ void main() {
       await _settleScout(tester, scout);
       expect(historyReads, 2);
       expect(find.text('Hide on bush#KR1'), findsOneWidget);
-      await tester.tap(find.text('Mi Cuenta'));
+      await scout.useConnectedAccount();
       await tester.pump();
-      expect(scout.state.lastError, contains('No hay cuenta conectada'));
-      expect(find.text('Hide on bush#KR1'), findsOneWidget);
+      expect(scout.state.lastError, isNull);
+      expect(find.text('Hide on bush#KR1'), findsNothing);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());
     },

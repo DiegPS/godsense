@@ -21,7 +21,7 @@ nativa; cuando el usuario habilita coaching con modelos, GodSense inicia un
 
 | Runtime | Versión de producción | Asset |
 | --- | --- | --- |
-| OpenCode | 1.18.27 | `opencode-windows-x64.zip` |
+| OpenCode | 2.2.2 | `cli-windows-x64-2.2.2.tgz` |
 | Kilo | 7.5.9 | `kilo-windows-x64.zip` |
 
 Tamaño y SHA-256 están congelados en `PinnedAiRuntimeCatalog`. GodSense no usa
@@ -29,7 +29,18 @@ Tamaño y SHA-256 están congelados en `PinnedAiRuntimeCatalog`. GodSense no usa
 
 ## API implementada
 
-`OpenCodeCompatibleRuntimeClient` implementa el subconjunto común:
+GodSense fija `dart_ai_runtime` al commit `2f0c458650b46f41f00e9dd11cf6980bfdd8ef6c`.
+`BackgroundCatalogRuntimeClient` delega a `createAiRuntimeClient` tanto para
+conversación como para el catálogo calculado en un isolate. `apiVersion` del
+endpoint supervisado selecciona el adaptador; no se deduce del nombre del motor.
+
+OpenCode 2 usa `/api/info`, `/api/model`, `/api/session` y sus eventos nativos.
+La biblioteca administra instrucciones, permisos y reconciliación SSE del V2.
+No se carga el puente de plugins V1 en OpenCode 2. La configuración nativa de
+OpenCode administra sus proveedores: el host no presenta métodos OAuth/API key
+V1 inexistentes. Se conservan los directorios V1, sin sobrescribirlos.
+
+Kilo conserva `OpenCodeCompatibleRuntimeClient` y el contrato V1:
 
 ```text
 GET    /provider
@@ -48,6 +59,37 @@ stream SSE se transforma en `AiRuntimeEvent`; ninguna capa de Coach depende del
 JSON particular del runtime.
 
 ## Validación local
+
+### Migración del consumidor a OpenCode 2 (2026-11-01)
+
+GodSense mantenía el commit anterior de `dart_ai_runtime` y creaba el adaptador
+V1 en las tres fábricas de clientes. Se actualizó el pin y el wrapper ahora
+delega el protocolo mediante la fábrica de la biblioteca, incluido el isolate
+del catálogo. No basta con actualizar el `pubspec`: el adaptador V1 rechaza
+explícitamente endpoints V2.
+
+Prueba real con almacenamiento temporal, sin credenciales personales y con el
+wrapper de GodSense: OpenCode 2.2.2 / Big Pickle respondió «Hola» en 982 ms;
+Kilo 7.5.9 / kilo-auto/free respondió en 2176 ms. Ambos completaron health,
+catálogo y conversación. Estos tiempos corresponden a una ejecución, no son
+un SLA ni demuestran que los proveedores nunca puedan fallar. Logs:
+`build/ai-runtime-upgrade-live-v2.log` (ignorado en Git).
+
+Regresión: 57 pruebas de catálogo, conversaciones y selección/autenticación
+aprobadas; análisis de archivos modificados sin incidencias. El nuevo caso
+de protocolo exige `/api/model` y `/api/session` para V2 y mantiene los casos
+V1 de auth, concurrencia, cancelación y plazos.
+
+Para repetir la prueba real, asignar `GODSENSE_TEST_OPENCODE_EXE` y
+`GODSENSE_TEST_KILO_EXE` a los binarios instalados y
+`GODSENSE_TEST_AI_INFERENCE=1`, y ejecutar:
+
+```powershell
+flutter test --no-pub test/infrastructure/ai/ai_model_catalog_live_test.dart --concurrency=1
+```
+
+Sin esas variables se omite la prueba externa. El modo de inferencia utiliza
+exclusivamente los modelos gratuitos indicados; no cambia a un modelo de pago.
 
 ### Regresión de streaming y presentación (2026-09-02)
 
@@ -98,7 +140,7 @@ real y valida la respuesta sin consumir saldo de pago.
 
 ## Descargas desde Ajustes (2026-09-02)
 
-- Ajustes → Coaching permite descargar e instalar Kilo 7.5.9 y OpenCode
+- Ajustes → IA del coach permite descargar e instalar Kilo 7.5.9 y OpenCode
   1.18.27, comprobar su instalación al abrir la pantalla, mostrar progreso por
   fase y cancelar/reintentar. Iniciar y detener son acciones separadas.
 - El provider de producción habilita `allowDownloads: true` y no recibe las
@@ -111,7 +153,7 @@ real y valida la respuesta sin consumir saldo de pago.
   oficiales de GitHub. No se descargaron ZIP reales en este bloque. Las pruebas
   de interacción usan un supervisor simulado; las del ciclo de vida usan
   instalador/procesos simulados. No equivalen a validación integral de los binarios.
-- Prueba manual: reiniciar GodSense, descargar un motor desde Ajustes → Coaching,
+- Prueba manual: reiniciar GodSense, descargar un motor desde Ajustes → IA del coach,
   esperar «Instalado», pulsar «Iniciar» y comprobar «Listo» y su versión; repetir
   con el otro motor. Kilo permite después probar el chat. OpenCode tiene descarga
   y arranque, pero su selección de modelos para el chat continúa pendiente.
@@ -124,7 +166,7 @@ catálogo del runtime, proveedores conectados, selección persistente y envío d
 `providerID`/`modelID` al prompt. GodSense consulta `/provider`, que incluye modelos
 y conectividad; no filtra exclusivamente modelos de visión, porque el coach usa texto.
 
-- Ajustes → Coaching y el chat comparten `AiModelSelectionController`: proveedor,
+- Ajustes → IA del coach y el chat comparten `AiModelSelectionController`: proveedor,
   buscador de modelos, actualización, carga, errores y estados sin modelos.
 - SharedPreferences guarda un par proveedor/modelo por motor. No guarda claves.
   El modelo guardado se valida contra el catálogo actual. No hay reemplazo

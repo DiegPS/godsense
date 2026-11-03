@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import '../infrastructure/persistence/shared_preferences_post_game_report_store.dart';
+import '../infrastructure/persistence/shared_preferences_scout_selection.dart';
+import '../domain/league/account_context.dart';
 
 import 'package:dart_ai_runtime/dart_ai_runtime.dart' as ai_runtime;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -265,6 +267,8 @@ final localScoutProvider =
         resolveAccount: league.resolveScoutAccount,
         synchronizeAccount: league.synchronizeScoutAccount,
         loadChampionNames: league.loadChampionNames,
+        selectionStore: const SharedPreferencesScoutSelection(),
+        loadKnownAccounts: league.loadKnownScoutAccounts,
       );
       ref.listen(
         connectedScoutAccountGenerationProvider,
@@ -275,6 +279,14 @@ final localScoutProvider =
       );
       return controller;
     });
+
+final savedScoutAccountsProvider = FutureProvider<List<LeagueAccountProfile>>((
+  ref,
+) {
+  ref.watch(connectedScoutAccountGenerationProvider);
+  ref.watch(localScoutProvider.select((state) => state.subjectAccount));
+  return ref.read(nativeLeagueProvider.notifier).loadKnownScoutAccounts();
+});
 
 final companionGatewayProvider = Provider<CompanionGateway>((ref) {
   final engine = ref.watch(nativeTacticalEngineProvider);
@@ -360,7 +372,17 @@ final aiRuntimeSupervisorProvider = Provider<AiRuntimeSupervisor>((ref) {
 final aiRuntimeSupervisorStateProvider =
     StreamProvider<AiRuntimeSupervisorState>((ref) {
       final supervisor = ref.watch(aiRuntimeSupervisorProvider);
-      return supervisor.states;
+      // A supervisor may already be ready before the first UI subscriber.
+      // Its broadcast stream reports changes, so also seed the current state.
+      return Stream<AiRuntimeSupervisorState>.multi((events) {
+        final subscription = supervisor.states.listen(
+          events.add,
+          onError: events.addError,
+          onDone: events.close,
+        );
+        events.add(supervisor.state);
+        events.onCancel = subscription.cancel;
+      });
     });
 
 final aiRuntimeSettingsProvider = Provider(
@@ -388,10 +410,12 @@ final aiConversationProvider =
       final controller = AiConversationController(
         supervisor: supervisor,
         modelSelection: () {
-          final displayedEndpoint = ref
-              .read(aiRuntimeSupervisorStateProvider)
-              .value
-              ?.endpoint;
+          final displayedState =
+              ref.read(aiRuntimeSupervisorStateProvider).value ??
+              supervisor.state;
+          final displayedEndpoint = displayedState.isReady
+              ? displayedState.endpoint
+              : null;
           final activeEndpoint = supervisor.state.endpoint;
           if (displayedEndpoint == null ||
               activeEndpoint == null ||

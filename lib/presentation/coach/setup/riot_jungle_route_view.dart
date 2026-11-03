@@ -47,7 +47,7 @@ class _Route extends StatelessWidget {
             child: Text(
               label,
               style: const TextStyle(
-                color: CoachColors.cyan,
+                color: CoachColors.accent,
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
               ),

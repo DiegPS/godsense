@@ -4,7 +4,12 @@ import 'package:flutter/widget_previews.dart';
 import '../../app/godsense_theme.dart';
 import 'godsense_ui_components.dart';
 
-@Preview(name: 'Controles y superficies', size: Size(1000, 650))
+@Preview(name: 'Editorial · controles y superficies', size: Size(1000, 650))
+@Preview(
+  name: 'Ventana compacta · texto 150 %',
+  size: Size(560, 900),
+  textScaleFactor: 1.5,
+)
 Widget designSystemPreview() => MaterialApp(
   debugShowCheckedModeBanner: false,
   theme: godsenseTheme(),

@@ -909,6 +909,14 @@ bool MultiViewDesktopHandleWindowProc(HWND hwnd,
                                       WPARAM wparam,
                                       LPARAM lparam,
                                       LRESULT *result) {
+    // All registered plugins need host-window messages, not just multiview.
+    // For example record_windows delivers captured PCM through a window-proc
+    // delegate; bypassing the engine silently discards every audio callback.
+    auto* window = multi_view_desktop::MultiViewDesktop::Instance().FindByHwnd(hwnd);
+    if (window != nullptr && window->controller != nullptr) {
+        return FlutterDesktopViewControllerHandleTopLevelWindowProc(
+                window->controller, hwnd, message, wparam, lparam, result);
+    }
     const auto optional = multi_view_desktop::HandleWindowProcForHwnd(
             hwnd, message, wparam, lparam);
     if (optional.has_value()) {

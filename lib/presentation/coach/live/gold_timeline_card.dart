@@ -1,5 +1,7 @@
 import 'dart:math' as math;
 
+import 'package:godsense/presentation/shared/gs_tokens.dart';
+
 import 'package:flutter/material.dart';
 
 import '../../../application/coach_controller.dart';
@@ -18,9 +20,7 @@ class GoldTimelineCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final favorable = differential >= 0;
-    final accentColor = favorable
-        ? const Color(0xFF10B981)
-        : const Color(0xFFF43F5E);
+    final accentColor = favorable ? GsColors.emerald : GsColors.crimson;
 
     return CoachSurface(
       title: 'Evolución económica',
@@ -75,9 +75,9 @@ class GoldTimelineCard extends StatelessWidget {
                     height: 140,
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF0C1017),
+                      color: GsColors.surfaceElevated,
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: const Color(0x1AFFFFFF)),
+                      border: Border.all(color: GsColors.border),
                     ),
                     child: CustomPaint(
                       painter: _GoldPainter(points, accentColor),
@@ -94,19 +94,22 @@ class GoldTimelineCard extends StatelessWidget {
                       style: const TextStyle(
                         fontSize: 10,
                         fontWeight: FontWeight.w500,
-                        color: Color(0xFF64748B),
+                        color: GsColors.textMuted,
                       ),
                     ),
                     const Text(
                       'Línea base (0)',
-                      style: TextStyle(fontSize: 10, color: Color(0xFF475569)),
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: GsColors.textSecondary,
+                      ),
                     ),
                     Text(
                       _formatGameTime(points.last.gameTime),
                       style: const TextStyle(
                         fontSize: 10,
                         fontWeight: FontWeight.w500,
-                        color: Color(0xFF64748B),
+                        color: GsColors.textMuted,
                       ),
                     ),
                   ],
@@ -142,7 +145,7 @@ class _GoldPainter extends CustomPainter {
       Offset(0, zero),
       Offset(size.width, zero),
       Paint()
-        ..color = const Color(0x26FFFFFF)
+        ..color = GsColors.borderInteractive
         ..strokeWidth = 1,
     );
 

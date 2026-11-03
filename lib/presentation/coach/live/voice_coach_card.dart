@@ -76,7 +76,7 @@ class VoiceCoachCard extends StatelessWidget {
                 contentPadding: EdgeInsets.zero,
                 leading: const Icon(
                   Icons.graphic_eq_rounded,
-                  color: CoachColors.cyan,
+                  color: CoachColors.accent,
                 ),
                 title: Text(entry.question),
                 subtitle: Text(entry.answer),

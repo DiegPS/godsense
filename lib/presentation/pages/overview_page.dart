@@ -5,48 +5,49 @@ class OverviewPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final alerts = ref
-        .watch(companionControllerProvider.select((state) => state.alerts))
-        .where((alert) => alert.isVisibleAlert)
-        .take(5);
-    final lastError = ref.watch(
+    final watch = ActivePageWatch(context, ref);
+    final alerts = watch(
+      companionControllerProvider.select((state) => state.alerts),
+    ).where((alert) => alert.isVisibleAlert).take(5);
+    final lastError = watch(
       companionControllerProvider.select((state) => state.lastError),
     );
-    final game = ref.watch(effectiveGameProvider);
-    final lobby = ref.watch(effectiveLobbyProvider);
-    final calibration = ref.watch(
+    final game = watch(effectiveGameProvider);
+    final lobby = watch(effectiveLobbyProvider);
+    final calibration = watch(
       nativeCalibrationProvider.select((state) => state.calibration),
     );
-    final overlayEnabled = ref.watch(overlayEnabledProvider);
-    final vision = ref.watch(
+    final overlayEnabled = watch(overlayEnabledProvider);
+    final vision = watch(
       nativeVisionProvider.select(
         (state) => (error: state.error, hasFrame: state.frame != null),
       ),
     );
-    final voice = speechReadiness(ref.watch(nativeSpeechProvider));
+    final voice = speechReadiness(watch(nativeSpeechProvider));
 
-    final isLeagueActive = game != null || lobby?.lcuConnected == true;
+    final gameEnded = game?.gameEnded == true;
+    final hasActiveGame = game != null && !gameEnded;
+    final isLeagueActive = hasActiveGame || lobby?.lcuConnected == true;
 
-    return ListView(
-      padding: GsSizes.pageInsets(context),
+    return GsFeaturePage(
       children: [
         // 1. Player readiness
-        Wrap(
-          spacing: 12,
-          runSpacing: 12,
+        UiMetricGrid(
+          minimumItemWidth: 240,
           children: [
             _OverviewServiceCard(
               title: 'Cliente de League',
-              status: game != null
+              status: hasActiveGame
                   ? 'Partida en curso'
                   : lobby?.lcuConnected == true
                   ? 'Cuenta conectada'
                   : 'Abre League e inicia sesión',
-              detail: game != null
+              detail: hasActiveGame
                   ? _formatGameTime(game.gameTime)
                   : 'La conexión es automática',
               icon: Icons.sports_esports_outlined,
               isOnline: isLeagueActive,
+              onTap: () => ref.read(selectedPageProvider.notifier).state = 1,
             ),
             _OverviewServiceCard(
               title: 'Overlay de partida',
@@ -56,6 +57,7 @@ class OverviewPage extends ConsumerWidget {
                   : 'Puedes activarlo en Ajustes',
               icon: Icons.layers_outlined,
               isOnline: overlayEnabled,
+              onTap: () => ref.read(selectedPageProvider.notifier).state = 5,
             ),
             _OverviewServiceCard(
               title: 'Alertas del minimapa',
@@ -79,6 +81,7 @@ class OverviewPage extends ConsumerWidget {
                   !calibration.recalibrationSuggested &&
                   vision.error == null &&
                   vision.hasFrame,
+              onTap: () => ref.read(selectedPageProvider.notifier).state = 2,
             ),
             _OverviewServiceCard(
               title: 'Preguntas por voz',
@@ -86,6 +89,7 @@ class OverviewPage extends ConsumerWidget {
               detail: voice.detail,
               icon: Icons.mic_none_rounded,
               isOnline: voice.ready,
+              onTap: () => ref.read(selectedPageProvider.notifier).state = 5,
             ),
           ],
         ),
@@ -93,10 +97,15 @@ class OverviewPage extends ConsumerWidget {
 
         // 2. Current Session Card
         GsCard(
-          title: 'Sesión Actual',
+          title: gameEnded ? 'Última sesión' : 'Sesión Actual',
           icon: Icons.sports_esports_outlined,
           action: game != null
-              ? GsBadge(label: game.phase, variant: GsBadgeVariant.info)
+              ? GsBadge(
+                  label: gameEnded ? 'FINALIZADA' : _gamePhaseLabel(game.phase),
+                  variant: gameEnded
+                      ? GsBadgeVariant.neutral
+                      : GsBadgeVariant.info,
+                )
               : null,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -141,6 +150,16 @@ class OverviewPage extends ConsumerWidget {
                   ),
                 )
               else ...[
+                if (gameEnded) ...[
+                  const Text(
+                    'Datos conservados de la última partida; ya no se actualizan en vivo.',
+                    style: TextStyle(
+                      color: GsColors.textSecondary,
+                      fontSize: 12,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
                 Row(
                   children: [
                     Expanded(
@@ -155,7 +174,7 @@ class OverviewPage extends ConsumerWidget {
                         label: 'Aliados',
                         value: '${game.allies.length} campeones',
                         icon: Icons.shield_outlined,
-                        valueColor: GsColors.cyan,
+                        valueColor: GsColors.accent,
                       ),
                     ),
                     Expanded(
@@ -218,7 +237,7 @@ class OverviewPage extends ConsumerWidget {
                       borderRadius: BorderRadius.circular(6),
                       border: Border.all(
                         color: alert.kind == CompanionAlertKind.gank
-                            ? const Color(0x33EF4444)
+                            ? GsColors.crimsonGlow
                             : GsColors.border,
                       ),
                     ),
@@ -231,7 +250,7 @@ class OverviewPage extends ConsumerWidget {
                           size: 18,
                           color: alert.kind == CompanionAlertKind.gank
                               ? GsColors.crimson
-                              : GsColors.cyan,
+                              : GsColors.accent,
                         ),
                         const SizedBox(width: 10),
                         Expanded(
@@ -270,7 +289,7 @@ class OverviewPage extends ConsumerWidget {
             decoration: BoxDecoration(
               color: GsColors.crimsonGlow,
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: const Color(0x4DEF4444)),
+              border: Border.all(color: GsColors.crimson),
             ),
             child: Row(
               children: [
@@ -306,6 +325,7 @@ class _OverviewServiceCard extends StatelessWidget {
     required this.detail,
     required this.icon,
     required this.isOnline,
+    required this.onTap,
   });
 
   final String title;
@@ -313,92 +333,103 @@ class _OverviewServiceCard extends StatelessWidget {
   final String detail;
   final IconData icon;
   final bool isOnline;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 260,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: GsColors.surface,
-        borderRadius: BorderRadius.circular(10),
+    return Material(
+      color: GsColors.surface,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(GsSizes.cardRadius),
+        side: const BorderSide(color: GsColors.border),
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 34,
-            height: 34,
-            decoration: BoxDecoration(
-              color: isOnline ? GsColors.cyanGlow : GsColors.surfaceElevated,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                color: isOnline ? const Color(0x4D38BDF8) : GsColors.border,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: isOnline
+                      ? GsColors.accentTint
+                      : GsColors.surfaceElevated,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: isOnline ? GsColors.borderActive : GsColors.border,
+                  ),
+                ),
+                child: Center(
+                  child: Icon(
+                    icon,
+                    size: 18,
+                    color: isOnline ? GsColors.accent : GsColors.textMuted,
+                  ),
+                ),
               ),
-            ),
-            child: Center(
-              child: Icon(
-                icon,
-                size: 18,
-                color: isOnline ? GsColors.cyan : GsColors.textMuted,
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: Text(
-                        title,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: GsColors.textPrimary,
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            title,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: GsColors.textPrimary,
+                            ),
+                          ),
                         ),
+                        Container(
+                          width: 6,
+                          height: 6,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: isOnline
+                                ? GsColors.emerald
+                                : GsColors.textMuted,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      status,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: isOnline
+                            ? GsColors.accent
+                            : GsColors.textSecondary,
                       ),
                     ),
-                    Container(
-                      width: 6,
-                      height: 6,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: isOnline ? GsColors.emerald : GsColors.textMuted,
-                        boxShadow: isOnline
-                            ? const [
-                                BoxShadow(
-                                  color: Color(0x8010B981),
-                                  blurRadius: 4,
-                                ),
-                              ]
-                            : null,
+                    Text(
+                      detail,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: GsColors.textMuted,
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 3),
-                Text(
-                  status,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: isOnline ? GsColors.cyan : GsColors.textSecondary,
-                  ),
-                ),
-                Text(
-                  detail,
-                  style: const TextStyle(
-                    fontSize: 10,
-                    color: GsColors.textMuted,
-                  ),
-                ),
-              ],
-            ),
+              ),
+              const SizedBox(width: 8),
+              const Icon(
+                Icons.chevron_right_rounded,
+                size: 18,
+                color: GsColors.textMuted,
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

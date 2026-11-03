@@ -340,6 +340,11 @@ class NativeLeagueController extends StateNotifier<NativeLeagueState> {
         client: _lcu,
       )).loadLocalRanked(puuid);
 
+  Future<List<LeagueAccountProfile>> loadKnownScoutAccounts() =>
+      (foundation ??= NativeLeagueFoundation(
+        client: _lcu,
+      )).loadKnownScoutAccounts();
+
   Future<LocalMatchRecord> loadScoutMatchDetails(LocalMatchRecord cached) =>
       (foundation ??= NativeLeagueFoundation(
         client: _lcu,

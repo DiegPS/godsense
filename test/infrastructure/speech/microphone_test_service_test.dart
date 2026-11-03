@@ -3,11 +3,23 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/services.dart';
 import 'package:godsense/infrastructure/speech/microphone_test_service.dart';
 import 'package:godsense/infrastructure/speech/native_audio_playback_service.dart';
 import 'package:godsense/infrastructure/speech/speech/live_captions_service.dart';
 
 void main() {
+  test('missing capture backend has its own actionable failure', () async {
+    final service = MicrophoneTestService(
+      capture: _Capture()..failure = MissingPluginException(),
+    );
+    addTearDown(service.dispose);
+    await service.run();
+    expect(service.state.backendUnavailable, isTrue);
+    expect(service.state.permissionDenied, isFalse);
+    expect(service.state.playbackFailed, isFalse);
+  });
+
   test(
     'cleanup failures are visible and never delete unrelated files',
     () async {

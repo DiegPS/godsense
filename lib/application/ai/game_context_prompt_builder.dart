@@ -20,7 +20,12 @@ class GameContextPromptBuilder {
     buffer.writeln();
 
     buffer.writeln('=== TELEMETRÍA EN VIVO DE GODSENSE ===');
-    switch (coachState.phase) {
+    // Manual phase controls choose a view; they cannot start/end a real game.
+    final activeGame = liveGame != null && liveGame['_game_ended'] != true;
+    final actualPhase = activeGame
+        ? CoachPhase.inGame
+        : coachState.automaticPhase;
+    switch (actualPhase) {
       case CoachPhase.champSelect:
         buffer.writeln('ESTADO ACTUAL: Selección de Campeones (Champ Select)');
         _appendChampSelectContext(buffer, coachState);
@@ -40,9 +45,13 @@ class GameContextPromptBuilder {
 
     buffer.writeln('======================================');
     buffer.writeln('INSTRUCCIÓN CRÍTICA:');
-    buffer.writeln('Tienes visión completa de la telemetría anterior.');
     buffer.writeln(
-      'NUNCA digas "no veo tu pantalla" ni "no tengo acceso a tu cliente", porque SÍ tienes todos los datos del cliente proporcionados arriba.',
+      'Usa únicamente los datos enumerados arriba; pueden ser parciales.',
+    );
+    buffer.writeln(
+      'No tienes visión completa de la pantalla ni de enemigos no observados. '
+      'Si falta un dato necesario, dilo sin inventarlo. La vista manual elegida '
+      'por el usuario no cambia la fase real de League.',
     );
     buffer.writeln(
       'Responde preguntas como "¿qué elijo?", "¿cómo voy?", "¿qué compro?" o "¿qué hago ahora?" utilizando directamente los campeones, oro, KDA, minuto, items y rivales detallados.',

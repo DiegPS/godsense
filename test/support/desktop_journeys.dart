@@ -329,7 +329,7 @@ void desktopJourneys({bool nativeWindow = false, bool realAi = false}) {
     final name = find.byWidgetPredicate(
       (widget) =>
           widget is TextField &&
-          widget.decoration?.hintText == 'Nombre de Riot',
+          widget.decoration?.labelText == 'Nombre de Riot',
     );
     await tester.enterText(name, 'Hide on bush');
     await navigate(tester, 'Coach', 3);
@@ -378,6 +378,22 @@ void desktopJourneys({bool nativeWindow = false, bool realAi = false}) {
       expect(manager.viewId, isNull);
       expect(manager.isOpen, false);
       expect(MultiViewDesktop.allWindowViewIds.length, originalWindows);
+      // Real native destruction sends synchronous HWND messages while Flutter
+      // releases the view. Reopen after each close to catch stale controllers
+      // and orphaned cascade waiters, including hidden overlays.
+      for (var round = 0; round < 4; round++) {
+        await nativeAction(tester, manager.prewarm(owner).then<void>((_) {}));
+        if (round.isEven) await nativeAction(tester, manager.show(owner));
+        final closingId = manager.viewId!;
+        await nativeAction(
+          tester,
+          MultiViewDesktop.fromId(closingId).closeWindow(),
+        );
+        expect(manager.viewId, isNull);
+        expect(MultiViewDesktop.allWindowViewIds.length, originalWindows);
+        await navigate(tester, 'Ajustes', 5);
+        await navigate(tester, 'Scout', 4);
+      }
     }
     expect(tester.takeException(), isNull);
   });
@@ -407,6 +423,65 @@ void desktopJourneys({bool nativeWindow = false, bool realAi = false}) {
       }
     }
   });
+
+  journey(
+    'Overview marks retained match data as ended after closing the game',
+    (tester) async {
+      await boot(tester);
+      await navigate(tester, 'Inicio', 0);
+      league.publish(
+        const NativeLeagueState(
+          lcuConnected: true,
+          gameflowPhase: 'InProgress',
+          liveGame: {
+            'game_time': 480.0,
+            'phase': 'early_game',
+            'allies': <Map<String, dynamic>>[],
+            'enemies': <Map<String, dynamic>>[],
+          },
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Partida en curso'), findsWidgets);
+      expect(find.text('Sesión Actual'), findsOneWidget);
+      for (final connected in [true, false]) {
+        league.publish(
+          NativeLeagueState(
+            lcuConnected: connected,
+            gameflowPhase: connected ? 'Lobby' : 'NO_LCU',
+            liveGame: const {
+              'game_time': 480.0,
+              'phase': 'early_game',
+              '_game_ended': true,
+              'allies': <Map<String, dynamic>>[],
+              'enemies': <Map<String, dynamic>>[],
+            },
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('Última sesión'), findsOneWidget);
+        expect(find.text('FINALIZADA'), findsOneWidget);
+        expect(find.text('Partida en curso'), findsNothing);
+        expect(find.text('Sesión Actual'), findsNothing);
+        expect(find.text('8:00'), findsOneWidget);
+        expect(
+          find.textContaining('ya no se actualizan en vivo'),
+          findsOneWidget,
+        );
+      }
+      league.publish(
+        const NativeLeagueState(
+          lcuConnected: true,
+          gameflowPhase: 'InProgress',
+          liveGame: {'game_time': 30.0, 'phase': 'early_game'},
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Sesión Actual'), findsOneWidget);
+      expect(find.text('Partida en curso'), findsWidgets);
+      expect(find.text('FINALIZADA'), findsNothing);
+    },
+  );
 
   journey('coach follows game lifecycle and manual phase controls', (
     tester,
@@ -619,12 +694,21 @@ void desktopJourneys({bool nativeWindow = false, bool realAi = false}) {
   ) async {
     await boot(tester);
     await navigate(tester, 'Ajustes', 5);
+    await tester.tap(find.text('Datos y privacidad'));
+    await tester.pumpAndSettle();
     await tester.scrollUntilVisible(
-      find.text('Aplicar retención'),
+      find.text('Limpiar registros vencidos'),
       400,
-      scrollable: find.byType(Scrollable).first,
+      scrollable: find
+          .descendant(
+            of: find.byType(SettingsPage),
+            matching: find.byType(Scrollable),
+          )
+          .first,
     );
-    await tester.runAsync(() => tester.tap(find.text('Aplicar retención')));
+    await tester.runAsync(
+      () => tester.tap(find.text('Limpiar registros vencidos')),
+    );
     await _waitForText(tester, 'No había datos vencidos para eliminar.');
     await tester.tap(find.text('Borrar datos locales'));
     await tester.pumpAndSettle();
@@ -647,10 +731,17 @@ void desktopJourneys({bool nativeWindow = false, bool realAi = false}) {
   ) async {
     await boot(tester);
     await navigate(tester, 'Ajustes', 5);
+    await tester.tap(find.text('Datos y privacidad'));
+    await tester.pumpAndSettle();
     await tester.scrollUntilVisible(
       find.text('Exportar mis datos'),
       400,
-      scrollable: find.byType(Scrollable).first,
+      scrollable: find
+          .descendant(
+            of: find.byType(SettingsPage),
+            matching: find.byType(Scrollable),
+          )
+          .first,
     );
     cancelExport = true;
     await tester.tap(find.text('Exportar mis datos'));
@@ -679,10 +770,17 @@ void desktopJourneys({bool nativeWindow = false, bool realAi = false}) {
   ) async {
     await boot(tester);
     await navigate(tester, 'Ajustes', 5);
+    await tester.tap(find.text('Datos y privacidad'));
+    await tester.pumpAndSettle();
     await tester.scrollUntilVisible(
       find.text('Exportar mis datos'),
       400,
-      scrollable: find.byType(Scrollable).first,
+      scrollable: find
+          .descendant(
+            of: find.byType(SettingsPage),
+            matching: find.byType(Scrollable),
+          )
+          .first,
     );
     exportFailure = StateError('Synthetic unavailable file dialog');
     await tester.tap(find.text('Exportar mis datos'));

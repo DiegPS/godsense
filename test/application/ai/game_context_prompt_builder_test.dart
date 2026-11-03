@@ -8,6 +8,41 @@ import 'package:godsense/domain/tactical/tactical_models.dart';
 void main() {
   const builder = GameContextPromptBuilder();
 
+  test('manual phase previews do not fabricate a running game', () {
+    for (final manual in CoachPhase.values) {
+      final prompt = builder.buildSystemPrompt(
+        coachState: CoachState(
+          phase: manual,
+          automaticPhase: CoachPhase.inactive,
+        ),
+        liveGame: const {'_game_ended': true, 'game_time': 1800},
+      );
+      expect(
+        prompt,
+        contains('ESTADO ACTUAL: Fuera de partida / En el Cliente'),
+      );
+      expect(prompt, isNot(contains('ESTADO ACTUAL: Partida en Curso')));
+      expect(prompt, isNot(contains('Tiempo de partida transcurrido')));
+    }
+  });
+  test('all manual views send the same real in-game context', () {
+    for (final manual in CoachPhase.values) {
+      final prompt = builder.buildSystemPrompt(
+        coachState: CoachState(
+          phase: manual,
+          automaticPhase: CoachPhase.inGame,
+        ),
+        liveGame: const {
+          'game_time': 125.0,
+          'active_player': {'champion_name': 'Morgana'},
+        },
+      );
+      expect(prompt, contains('ESTADO ACTUAL: Partida en Curso'));
+      expect(prompt, contains('Tiempo de partida transcurrido: 2:05'));
+      expect(prompt, contains('Tu campeón: Morgana'));
+    }
+  });
+
   test('formats in-game live context with champion, KDA, items and enemy team', () {
     const coachState = CoachState(
       phase: CoachPhase.inGame,
@@ -94,12 +129,14 @@ void main() {
       prompt,
       contains('[Prioridad 1] Presión en Dragón: Agrupa con el jungla'),
     );
-    expect(prompt, contains('NUNCA digas "no veo tu pantalla"'));
+    expect(prompt, contains('Usa únicamente los datos enumerados arriba'));
+    expect(prompt, isNot(contains('Tienes visión completa')));
   });
 
   test('formats champ select context with draft allies, enemies and bans', () {
     final coachState = CoachState(
       phase: CoachPhase.champSelect,
+      automaticPhase: CoachPhase.champSelect,
       localChampion: 'Ahri',
       selectedEnemy: 'Zed',
       matchup: CoachMatchupViewData(
@@ -161,6 +198,7 @@ void main() {
     expect(prompt, contains('Aliados en lobby: Ahri (MIDDLE) [locked] [TÚ]'));
     expect(prompt, contains('Enemigos en lobby: Zed (MIDDLE) [locked]'));
     expect(prompt, contains('Bloqueos (Bans IDs): 7'));
-    expect(prompt, contains('NUNCA digas "no veo tu pantalla"'));
+    expect(prompt, contains('Usa únicamente los datos enumerados arriba'));
+    expect(prompt, isNot(contains('Tienes visión completa')));
   });
 }

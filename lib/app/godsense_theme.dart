@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_consistent_ui/flutter_consistent_ui.dart';
 
 import '../presentation/shared/gs_tokens.dart';
 
@@ -31,25 +32,26 @@ ThemeData godsenseTheme() {
     side: WidgetStateProperty.resolveWith(
       (states) => BorderSide(
         color: states.contains(WidgetState.focused)
-            ? GsColors.cyanLight
+            ? GsColors.focus
             : GsColors.borderInteractive,
         width: 1.5,
       ),
     ),
     overlayColor: WidgetStateProperty.resolveWith(
       (states) => states.contains(WidgetState.focused)
-          ? const Color(0x4038BDF8)
-          : const Color(0x1838BDF8),
+          ? GsColors.accent.withValues(alpha: .14)
+          : GsColors.accent.withValues(alpha: .07),
     ),
   );
-  return ThemeData(
+  final base = ThemeData(
     useMaterial3: true,
-    brightness: Brightness.dark,
+    brightness: Brightness.light,
     fontFamily: 'InterVariable',
+    extensions: const [GsSizes.geometry, GsColors.semantic],
     visualDensity: VisualDensity.standard,
     materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-    focusColor: const Color(0x4038BDF8),
-    hoverColor: const Color(0x1838BDF8),
+    focusColor: GsColors.accentTint,
+    hoverColor: GsColors.surfaceHover,
     textTheme: TextTheme(
       displayLarge: _interStyle(57),
       displayMedium: _interStyle(45),
@@ -69,29 +71,42 @@ ThemeData godsenseTheme() {
     ),
     scaffoldBackgroundColor: GsColors.canvas,
     canvasColor: GsColors.surface,
-    colorScheme: const ColorScheme.dark(
-      primary: GsColors.cyan,
-      onPrimary: Color(0xFF001F2A),
-      primaryContainer: Color(0xFF0369A1),
-      onPrimaryContainer: GsColors.cyanLight,
+    colorScheme: const ColorScheme.light(
+      primary: GsColors.accent,
+      onPrimary: GsColors.onAccent,
+      primaryContainer: GsColors.accentTint,
+      onPrimaryContainer: GsColors.focus,
+      secondary: Color(0xFF365C8C),
+      onSecondary: GsColors.onAccent,
+      secondaryContainer: Color(0xFFEAF0F8),
+      onSecondaryContainer: Color(0xFF365C8C),
+      tertiary: GsColors.amber,
+      onTertiary: GsColors.onAccent,
+      tertiaryContainer: GsColors.amberGlow,
+      onTertiaryContainer: GsColors.amber,
       surface: GsColors.surface,
+      surfaceContainerLowest: GsColors.surface,
+      surfaceContainerLow: GsColors.surface,
+      surfaceContainer: GsColors.surface,
       onSurface: GsColors.textPrimary,
       onSurfaceVariant: GsColors.textSecondary,
       outline: GsColors.borderInteractive,
       outlineVariant: GsColors.border,
       surfaceContainerHigh: GsColors.surfaceElevated,
+      surfaceContainerHighest: GsColors.surfaceHover,
+      inverseSurface: GsColors.surfaceHover,
+      onInverseSurface: GsColors.textPrimary,
+      inversePrimary: GsColors.accent,
       error: GsColors.crimson,
-      onError: GsColors.canvas,
+      onError: GsColors.onAccent,
     ),
-    cardTheme: CardThemeData(
-      color: GsColors.surface,
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(GsSizes.cardRadius),
-        side: BorderSide.none,
-      ),
-    ),
+    cardTheme: const CardThemeData(color: GsColors.surface, elevation: 0),
     dividerTheme: const DividerThemeData(color: GsColors.border, thickness: 1),
+    progressIndicatorTheme: const ProgressIndicatorThemeData(
+      color: GsColors.accent,
+      linearTrackColor: GsColors.accentTint,
+      stopIndicatorColor: GsColors.accent,
+    ),
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: controlStyle.copyWith(
         foregroundColor: const WidgetStatePropertyAll(GsColors.textPrimary),
@@ -104,7 +119,7 @@ ThemeData godsenseTheme() {
         side: WidgetStateProperty.resolveWith(
           (s) => BorderSide(
             color: s.contains(WidgetState.focused)
-                ? GsColors.cyanLight
+                ? GsColors.focus
                 : Colors.transparent,
             width: 1.5,
           ),
@@ -165,26 +180,35 @@ ThemeData godsenseTheme() {
     ),
     inputDecorationTheme: InputDecorationTheme(
       isDense: true,
-      constraints: const BoxConstraints(minHeight: 40),
       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       prefixIconColor: GsColors.textSecondary,
       suffixIconColor: GsColors.textSecondary,
       filled: true,
       fillColor: GsColors.surfaceElevated,
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(color: GsColors.borderInteractive),
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(color: GsColors.borderInteractive),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(color: GsColors.cyan, width: 2),
-      ),
       labelStyle: const TextStyle(color: GsColors.textSecondary, fontSize: 14),
       hintStyle: const TextStyle(color: GsColors.textSecondary, fontSize: 14),
     ),
   );
+  return UiTheme.apply(
+    base,
+    geometry: GsSizes.geometry,
+    borders: const UiBorderTheme(focusedWidth: 2, focusedErrorWidth: 2),
+    surfaces: const UiSurfaceStyle(border: BorderSide(color: GsColors.border)),
+  );
 }
+
+/// The game overlay must remain readable independently of the desktop theme.
+ThemeData godsenseOverlayTheme() => UiTheme.apply(
+  ThemeData(
+    brightness: Brightness.dark,
+    fontFamily: 'InterVariable',
+    colorScheme: const ColorScheme.dark(
+      primary: GsHudColors.cyan,
+      onPrimary: Color(0xFF001F2A),
+      surface: GsHudColors.surface,
+      onSurface: Color(0xFFF2F6FC),
+      error: GsHudColors.crimson,
+    ),
+  ),
+  geometry: GsSizes.geometry,
+);

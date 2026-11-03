@@ -60,13 +60,17 @@ abstract interface class SpeechAudioCapture {
 typedef CaptionsWorkerEntrypoint = void Function(Map<String, Object> startup);
 
 class RecordSpeechAudioCapture implements SpeechAudioCapture {
+  String inputDeviceId = "";
   AudioRecorder? _recorder;
 
   AudioRecorder get _instance => _recorder ??= AudioRecorder();
 
   @override
   Future<Stream<Uint8List>> start() => _instance.startStream(
-    const RecordConfig(
+    RecordConfig(
+      device: inputDeviceId.isEmpty
+          ? null
+          : InputDevice(id: inputDeviceId, label: ""),
       encoder: AudioEncoder.pcm16bits,
       sampleRate: 16000,
       numChannels: 1,
@@ -96,6 +100,11 @@ class LiveCaptionsService {
   }) : _modelCache = modelCache ?? TtsModelCache(),
        _audioCapture = audioCapture ?? RecordSpeechAudioCapture(),
        _workerEntrypoint = workerEntrypoint ?? _workerMain;
+
+  void selectInputDevice(String id) {
+    final capture = _audioCapture;
+    if (capture is RecordSpeechAudioCapture) capture.inputDeviceId = id;
+  }
 
   final TtsModelCache _modelCache;
   final SpeechAudioCapture _audioCapture;

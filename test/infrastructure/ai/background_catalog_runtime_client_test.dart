@@ -196,6 +196,63 @@ void main() {
       expect(requests, 2);
     },
   );
+
+  test(
+    'OpenCode 2 uses the native catalog and session API, not legacy paths',
+    () async {
+      client.dispose();
+      client = BackgroundCatalogRuntimeClient(
+        endpoint: AiRuntimeEndpoint(
+          kind: AiRuntimeKind.openCode,
+          baseUri: Uri.parse('http://127.0.0.1:${server.port}'),
+          username: 'test-user',
+          password: 'test-only-password',
+          pid: 1,
+          apiVersion: 2,
+        ),
+        workspaceDirectory: r'C:\test workspace',
+      );
+      final paths = <String>[];
+      server.listen((request) async {
+        paths.add(request.uri.path);
+        request.response.headers.contentType = ContentType.json;
+        if (request.uri.path == '/api/model') {
+          request.response.write(
+            jsonEncode({
+              'data': [
+                {
+                  'providerID': 'opencode',
+                  'id': 'big-pickle',
+                  'name': 'Big Pickle',
+                  'enabled': true,
+                  'cost': [
+                    {'input': 0, 'output': 0},
+                  ],
+                },
+              ],
+            }),
+          );
+        } else if (request.uri.path == '/api/session') {
+          request.response.write(
+            jsonEncode({
+              'data': {'id': 'session-v2', 'title': 'Test'},
+            }),
+          );
+        } else {
+          request.response.statusCode = 404;
+        }
+        await request.response.close();
+      });
+      expect((await client.providers()).single.models.single.id, 'big-pickle');
+      expect((await client.createSession(title: 'Test')).id, 'session-v2');
+      expect(await client.authMethods(), isEmpty);
+      expect(
+        () => client.setApiKey('opencode', 'test-key'),
+        throwsUnsupportedError,
+      );
+      expect(paths, ['/api/model', '/api/session']);
+    },
+  );
 }
 
 const _catalog = {

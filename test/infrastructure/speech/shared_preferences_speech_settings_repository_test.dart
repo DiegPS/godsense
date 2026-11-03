@@ -11,6 +11,7 @@ void main() {
     const expected = NativeSpeechSettings(
       pushToTalkEnabled: true,
       pushToTalkKey: 'f9',
+      inputDeviceId: 'usb-microphone-42',
       sttLanguage: 'es',
       sttDenoise: false,
       ttsEnabled: true,

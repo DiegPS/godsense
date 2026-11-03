@@ -532,8 +532,12 @@ void MultiViewDesktop::DestroyEntry(int64_t target_view_id) {
             it->second->is_modal_ ? it->second->modal_owner_view_id_ : -1;
     HWND host_window = it->second->native_window;
     if (it->second->controller) {
-        FlutterDesktopViewControllerDestroy(it->second->controller);
+        // Destroying a Flutter view synchronously sends more HWND messages.
+        // Detach first so their dispatch cannot dereference a controller whose
+        // view has already been released by FlutterWindowsViewController.
+        const auto closing_controller = it->second->controller;
         it->second->controller = nullptr;
+        FlutterDesktopViewControllerDestroy(closing_controller);
     }
     windows_.erase(it);
     if (host_window != nullptr && IsWindow(host_window)) {

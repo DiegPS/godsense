@@ -9,6 +9,7 @@ class GodSenseApp extends ConsumerWidget {
       title: 'GodSense',
       debugShowCheckedModeBanner: false,
       theme: godsenseTheme(),
+      builder: (context, child) => UiControlScope(child: child!),
       home: GettingStartedGate(
         onDestination: (destination) =>
             ref.read(selectedPageProvider.notifier).state = destination,
@@ -213,16 +214,7 @@ class _GodSenseHomeState extends ConsumerState<GodSenseHome> {
                 sessionLabel: session.label,
                 isOnline: session.online,
               ),
-              Expanded(
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(
-                      maxWidth: GsSizes.maxPageWidth,
-                    ),
-                    child: SizedBox.expand(child: content),
-                  ),
-                ),
-              ),
+              Expanded(child: content),
             ],
           ),
           const _FramelessWindowResizeBorder(),
@@ -266,11 +258,69 @@ class GodSenseTitleBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
-      final showLabels =
-          constraints.maxWidth >= 1100 &&
-          MediaQuery.textScalerOf(context).scale(14) <= 20;
+      final scale = MediaQuery.textScalerOf(context).scale(14) / 14;
+      final compact = constraints.maxWidth < 720 * scale;
+      final showBrandLabel = constraints.maxWidth >= 680 * scale;
+      final showSession = constraints.maxWidth >= 1200 * scale;
+      double labelWidth(String text, TextStyle? style) {
+        final painter = TextPainter(
+          text: TextSpan(text: text, style: style),
+          textDirection: Directionality.of(context),
+          textScaler: MediaQuery.textScalerOf(context),
+        )..layout();
+        final width = painter.width;
+        painter.dispose();
+        return width;
+      }
+
+      final theme = Theme.of(context);
+      final brandWidth =
+          72 +
+          (showBrandLabel
+              ? 8 +
+                    labelWidth(
+                      'GodSense',
+                      theme.textTheme.bodyMedium?.copyWith(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    )
+              : 0);
+      final actionWidth = compact
+          ? 48.0
+          : 8 +
+                GsSizes.control(context) *
+                    (1 +
+                        (overlayEditing ? 1 : 0) +
+                        (onStopSpeaking != null ? 1 : 0)) +
+                50 +
+                labelWidth(
+                  overlayEditing ? 'Guardar HUD' : 'Editar HUD',
+                  UiControlMetrics.textStyle(context)
+                      .copyWith(fontWeight: FontWeight.w600),
+                );
+      final available =
+          constraints.maxWidth -
+          brandWidth -
+          actionWidth -
+          124 -
+          (showSession ? 180 : 0) -
+          32;
+      final requiredLabels = _navItems.fold<double>(
+        0,
+        (sum, item) =>
+            sum +
+            38 +
+            labelWidth(
+              item.label,
+              theme.textTheme.labelMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+      );
+      final showLabels = requiredLabels <= available;
       return Material(
-        color: GsColors.canvas,
+        color: GsColors.surface,
         child: DecoratedBox(
           decoration: const BoxDecoration(
             border: Border(bottom: BorderSide(color: GsColors.border)),
@@ -280,200 +330,306 @@ class GodSenseTitleBar extends StatelessWidget {
             child: Row(
               children: [
                 Expanded(
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.translucent,
-                    onPanStart: (_) {
-                      try {
-                        MultiViewDesktop.of(context).startDragging();
-                      } catch (_) {}
-                    },
-                    child: Row(
-                      children: [
-                        DragToMoveArea(
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 12),
-                            child: Row(
-                              children: [
-                                Image.asset(
-                                  'assets/branding/godsense-icon-64.png',
-                                  width: 28,
-                                  height: 28,
-                                  excludeFromSemantics: true,
-                                ),
-                                const SizedBox(width: 8),
-                                const Text(
-                                  'GodSense',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        for (var index = 0; index < _navItems.length; index++)
-                          Padding(
-                            padding: const EdgeInsets.only(right: 2),
-                            child: Semantics(
-                              selected: selectedPage == index,
-                              child: Tooltip(
-                                message: _navItems[index].label,
-                                child: TextButton(
-                                  onPressed: () => onSelectPage(index),
-                                  style:
-                                      gsButtonStyle(
-                                        context,
-                                        variant: GsButtonVariant.ghost,
-                                        compact: true,
-                                      ).copyWith(
-                                        textStyle: WidgetStatePropertyAll(
-                                          Theme.of(context)
-                                              .textTheme
-                                              .labelMedium
-                                              ?.copyWith(
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                        ),
-                                        padding: const WidgetStatePropertyAll(
-                                          EdgeInsets.symmetric(
-                                            horizontal: 6,
-                                            vertical: 8,
-                                          ),
-                                        ),
-                                        backgroundColor:
-                                            WidgetStateProperty.resolveWith(
-                                              (states) =>
-                                                  states.contains(
-                                                        WidgetState.hovered,
-                                                      ) ||
-                                                      states.contains(
-                                                        WidgetState.pressed,
-                                                      )
-                                                  ? GsColors.cyanGlow
-                                                  : Colors.transparent,
-                                            ),
-                                        foregroundColor: WidgetStatePropertyAll(
-                                          selectedPage == index
-                                              ? GsColors.cyan
-                                              : GsColors.textSecondary,
-                                        ),
-                                        side: WidgetStateProperty.resolveWith(
-                                          (states) => BorderSide(
-                                            color:
-                                                states.contains(
-                                                  WidgetState.focused,
-                                                )
-                                                ? GsColors.cyanLight
-                                                : Colors.transparent,
-                                          ),
-                                        ),
-                                      ),
-                                  child: Stack(
-                                    clipBehavior: Clip.none,
-                                    children: [
-                                      Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Icon(_navItems[index].icon, size: 18),
-                                          if (showLabels) ...[
-                                            const SizedBox(width: 6),
-                                            Text(_navItems[index].label),
-                                          ],
-                                        ],
-                                      ),
-                                      if (selectedPage == index)
-                                        const Positioned(
-                                          left: 0,
-                                          right: 0,
-                                          bottom: -9,
-                                          child: SizedBox(
-                                            height: 2,
-                                            child: ColoredBox(
-                                              color: GsColors.cyan,
-                                            ),
-                                          ),
-                                        ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        Expanded(
-                          child: DragToMoveArea(
+                  // Navigation must not compete with a window-move gesture.
+                  // The background receives only hits outside the controls.
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      const DragToMoveArea(
+                        key: Key('titlebar-drag-background'),
+                        child: SizedBox.expand(),
+                      ),
+                      Row(
+                        children: [
+                          DragToMoveArea(
                             child: Padding(
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 12,
                               ),
-                              child: Tooltip(
-                                message: sessionLabel,
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.end,
-                                  children: [
-                                    Icon(
-                                      Icons.circle,
-                                      size: 8,
-                                      color: isOnline
-                                          ? GsColors.emerald
-                                          : GsColors.textMuted,
-                                    ),
-                                    const SizedBox(width: 6),
-                                    Flexible(
-                                      child: Text(
-                                        sessionLabel,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: isOnline
-                                              ? GsColors.emerald
-                                              : GsColors.textMuted,
+                              child: Row(
+                                children: [
+                                  SizedBox(
+                                    key: const Key('titlebar-owl-slot'),
+                                    width: 48,
+                                    height: double.infinity,
+                                    child: ClipRect(
+                                      child: Align(
+                                        alignment: Alignment.bottomCenter,
+                                        child: Transform.translate(
+                                          offset: const Offset(0, 5),
+                                          child: Image.asset(
+                                            'assets/branding/godsense-icon-64.png',
+                                            key: const Key('titlebar-owl'),
+                                            width: 48,
+                                            height: 48,
+                                            excludeFromSemantics: true,
+                                          ),
                                         ),
                                       ),
                                     ),
+                                  ),
+                                  if (showBrandLabel) const SizedBox(width: 8),
+                                  if (showBrandLabel)
+                                    const Text(
+                                      'GodSense',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          Expanded(
+                            child: Align(
+                              alignment: Alignment.centerLeft,
+                              child: SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                child: Row(
+                                  children: [
+                                    for (
+                                      var index = 0;
+                                      index < _navItems.length;
+                                      index++
+                                    )
+                                      Padding(
+                                        padding: const EdgeInsets.only(
+                                          right: 2,
+                                        ),
+                                        child: Semantics(
+                                          selected: selectedPage == index,
+                                          child: Tooltip(
+                                            message: _navItems[index].label,
+                                            child: TextButton(
+                                              onPressed: () =>
+                                                  onSelectPage(index),
+                                              style:
+                                                  gsButtonStyle(
+                                                    context,
+                                                    variant:
+                                                        GsButtonVariant.ghost,
+                                                    compact: true,
+                                                  ).copyWith(
+                                                    textStyle:
+                                                        WidgetStatePropertyAll(
+                                                          Theme.of(context)
+                                                              .textTheme
+                                                              .labelMedium
+                                                              ?.copyWith(
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w600,
+                                                              ),
+                                                        ),
+                                                    padding:
+                                                        const WidgetStatePropertyAll(
+                                                          EdgeInsets.symmetric(
+                                                            horizontal: 6,
+                                                            vertical: 8,
+                                                          ),
+                                                        ),
+                                                    backgroundColor:
+                                                        WidgetStateProperty.resolveWith(
+                                                          (states) =>
+                                                              states.contains(
+                                                                    WidgetState
+                                                                        .hovered,
+                                                                  ) ||
+                                                                  states.contains(
+                                                                    WidgetState
+                                                                        .pressed,
+                                                                  )
+                                                              ? GsColors
+                                                                    .accentTint
+                                                              : Colors
+                                                                    .transparent,
+                                                        ),
+                                                    foregroundColor:
+                                                        WidgetStatePropertyAll(
+                                                          selectedPage == index
+                                                              ? GsColors.accent
+                                                              : GsColors
+                                                                    .textSecondary,
+                                                        ),
+                                                    side: WidgetStateProperty.resolveWith(
+                                                      (states) => BorderSide(
+                                                        color:
+                                                            states.contains(
+                                                              WidgetState
+                                                                  .focused,
+                                                            )
+                                                            ? GsColors.focus
+                                                            : Colors
+                                                                  .transparent,
+                                                      ),
+                                                    ),
+                                                  ),
+                                              child: Stack(
+                                                clipBehavior: Clip.none,
+                                                children: [
+                                                  Row(
+                                                    mainAxisSize:
+                                                        MainAxisSize.min,
+                                                    children: [
+                                                      Icon(
+                                                        _navItems[index].icon,
+                                                        size: 18,
+                                                      ),
+                                                      if (showLabels) ...[
+                                                        const SizedBox(
+                                                          width: 6,
+                                                        ),
+                                                        Text(
+                                                          _navItems[index]
+                                                              .label,
+                                                        ),
+                                                      ],
+                                                    ],
+                                                  ),
+                                                  if (selectedPage == index)
+                                                    const Positioned(
+                                                      left: 0,
+                                                      right: 0,
+                                                      bottom: -9,
+                                                      child: SizedBox(
+                                                        height: 2,
+                                                        child: ColoredBox(
+                                                          color:
+                                                              GsColors.accent,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                ],
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
                                   ],
                                 ),
                               ),
                             ),
                           ),
-                        ),
-                      ],
-                    ),
+                          if (showSession)
+                            SizedBox(
+                              width: 180,
+                              child: DragToMoveArea(
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                  ),
+                                  child: Tooltip(
+                                    message: sessionLabel,
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.end,
+                                      children: [
+                                        Icon(
+                                          Icons.circle,
+                                          size: 8,
+                                          color: isOnline
+                                              ? GsColors.emerald
+                                              : GsColors.textMuted,
+                                        ),
+                                        const SizedBox(width: 6),
+                                        Flexible(
+                                          child: Text(
+                                            sessionLabel,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              color: isOnline
+                                                  ? GsColors.emerald
+                                                  : GsColors.textMuted,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
-                if (onStopSpeaking != null)
+                if (compact)
+                  PopupMenuButton<String>(
+                    tooltip: 'Acciones de GodSense',
+                    icon: const Icon(Icons.more_horiz_rounded),
+                    onSelected: (action) {
+                      switch (action) {
+                        case 'hud':
+                          onToggleEditing();
+                        case 'reset':
+                          onResetPanels?.call();
+                        case 'stop':
+                          onStopSpeaking?.call();
+                        case 'help':
+                          onHelp();
+                      }
+                    },
+                    itemBuilder: (context) => [
+                      PopupMenuItem(
+                        value: 'hud',
+                        child: Text(
+                          overlayEditing ? 'Guardar HUD' : 'Editar HUD',
+                        ),
+                      ),
+                      if (overlayEditing)
+                        PopupMenuItem(
+                          value: 'reset',
+                          enabled: onResetPanels != null,
+                          child: const Text('Restablecer HUD'),
+                        ),
+                      if (onStopSpeaking != null)
+                        const PopupMenuItem(
+                          value: 'stop',
+                          child: Text('Detener voz'),
+                        ),
+                      const PopupMenuItem(
+                        value: 'help',
+                        child: Text('Guía y atajos'),
+                      ),
+                    ],
+                  ),
+                if (!compact && onStopSpeaking != null)
                   GsIconButton(
                     icon: Icons.stop_circle_outlined,
                     tooltip: 'Detener voz',
                     onPressed: onStopSpeaking,
                     variant: GsButtonVariant.ghost,
                   ),
-                if (overlayEditing)
+                if (!compact && overlayEditing)
                   GsIconButton(
                     icon: Icons.restart_alt_rounded,
                     tooltip: 'Restablecer HUD',
                     onPressed: onResetPanels,
                     variant: GsButtonVariant.ghost,
                   ),
-                GsButton(
-                  label: overlayEditing ? 'Guardar HUD' : 'Editar HUD',
-                  icon: overlayEditing
-                      ? Icons.check_rounded
-                      : Icons.dashboard_customize_outlined,
-                  variant: overlayEditing
-                      ? GsButtonVariant.primary
-                      : GsButtonVariant.secondary,
-                  onPressed: onToggleEditing,
-                  compact: true,
-                ),
+                if (!compact)
+                  GsButton(
+                    label: overlayEditing ? 'Guardar HUD' : 'Editar HUD',
+                    icon: overlayEditing
+                        ? Icons.check_rounded
+                        : Icons.dashboard_customize_outlined,
+                    variant: overlayEditing
+                        ? GsButtonVariant.primary
+                        : GsButtonVariant.secondary,
+                    onPressed: onToggleEditing,
+                    compact: true,
+                  ),
                 const SizedBox(width: 4),
-                GsIconButton(
-                  icon: Icons.help_outline_rounded,
-                  tooltip: 'Guía y atajos',
-                  onPressed: onHelp,
-                  variant: GsButtonVariant.ghost,
-                ),
+                if (!compact)
+                  GsIconButton(
+                    icon: Icons.help_outline_rounded,
+                    tooltip: 'Guía y atajos',
+                    onPressed: onHelp,
+                    variant: GsButtonVariant.ghost,
+                  ),
                 const SizedBox(width: 4),
                 const _CustomWindowControlButtons(),
               ],
@@ -579,12 +735,16 @@ class _WindowBtn extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (!isClose) {
-      return GsIconButton(
-        icon: icon,
+      return IconButton(
+        icon: Icon(icon, size: iconSize),
         tooltip: tooltip,
-        iconSize: iconSize,
         onPressed: onTap,
-        variant: GsButtonVariant.ghost,
+        style: gsButtonStyle(context, variant: GsButtonVariant.ghost).copyWith(
+          minimumSize: const WidgetStatePropertyAll(
+            Size.square(GsSizes.controlHeight),
+          ),
+          padding: const WidgetStatePropertyAll(EdgeInsets.all(8)),
+        ),
       );
     }
     return IconButton(
@@ -598,7 +758,7 @@ class _WindowBtn extends StatelessWidget {
             compact: true,
           ).copyWith(
             minimumSize: WidgetStatePropertyAll(
-              Size.square(GsSizes.control(context)),
+              Size.square(GsSizes.controlHeight),
             ),
             padding: const WidgetStatePropertyAll(EdgeInsets.all(8)),
             foregroundColor: WidgetStateProperty.resolveWith((states) {
@@ -611,7 +771,7 @@ class _WindowBtn extends StatelessWidget {
             backgroundColor: WidgetStateProperty.resolveWith((states) {
               if (states.contains(WidgetState.hovered) ||
                   states.contains(WidgetState.pressed)) {
-                return GsColors.crimson;
+                return GsColors.dangerAction;
               }
               return Colors.transparent;
             }),

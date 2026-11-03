@@ -37,7 +37,7 @@ void main() {
           {"gameDuration":1800,
           "participantIdentities":[{"participantId":3,
           "player":{"puuid":"player","gameName":"Diego","tagLine":"LAN"}}],
-          "participants":[{"participantId":3,"championId":22,
+          "participants":[{"participantId":3,"championId":22,"spell1Id":4,"spell2Id":32,
           "stats":{"win":true,"kills":8,"deaths":2,"assists":11,
           "totalMinionsKilled":180,"neutralMinionsKilled":0,
           "visionScore":32,"damageDealtToObjectives":6400},
@@ -48,7 +48,7 @@ void main() {
           "dragonKills":2,"towerKills":7}],
           "participantIdentities":[{"participantId":3,
           "player":{"puuid":"player","gameName":"Diego","tagLine":"LAN"}}],
-          "participants":[{"participantId":3,"championId":22,
+          "participants":[{"participantId":3,"championId":22,"spell1Id":4,"spell2Id":32,
           "stats":{"kills":8,"deaths":2,"assists":11,
           "totalMinionsKilled":180,"neutralMinionsKilled":0,
           "totalDamageDealtToChampions":24500},
@@ -95,6 +95,14 @@ void main() {
       await controller.loadAccount(_account());
 
       expect(controller.state.lastError, isNull);
+      expect(
+        controller.state.typedMatches.single.spell1IconUrl,
+        endsWith('/data/spells/icons2d/summoner_flash.png'),
+      );
+      expect(
+        controller.state.typedMatches.single.spell2IconUrl,
+        endsWith('/data/spells/icons2d/summoner_mark.png'),
+      );
       expect(controller.state.loading, isFalse);
       expect(controller.state.profile['game_name'], 'Diego');
       expect(controller.state.profile['rank'], containsPair('tier', 'GOLD'));

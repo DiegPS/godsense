@@ -23,6 +23,29 @@ void main() {
     ),
   );
 
+  testWidgets('backend and playback errors identify the failing stage', (
+    tester,
+  ) async {
+    await show(
+      tester,
+      const MicrophoneTestState(
+        phase: MicrophoneTestPhase.error,
+        backendUnavailable: true,
+      ),
+    );
+    expect(find.textContaining('Reinicia GodSense'), findsOneWidget);
+    expect(find.textContaining('altavoces estén conectados'), findsNothing);
+    await show(
+      tester,
+      const MicrophoneTestState(
+        phase: MicrophoneTestPhase.error,
+        playbackFailed: true,
+      ),
+    );
+    expect(find.textContaining('Se grabó el micrófono'), findsOneWidget);
+    expect(find.textContaining('Reinicia GodSense'), findsNothing);
+  });
+
   testWidgets(
     'idle start works and PTT ownership disables the microphone test',
     (tester) async {
@@ -131,7 +154,7 @@ void main() {
     ),
     (
       state: const MicrophoneTestState(phase: MicrophoneTestPhase.error),
-      text: 'No pudimos completar la prueba.',
+      text: 'No pudimos capturar audio del micrófono seleccionado.',
     ),
   ];
   for (final result in results) {

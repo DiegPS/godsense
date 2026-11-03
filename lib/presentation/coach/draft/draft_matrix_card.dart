@@ -23,7 +23,7 @@ class DraftMatrixCard extends StatelessWidget {
           final ally = _Roster(
             title: 'Aliados',
             players: draft.allies,
-            color: CoachColors.cyan,
+            color: CoachColors.accent,
           );
           final enemy = _Roster(
             title: 'Rivales',

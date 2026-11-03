@@ -28,10 +28,14 @@ class CascadeCloseService {
   }
 
   /// Registers `id` as the next window in a cascade close sequence.
-  void attachWindow(int id) => _closeCompleters.putIfAbsent(id, () => Completer<bool>());
+  void attachWindow(int id) =>
+      _closeCompleters.putIfAbsent(id, () => Completer<bool>());
 
   /// Signals that `id` finished its soft-close cycle successfully.
-  void completeWindow(int id) => _closeCompleters[id]?.complete(true);
+  void completeWindow(int id) {
+    final completer = _closeCompleters[id];
+    if (completer != null && !completer.isCompleted) completer.complete(true);
+  }
 
   /// Waits until `id` closes or the cascade is aborted; then removes its completer.
   Future<bool> waitWindow(int id) async {

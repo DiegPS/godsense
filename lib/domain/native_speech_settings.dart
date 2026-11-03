@@ -3,6 +3,7 @@ class NativeSpeechSettings {
     this.pushToTalkEnabled = false,
     this.pushToTalkKey = 'delete',
     this.sttLanguage = 'es',
+    this.inputDeviceId = '',
     this.sttDenoise = true,
     this.ttsEnabled = false,
     this.ttsModelId = 'supertonic-3-hybrid',
@@ -17,6 +18,7 @@ class NativeSpeechSettings {
   final bool pushToTalkEnabled;
   final String pushToTalkKey;
   final String sttLanguage;
+  final String inputDeviceId;
   final bool sttDenoise;
   final bool ttsEnabled;
   final String ttsModelId;
@@ -31,6 +33,7 @@ class NativeSpeechSettings {
     bool? pushToTalkEnabled,
     String? pushToTalkKey,
     String? sttLanguage,
+    String? inputDeviceId,
     bool? sttDenoise,
     bool? ttsEnabled,
     String? ttsModelId,
@@ -44,6 +47,7 @@ class NativeSpeechSettings {
     pushToTalkEnabled: pushToTalkEnabled ?? this.pushToTalkEnabled,
     pushToTalkKey: pushToTalkKey ?? this.pushToTalkKey,
     sttLanguage: sttLanguage ?? this.sttLanguage,
+    inputDeviceId: inputDeviceId ?? this.inputDeviceId,
     sttDenoise: sttDenoise ?? this.sttDenoise,
     ttsEnabled: ttsEnabled ?? this.ttsEnabled,
     ttsModelId: ttsModelId ?? this.ttsModelId,
@@ -60,6 +64,7 @@ class NativeSpeechSettings {
         pushToTalkEnabled: json['push_to_talk_enabled'] == true,
         pushToTalkKey: json['push_to_talk_key']?.toString() ?? 'delete',
         sttLanguage: json['stt_language']?.toString() ?? 'es',
+        inputDeviceId: json['input_device_id']?.toString() ?? '',
         sttDenoise: json['stt_denoise'] != false,
         ttsEnabled: json['tts_enabled'] == true,
         ttsModelId: json['tts_model_id']?.toString() ?? 'supertonic-3-hybrid',
@@ -75,6 +80,7 @@ class NativeSpeechSettings {
     'push_to_talk_enabled': pushToTalkEnabled,
     'push_to_talk_key': pushToTalkKey,
     'stt_language': sttLanguage,
+    'input_device_id': inputDeviceId,
     'stt_denoise': sttDenoise,
     'tts_enabled': ttsEnabled,
     'tts_model_id': ttsModelId,

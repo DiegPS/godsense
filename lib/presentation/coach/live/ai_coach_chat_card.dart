@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
+import 'package:flutter/rendering.dart' show ScrollDirection;
+import 'package:godsense/presentation/shared/gs_tokens.dart';
+import 'package:flutter_consistent_ui/flutter_consistent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../application/ai/ai_conversation_controller.dart';
 import '../../../application/dependencies.dart';
 import '../../../domain/ai/ai_runtime_models.dart';
 import '../shared/coach_surface.dart';
-import '../shared/ai_model_selector.dart';
+import '../shared/ai_chat_model_picker.dart';
 import 'coach_message_body.dart';
 
 class AiCoachChatCard extends ConsumerStatefulWidget {
@@ -15,10 +19,24 @@ class AiCoachChatCard extends ConsumerStatefulWidget {
   ConsumerState<AiCoachChatCard> createState() => _AiCoachChatCardState();
 }
 
-class _AiCoachChatCardState extends ConsumerState<AiCoachChatCard> {
+class _AiCoachChatCardState extends ConsumerState<AiCoachChatCard>
+    with AutomaticKeepAliveClientMixin<AiCoachChatCard> {
+  @override
+  bool get wantKeepAlive => true;
   final _textController = TextEditingController();
   final _scrollController = ScrollController();
   bool _startingRuntime = false;
+  bool _submitting = false;
+  bool _followLatest = true;
+  bool _followRebuildScheduled = false;
+  bool _scrollScheduled = false;
+  bool _movingToLatest = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollToBottom();
+  }
 
   static const _suggestions = [
     '¿Cuál es mi condición de victoria?',
@@ -33,36 +51,104 @@ class _AiCoachChatCardState extends ConsumerState<AiCoachChatCard> {
     super.dispose();
   }
 
-  void _sendMessage([String? presetText]) {
+  Future<void> _sendMessage([String? presetText]) async {
     final text = presetText ?? _textController.text;
-    if (text.trim().isEmpty) return;
-    _textController.clear();
-
+    if (text.trim().isEmpty || _submitting) return;
+    final controller = ref.read(aiConversationProvider.notifier);
+    final previousIds = ref
+        .read(aiConversationProvider)
+        .messages
+        .map((m) => m.id)
+        .toSet();
+    setState(() => _submitting = true);
     String? systemPrompt;
     try {
       systemPrompt = ref.read(gameContextPromptProvider);
     } catch (_) {}
-
-    ref
-        .read(aiConversationProvider.notifier)
-        .sendMessage(text, systemPrompt: systemPrompt);
-    _scrollToBottom();
+    try {
+      await controller.sendMessage(text, systemPrompt: systemPrompt);
+      if (!mounted) return;
+      final accepted = ref
+          .read(aiConversationProvider)
+          .messages
+          .any(
+            (message) =>
+                message.role == 'user' &&
+                !previousIds.contains(message.id) &&
+                message.content == text.trim(),
+          );
+      // Rejection must never eat a draft. A delayed acknowledgement must not
+      // erase edits the user made while dispatch was being established.
+      if (accepted) {
+        if (presetText == null && _textController.text == text) {
+          _textController.clear();
+        }
+        _scrollToBottom(force: true);
+      }
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
   }
 
-  void _scrollToBottom() {
+  void _scrollToBottom({bool force = false}) {
+    if (force) _setFollowLatest(true);
+    if (!_followLatest || _scrollScheduled) return;
+    _scrollScheduled = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients) {
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 250),
-          curve: Curves.easeOut,
-        );
+      _scrollScheduled = false;
+      if (mounted && _followLatest && _scrollController.hasClients) {
+        _movingToLatest = true;
+        try {
+          _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+        } finally {
+          _movingToLatest = false;
+        }
       }
     });
   }
 
+  void _setFollowLatest(bool follow) {
+    if (_followLatest == follow) return;
+    _followLatest = follow;
+    // Viewport dimension changes can emit notifications during layout. Update
+    // follow policy immediately, but rebuild its button after that frame.
+    if (WidgetsBinding.instance.schedulerPhase ==
+        SchedulerPhase.persistentCallbacks) {
+      if (_followRebuildScheduled) return;
+      _followRebuildScheduled = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _followRebuildScheduled = false;
+        if (mounted) setState(() {});
+      });
+    } else if (mounted) {
+      setState(() {});
+    }
+  }
+
+  bool _trackHistoryScroll(ScrollNotification notification) {
+    if (notification.depth != 0 || _movingToLatest) return false;
+    // Wheel direction is emitted before pixels change. Pause immediately on
+    // upward intent, even for a single notch at the very end of the history.
+    if (notification is UserScrollNotification &&
+            notification.direction == ScrollDirection.forward ||
+        notification is ScrollStartNotification &&
+            notification.dragDetails != null) {
+      _setFollowLatest(false);
+    } else if (notification is ScrollEndNotification ||
+        notification is UserScrollNotification &&
+            notification.direction == ScrollDirection.idle) {
+      // Only resume when the user actually reaches the bottom, not merely
+      // somewhere within a threshold of it. Programmatic following already
+      // checks _followLatest before moving the position.
+      final follow = notification.metrics.extentAfter <= 1;
+      _setFollowLatest(follow);
+    }
+    return false;
+  }
+
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final conversation = ref.watch(aiConversationProvider);
     final supervisor = ref.watch(aiRuntimeSupervisorProvider);
     final supervisorState =
@@ -74,15 +160,14 @@ class _AiCoachChatCardState extends ConsumerState<AiCoachChatCard> {
     final isBusy = conversation.isBusy;
 
     ref.listen(
-      aiConversationProvider.select((s) => s.streamedText),
+      aiConversationProvider.select((s) => (s.streamedText, s.messages.length)),
       (_, _) => _scrollToBottom(),
     );
 
     return CoachSurface(
       title: 'Coach IA conversacional',
-      subtitle: supervisorState.isReady
-          ? '${supervisorState.kind!.displayName} · ${selectedModel?.name ?? "Selecciona un modelo"}'
-          : 'Instala un motor en Ajustes → Coaching y actívalo para chatear',
+      subtitle: supervisorState.isReady ? null : 'Instala un motor en Ajustes → IA del coach y actívalo para chatear',
+      headerCenter: supervisorState.isReady ? const AiChatModelPicker() : null,
       icon: Icons.psychology_rounded,
       action: Row(
         mainAxisSize: MainAxisSize.min,
@@ -125,6 +210,7 @@ class _AiCoachChatCardState extends ConsumerState<AiCoachChatCard> {
                   ),
               ],
               onSelected: (kind) async {
+                final settings = ref.read(aiRuntimeSettingsProvider);
                 setState(() => _startingRuntime = true);
                 try {
                   if (!await supervisor.isInstalled(kind)) {
@@ -132,7 +218,7 @@ class _AiCoachChatCardState extends ConsumerState<AiCoachChatCard> {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
                           content: Text(
-                            'Descarga ${kind.displayName} en Ajustes → Coaching antes de iniciar.',
+                            'Descarga ${kind.displayName} en Ajustes → IA del coach antes de iniciar.',
                           ),
                         ),
                       );
@@ -140,9 +226,7 @@ class _AiCoachChatCardState extends ConsumerState<AiCoachChatCard> {
                     return;
                   }
                   await supervisor.start(kind);
-                  await ref
-                      .read(aiRuntimeSettingsProvider)
-                      .rememberStarted(kind);
+                  await settings.rememberStarted(kind);
                 } catch (error) {
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -179,15 +263,6 @@ class _AiCoachChatCardState extends ConsumerState<AiCoachChatCard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (supervisorState.isReady) ...[
-            const ExpansionTile(
-              title: Text('Proveedor y modelo'),
-              children: [
-                Padding(padding: EdgeInsets.all(12), child: AiModelSelector()),
-              ],
-            ),
-            const SizedBox(height: 12),
-          ],
           if (conversation.errorMessage != null) ...[
             Container(
               padding: const EdgeInsets.all(10),
@@ -225,89 +300,131 @@ class _AiCoachChatCardState extends ConsumerState<AiCoachChatCard> {
               ),
             ),
           ],
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxHeight: 340, minHeight: 120),
-            child:
-                conversation.messages.isEmpty &&
-                    conversation.streamedText.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(
-                          Icons.chat_bubble_outline_rounded,
-                          size: 32,
-                          color: CoachColors.mutedText,
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          isReady
-                              ? 'Escribe una pregunta táctica o elige una sugerencia.'
-                              : 'Inicia Kilo Code para consultar al Coach con IA.',
-                          style: const TextStyle(
-                            color: CoachColors.secondaryText,
-                            fontSize: 13,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                        if (isReady) ...[
-                          const SizedBox(height: 12),
-                          Wrap(
-                            alignment: WrapAlignment.center,
-                            spacing: 6,
-                            runSpacing: 6,
-                            children: _suggestions.map((suggestion) {
-                              return ActionChip(
-                                label: Text(
-                                  suggestion,
-                                  style: const TextStyle(fontSize: 11),
-                                ),
-                                onPressed: isBusy
-                                    ? null
-                                    : () => _sendMessage(suggestion),
-                              );
-                            }).toList(),
-                          ),
-                        ],
-                      ],
-                    ),
-                  )
-                : ListView(
-                    controller: _scrollController,
-                    shrinkWrap: true,
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    children: [
-                      for (final message in conversation.messages)
-                        _ChatBubble(message: message),
-                      if (conversation.streamedText.isNotEmpty)
-                        _StreamingBubble(text: conversation.streamedText),
-                    ],
+          if (conversation.messages.isEmpty &&
+              conversation.streamedText.isEmpty)
+            Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(
+                    Icons.chat_bubble_outline_rounded,
+                    size: 32,
+                    color: CoachColors.mutedText,
                   ),
-          ),
+                  const SizedBox(height: 8),
+                  Text(
+                    isReady
+                        ? 'Escribe una pregunta táctica o elige una sugerencia.'
+                        : 'Inicia un motor para consultar al Coach con IA.',
+                    style: const TextStyle(
+                      color: CoachColors.secondaryText,
+                      fontSize: 13,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  if (isReady) ...[
+                    const SizedBox(height: 12),
+                    Wrap(
+                      alignment: WrapAlignment.center,
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: _suggestions.map((suggestion) {
+                        return ActionChip(
+                          label: Text(
+                            suggestion,
+                            softWrap: true,
+                            style: const TextStyle(fontSize: 11),
+                          ),
+                          onPressed: isBusy
+                              ? null
+                              : () => _sendMessage(suggestion),
+                        );
+                      }).toList(),
+                    ),
+                  ],
+                ],
+              ),
+            )
+          else
+            ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: (MediaQuery.sizeOf(context).height * .45).clamp(
+                  160,
+                  420,
+                ),
+              ),
+              child: NotificationListener<ScrollMetricsNotification>(
+                onNotification: (_) {
+                  _scrollToBottom();
+                  return false;
+                },
+                child: NotificationListener<ScrollNotification>(
+                  onNotification: _trackHistoryScroll,
+                  child: ScrollConfiguration(
+                    behavior: ScrollConfiguration.of(context)
+                        .copyWith(scrollbars: false),
+                    child: Scrollbar(
+                      controller: _scrollController,
+                      thumbVisibility: true,
+                      interactive: true,
+                      thickness: 8,
+                      radius: const Radius.circular(4),
+                      child: ListView.builder(
+                        key: const Key('coach-chat-history'),
+                        controller: _scrollController,
+                        primary: false,
+                        shrinkWrap: true,
+                        padding: const EdgeInsetsDirectional.only(
+                          top: 8,
+                          bottom: 8,
+                          end: 20,
+                        ),
+                        itemCount:
+                            conversation.messages.length +
+                            (conversation.streamedText.isNotEmpty ? 1 : 0),
+                        itemBuilder: (context, index) =>
+                            index < conversation.messages.length
+                            ? _ChatBubble(message: conversation.messages[index])
+                            : _StreamingBubble(text: conversation.streamedText),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          if (!_followLatest)
+            Align(
+              alignment: AlignmentDirectional.centerEnd,
+              child: TextButton.icon(
+                onPressed: () => _scrollToBottom(force: true),
+                icon: const Icon(Icons.arrow_downward),
+                label: const Text('Ir al último mensaje'),
+              ),
+            ),
           if (isBusy) ...[
             const SizedBox(height: 8),
-            Row(
+            Wrap(
+              spacing: 12,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 const SizedBox(
                   width: 14,
                   height: 14,
                   child: CircularProgressIndicator(strokeWidth: 2),
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    conversation.status == AiConversationStatus.sending
-                        ? 'Enviando al motor Kilo Auto...'
-                        : conversation.status == AiConversationStatus.canceling
-                        ? 'Cancelando respuesta...'
-                        : conversation.streamedText.isEmpty
-                        ? 'Esperando respuesta...'
-                        : 'Escribiendo respuesta...',
-                    style: const TextStyle(
-                      color: CoachColors.secondaryText,
-                      fontSize: 11,
-                      fontStyle: FontStyle.italic,
-                    ),
+                Text(
+                  conversation.status == AiConversationStatus.sending
+                      ? 'Enviando al motor de IA...'
+                      : conversation.status == AiConversationStatus.canceling
+                      ? 'Cancelando respuesta...'
+                      : conversation.streamedText.isEmpty
+                      ? 'Esperando respuesta...'
+                      : 'Escribiendo respuesta...',
+                  style: const TextStyle(
+                    color: CoachColors.secondaryText,
+                    fontSize: 11,
+                    fontStyle: FontStyle.italic,
                   ),
                 ),
                 TextButton.icon(
@@ -340,11 +457,11 @@ class _AiCoachChatCardState extends ConsumerState<AiCoachChatCard> {
           Row(
             children: [
               Expanded(
-                child: TextField(
+                child: UiControls.input(
                   controller: _textController,
-                  enabled: isReady && !isBusy,
+                  enabled: isReady && !isBusy && !_submitting,
                   textInputAction: TextInputAction.send,
-                  onSubmitted: isReady && !isBusy
+                  onSubmitted: isReady && !isBusy && !_submitting
                       ? (_) => _sendMessage()
                       : null,
                   style: const TextStyle(
@@ -376,18 +493,20 @@ class _AiCoachChatCardState extends ConsumerState<AiCoachChatCard> {
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
-                      borderSide: const BorderSide(color: CoachColors.cyan),
+                      borderSide: const BorderSide(color: CoachColors.accent),
                     ),
                   ),
                 ),
               ),
               const SizedBox(width: 8),
               IconButton.filled(
-                onPressed: isReady && !isBusy ? () => _sendMessage() : null,
+                onPressed: isReady && !isBusy && !_submitting
+                    ? () => _sendMessage()
+                    : null,
                 icon: const Icon(Icons.arrow_upward_rounded, size: 18),
                 style: IconButton.styleFrom(
-                  backgroundColor: CoachColors.cyan,
-                  foregroundColor: const Color(0xFF041017),
+                  backgroundColor: CoachColors.accent,
+                  foregroundColor: GsColors.onAccent,
                   disabledBackgroundColor: CoachColors.mutedText.withValues(
                     alpha: .2,
                   ),
@@ -418,12 +537,12 @@ class _ChatBubble extends StatelessWidget {
         constraints: const BoxConstraints(maxWidth: 520),
         decoration: BoxDecoration(
           color: isUser
-              ? CoachColors.cyan.withValues(alpha: .16)
+              ? CoachColors.accent.withValues(alpha: .16)
               : CoachColors.elevated,
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
             color: isUser
-                ? CoachColors.cyan.withValues(alpha: .4)
+                ? CoachColors.accent.withValues(alpha: .4)
                 : CoachColors.border,
           ),
         ),
@@ -438,15 +557,17 @@ class _ChatBubble extends StatelessWidget {
                 Icon(
                   isUser ? Icons.person_rounded : Icons.psychology_rounded,
                   size: 13,
-                  color: isUser ? CoachColors.cyan : CoachColors.emerald,
+                  color: isUser ? CoachColors.accent : CoachColors.emerald,
                 ),
                 const SizedBox(width: 4),
-                Text(
-                  isUser ? 'Tú' : 'Coach IA',
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                    color: isUser ? CoachColors.cyan : CoachColors.emerald,
+                Flexible(
+                  child: Text(
+                    isUser ? 'Tú' : 'Coach IA',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: isUser ? CoachColors.accent : CoachColors.emerald,
+                    ),
                   ),
                 ),
               ],
@@ -507,12 +628,14 @@ class _StreamingBubble extends StatelessWidget {
                   color: CoachColors.emerald,
                 ),
                 SizedBox(width: 4),
-                Text(
-                  'Coach IA (escribiendo...)',
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                    color: CoachColors.emerald,
+                Flexible(
+                  child: Text(
+                    'Coach IA (escribiendo...)',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: CoachColors.emerald,
+                    ),
                   ),
                 ),
               ],

@@ -93,7 +93,12 @@ void main() {
                   for (var channel = 0; channel < 4; channel++)
                     pixels.getUint8(offset + channel),
                 ],
-                danger ? [244, 67, 54, 255] : [0, 0, 0, 0],
+                danger
+                    ? [
+                        for (final shift in [16, 8, 0, 24])
+                          (GsHudColors.crimson.toARGB32() >> shift) & 0xff,
+                      ]
+                    : [0, 0, 0, 0],
                 reason: 'Only a fresh native gank highlights the calibrated minimap area.',
               );
             } finally {

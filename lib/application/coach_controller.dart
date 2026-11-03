@@ -424,6 +424,7 @@ class CoachController extends StateNotifier<CoachState> {
   String? _setupKey;
   int _setupRevision = 0;
   bool _importing = false;
+  GameAssetCatalogSnapshot? _lastAssets;
 
   void synchronize(CoachInputs inputs) {
     if (!mounted) return;
@@ -547,6 +548,8 @@ class CoachController extends StateNotifier<CoachState> {
         voiceHistory.removeRange(20, voiceHistory.length);
       }
     }
+    final assetsChanged = !identical(_lastAssets, inputs.assets);
+    _lastAssets = inputs.assets;
     final goldPoints = _mapList(inputs.liveGame?['gold_points'])
         .map(
           (point) => GoldPointViewData(
@@ -572,8 +575,12 @@ class CoachController extends StateNotifier<CoachState> {
       clearSelectedEnemy: selectedEnemy == null,
       matchup: matchup,
       clearMatchup: matchup == null,
-      runeRecommendations: _runes(inputs.runes, inputs.assets),
-      itemRecommendationGroups: _items(inputs.items, inputs.assets),
+      runeRecommendations: setupChanged || assetsChanged
+          ? _runes(inputs.runes, inputs.assets)
+          : state.runeRecommendations,
+      itemRecommendationGroups: setupChanged || assetsChanged
+          ? _items(inputs.items, inputs.assets)
+          : state.itemRecommendationGroups,
       pickAdvice: _pickAdvice(inputs.lobby?.pickAdvice),
       jungle: inputs.jungle,
       allyComposition: _compositionAnalyzer.typedProfile(allyMaps),
@@ -584,7 +591,12 @@ class CoachController extends StateNotifier<CoachState> {
           (inputs.liveGame?['team_gold_diff'] as num?)?.toInt() ?? 0,
       goldTimeline: goldPoints,
       voiceProcessing: inputs.voiceProcessing,
-      voiceHistory: List.unmodifiable(voiceHistory),
+      voiceHistory:
+          voiceHistory.length == state.voiceHistory.length &&
+              (voiceHistory.isEmpty ||
+                  identical(voiceHistory.first, state.voiceHistory.first))
+          ? state.voiceHistory
+          : List.unmodifiable(voiceHistory),
       lastCompletedSession: inputs.session.lastCompleted,
       postGameReport:
           _postGameReport(completedSnapshot) ?? state.postGameReport,

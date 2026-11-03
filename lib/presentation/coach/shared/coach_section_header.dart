@@ -46,6 +46,14 @@ class CoachSectionHeader extends StatelessWidget {
             ),
         ],
       ),
+      const SizedBox(height: 8),
+      Text(
+        phase == automaticPhase
+            ? 'La vista sigue automáticamente la fase de League.'
+            : 'Vista manual: eliges qué etapa consultar; la fase de League no cambia.',
+        style: Theme.of(context).textTheme.bodySmall
+            ?.copyWith(color: GsColors.textSecondary),
+      ),
     ],
   );
 }

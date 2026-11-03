@@ -64,6 +64,127 @@ void main() {
     expect(find.text('Alertas del minimapa'), findsOneWidget);
   });
 
+  for (final viewport in [
+    (360.0, 1.0),
+    (672.0, 1.5),
+    (1000.0, 2.0),
+    (1440.0, 1.0),
+    (1920.0, 1.0),
+  ]) {
+    testWidgets('all feature pages reflow at $viewport', (tester) async {
+      tester.view.physicalSize = Size(viewport.$1, 1100);
+      tester.view.devicePixelRatio = 1;
+      tester.platformDispatcher.textScaleFactorTestValue = viewport.$2;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      await tester.pumpWidget(_testApp());
+      await tester.pumpAndSettle();
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(GodSenseHome)),
+        listen: false,
+      );
+      for (var page = 0; page < 6; page++) {
+        container.read(selectedPageProvider.notifier).state = page;
+        // Busy indicators are valid UI states and deliberately never settle.
+        // Render a complete frame without waiting for network/model completion.
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 350));
+        expect(
+          tester.takeException(),
+          isNull,
+          reason: 'page $page at $viewport',
+        );
+        final scrolling = find
+            .descendant(
+              of: find.byType(GsFeaturePage).hitTestable(),
+              matching: find.byType(Scrollable),
+            )
+            .first;
+        expect(tester.getRect(scrolling).right, viewport.$1);
+        expect(tester.getRect(scrolling).left, 0);
+        for (var step = 0; step < 3; step++) {
+          await tester.drag(scrolling, const Offset(0, -450));
+          await tester.pump(const Duration(milliseconds: 350));
+          expect(
+            tester.takeException(),
+            isNull,
+            reason: 'scroll page $page at $viewport',
+          );
+        }
+      }
+    });
+  }
+
+  testWidgets('readiness cards open the section that resolves their state', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1280, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(_testApp());
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Alertas del minimapa'));
+    await tester.pumpAndSettle();
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(GodSenseHome)),
+      listen: false,
+    );
+    expect(container.read(selectedPageProvider), 2);
+    expect(find.text('Mapa y alertas'), findsNothing);
+    expect(find.text('Estado de las alertas'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('compact title bar keeps navigation and HUD actions accessible', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(360, 900);
+    tester.view.devicePixelRatio = 1;
+    tester.platformDispatcher.textScaleFactorTestValue = 2;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    var edits = 0;
+    var selected = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: godsenseTheme(),
+        home: Scaffold(
+          body: Column(
+            children: [
+              GodSenseTitleBar(
+                selectedPage: 0,
+                onSelectPage: (value) => selected = value,
+                overlayEditing: false,
+                onToggleEditing: () => edits++,
+                onResetPanels: null,
+                onHelp: () {},
+                sessionLabel: 'Sin partida',
+                isOnline: false,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.byTooltip('Acciones de GodSense'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Editar HUD'));
+    await tester.pumpAndSettle();
+    expect(edits, 1);
+    await Scrollable.ensureVisible(
+      tester.element(find.byTooltip('Ajustes')),
+      alignment: .5,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Ajustes'));
+    await tester.pump();
+    expect(selected, 5);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
     'a response can be stopped from the title bar at minimum window width',
     (tester) async {
@@ -120,6 +241,22 @@ void main() {
       await tester.pumpWidget(_testApp());
       await tester.pump();
       final brandY = tester.getCenter(find.text('GodSense')).dy;
+      final owlSlot = tester.getRect(
+        find.byKey(const Key('titlebar-owl-slot')),
+      );
+      final owl = tester.getRect(find.byKey(const Key('titlebar-owl')));
+      final titleBar = tester.getRect(find.byType(GodSenseTitleBar));
+      expect(owlSlot.bottom, titleBar.bottom);
+      expect(owl.bottom, closeTo(titleBar.bottom + 5, .1));
+      expect(owl.width, 48);
+      expect(owl.top, greaterThan(titleBar.top));
+      expect(
+        find.ancestor(
+          of: find.byKey(const Key('titlebar-owl')),
+          matching: find.byType(ClipRect),
+        ),
+        findsAtLeastNWidgets(1),
+      );
       for (final label in [
         'Inicio',
         'En vivo',
@@ -146,7 +283,7 @@ void main() {
       );
       expect(
         startButton.style?.backgroundColor?.resolve({WidgetState.hovered}),
-        GsColors.cyanGlow,
+        GsColors.accentTint,
       );
       final closeButton = tester.widget<IconButton>(
         find.ancestor(
@@ -160,7 +297,7 @@ void main() {
       );
       expect(
         closeButton.style?.backgroundColor?.resolve({WidgetState.hovered}),
-        GsColors.crimson,
+        GsColors.dangerAction,
       );
       final titleBarDragSurface = find.ancestor(
         of: find.byTooltip('Scout'),
@@ -168,7 +305,7 @@ void main() {
           (widget) => widget is GestureDetector && widget.onPanStart != null,
         ),
       );
-      expect(titleBarDragSurface, findsOneWidget);
+      expect(titleBarDragSurface, findsNothing);
       expect(
         find.text(
           'Tu cuenta, la partida actual y todo lo que requiere atención.',
@@ -180,8 +317,91 @@ void main() {
     await tester.pump();
     expect(find.text('Estado de las alertas'), findsOneWidget);
     expect(find.text('Mapa y alertas'), findsNothing);
+    expect(find.text('Estado de las alertas'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  for (final setup in [(360.0, 1.5), (1280.0, 1.0)]) {
+    testWidgets(
+      'settings separate tasks and keep actions reachable at $setup',
+      (tester) async {
+        tester.view.devicePixelRatio = 1.25;
+        tester.view.physicalSize = Size(setup.$1 * 1.25, 1000 * 1.25);
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        await tester.pumpWidget(
+          MediaQuery(
+            data: MediaQueryData(textScaler: TextScaler.linear(setup.$2)),
+            child: _testApp(),
+          ),
+        );
+        await tester.ensureVisible(find.byTooltip('Ajustes'));
+        await tester.pump();
+        await tester.tap(find.byTooltip('Ajustes'));
+        await tester.pump();
+        expect(find.text('Juego y HUD'), findsOneWidget);
+        expect(find.text('Voz y micrófono'), findsOneWidget);
+        expect(find.text('IA del coach'), findsOneWidget);
+        expect(find.text('Datos y privacidad'), findsOneWidget);
+        expect(find.text('Exportar mis datos'), findsNothing);
+        await tester.tap(find.text('Voz y micrófono'));
+        await tester.pump();
+        expect(find.text('Tu micrófono'), findsOneWidget);
+        expect(find.text('Borrar datos locales'), findsNothing);
+        await tester.tap(find.text('Datos y privacidad'));
+        await tester.pump();
+        final scroll = find
+            .descendant(
+              of: find.byType(SettingsPage),
+              matching: find.byType(Scrollable),
+            )
+            .first;
+        await tester.scrollUntilVisible(
+          find.text('Borrar datos locales'),
+          200,
+          scrollable: scroll,
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Borrar datos locales'));
+        await tester.pumpAndSettle();
+        expect(find.text('¿Borrar los datos locales?'), findsOneWidget);
+        await tester.tap(find.text('Cancelar'));
+        await tester.pumpAndSettle();
+        expect(find.text('¿Borrar los datos locales?'), findsNothing);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
+  testWidgets(
+    'manual minimap settings explain units and reject invalid dimensions',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1280, 1000);
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(_testApp());
+      await tester.tap(find.byTooltip('Ajustes'));
+      await tester.pump();
+      await tester.ensureVisible(find.text('Ajustar coordenadas'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Ajustar coordenadas'));
+      await tester.pumpAndSettle();
+      expect(
+        find.textContaining('Coordenadas en píxeles de pantalla'),
+        findsOneWidget,
+      );
+      await tester.enterText(find.byType(TextFormField).at(2), '0');
+      await tester.tap(find.text('Guardar'));
+      await tester.pumpAndSettle();
+      expect(find.text('Debe ser mayor que cero.'), findsOneWidget);
+      expect(find.text('Calibración manual'), findsOneWidget);
+      await tester.tap(find.text('Cancelar'));
+      await tester.pumpAndSettle();
+      expect(find.text('Calibración manual'), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('uses only the native DartCV vision runtime', (tester) async {
     tester.view.physicalSize = const Size(1280, 800);
@@ -207,15 +427,17 @@ void main() {
 
     await tester.tap(find.byTooltip('Ajustes'));
     await tester.pump();
+    await tester.tap(find.text('Voz y micrófono'));
+    await tester.pump();
     await tester.scrollUntilVisible(
-      find.text('Voz y atajo para hablar'),
+      find.text('Tu micrófono'),
       400,
       scrollable: find.byType(Scrollable).last,
     );
 
-    expect(find.text('Voz y atajo para hablar'), findsOneWidget);
+    expect(find.text('Tu micrófono'), findsOneWidget);
     expect(find.text('Hablar con el coach'), findsOneWidget);
-    expect(find.text('Tipo de voz'), findsOneWidget);
+    expect(find.text('Opciones avanzadas de voz'), findsOneWidget);
   });
 
   testWidgets(

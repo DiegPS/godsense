@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import '../../support/ai_models.dart';
 
 import 'package:flutter/material.dart';
@@ -15,10 +17,20 @@ class FakeAiConversationNotifier extends StateNotifier<AiConversationState>
   FakeAiConversationNotifier(super.state);
 
   int abortCallCount = 0;
+  bool rejectDispatch = false;
+  Completer<void>? dispatchGate;
   List<String> sentMessages = [];
 
   @override
   Future<void> sendMessage(String text, {String? systemPrompt}) async {
+    await dispatchGate?.future;
+    if (rejectDispatch) {
+      state = state.copyWith(
+        status: AiConversationStatus.error,
+        errorMessage: 'Selecciona un modelo disponible antes de enviar.',
+      );
+      return;
+    }
     sentMessages.add(text);
     state = state.copyWith(
       status: AiConversationStatus.streaming,
@@ -26,7 +38,7 @@ class FakeAiConversationNotifier extends StateNotifier<AiConversationState>
       messages: [
         ...state.messages,
         AiChatMessage(
-          id: 'user-1',
+          id: 'user-${sentMessages.length}',
           role: 'user',
           content: text,
           timestamp: DateTime.now(),
@@ -75,6 +87,108 @@ class FakeAiConversationNotifier extends StateNotifier<AiConversationState>
 }
 
 void main() {
+  Future<void> bootDraftTest(
+    WidgetTester tester,
+    FakeAiConversationNotifier controller,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          aiModelSelectionProvider.overrideWith((_) => ReadyModelSelection()),
+          aiRuntimeSupervisorProvider.overrideWithValue(FakeSupervisor()),
+          aiRuntimeSupervisorStateProvider.overrideWith(
+            (_) => Stream.value(FakeSupervisor().state),
+          ),
+          aiConversationProvider.overrideWith((_) => controller),
+        ],
+        child: const MaterialApp(
+          home: Scaffold(body: SingleChildScrollView(child: AiCoachChatCard())),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets(
+    'resizing a chat with history does not schedule builds during layout',
+    (tester) async {
+      tester.view.physicalSize = const Size(1100, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final controller = FakeAiConversationNotifier(
+        AiConversationState(
+          messages: List.generate(
+            24,
+            (i) => AiChatMessage(
+              id: 'history-$i',
+              role: i.isEven ? 'user' : 'assistant',
+              content: 'Mensaje de historial $i. ' * 8,
+              timestamp: DateTime.utc(2026, 1, 1, 0, i),
+            ),
+          ),
+        ),
+      );
+      await bootDraftTest(tester, controller);
+      final list = tester.widget<ListView>(find.byType(ListView).first);
+      list.controller!.jumpTo(list.controller!.position.maxScrollExtent);
+      await tester.pump();
+      for (final width in [500.0, 1000.0, 600.0, 1100.0]) {
+        tester.view.physicalSize = Size(width, 900);
+        await tester.pump();
+        await tester.pump();
+        expect(tester.takeException(), isNull);
+      }
+      expect(controller.state.messages.length, 24);
+    },
+  );
+
+  testWidgets(
+    'rejected send preserves the draft instead of silently clearing it',
+    (tester) async {
+      final controller = FakeAiConversationNotifier(const AiConversationState())
+        ..rejectDispatch = true;
+      await bootDraftTest(tester, controller);
+      final input = find.byType(TextField);
+      await tester.enterText(input, 'No pierdas mi pregunta');
+      await tester.testTextInput.receiveAction(TextInputAction.send);
+      await tester.pumpAndSettle();
+      expect(
+        tester.widget<TextField>(input).controller!.text,
+        'No pierdas mi pregunta',
+      );
+      expect(controller.sentMessages, isEmpty);
+      expect(
+        find.text('Selecciona un modelo disponible antes de enviar.'),
+        findsOneWidget,
+      );
+    },
+  );
+  testWidgets(
+    'draft clears only after the user message enters conversation history',
+    (tester) async {
+      final gate = Completer<void>();
+      final controller = FakeAiConversationNotifier(const AiConversationState())
+        ..dispatchGate = gate;
+      await bootDraftTest(tester, controller);
+      final input = find.byType(TextField);
+      await tester.enterText(input, 'Pregunta confirmada');
+      await tester.testTextInput.receiveAction(TextInputAction.send);
+      await tester.pump();
+      expect(
+        tester.widget<TextField>(input).controller!.text,
+        'Pregunta confirmada',
+      );
+      expect(controller.sentMessages, isEmpty);
+      gate.complete();
+      await tester.pump();
+      await tester.pump();
+      expect(tester.widget<TextField>(input).controller!.text, isEmpty);
+      expect(controller.state.messages.single.content, 'Pregunta confirmada');
+      expect(find.text('Pregunta confirmada'), findsOneWidget);
+    },
+  );
+
   testWidgets('cancelled history stays visible with an explicit label', (
     tester,
   ) async {

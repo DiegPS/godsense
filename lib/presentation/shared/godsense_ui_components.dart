@@ -1,90 +1,96 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_consistent_ui/flutter_consistent_ui.dart';
 
 import 'gs_tokens.dart';
 export 'gs_tokens.dart';
+export 'gs_feature_page.dart';
 
 class GsSectionHeading extends StatelessWidget {
   const GsSectionHeading({
     super.key,
     required this.title,
     this.subtitle,
+    this.center,
     this.icon,
     this.action,
     this.page = false,
   });
   final String title;
   final String? subtitle;
+  final Widget? center;
   final IconData? icon;
   final Widget? action;
   final bool page;
 
   @override
-  Widget build(BuildContext context) => LayoutBuilder(
-    builder: (context, box) {
-      final heading = Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (icon != null) ...[
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: GsColors.cyanGlow,
-                borderRadius: BorderRadius.circular(GsSizes.radius),
-              ),
-              child: ExcludeSemantics(
-                child: Icon(icon, size: 20, color: GsColors.cyan),
-              ),
+  Widget build(BuildContext context) {
+    final heading = Row(
+      crossAxisAlignment: center == null
+          ? CrossAxisAlignment.start
+          : CrossAxisAlignment.center,
+      children: [
+        if (icon != null) ...[
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: GsColors.accentTint,
+              borderRadius: BorderRadius.circular(GsSizes.radius),
             ),
-            const SizedBox(width: 12),
-          ],
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Semantics(
-                  header: true,
-                  child: Text(
-                    title,
-                    style:
-                        (page
-                                ? Theme.of(context).textTheme.headlineMedium
-                                : Theme.of(context).textTheme.titleMedium)
-                            ?.copyWith(
-                              color: GsColors.textPrimary,
-                              fontWeight: FontWeight.w600,
-                            ),
-                  ),
-                ),
-                if (subtitle != null) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    subtitle!,
-                    style: Theme.of(context).textTheme.bodySmall
-                        ?.copyWith(color: GsColors.textSecondary),
-                  ),
-                ],
-              ],
+            child: ExcludeSemantics(
+              child: Icon(icon, size: 20, color: GsColors.accent),
             ),
           ),
+          const SizedBox(width: 12),
         ],
-      );
-      if (action == null) return heading;
-      if (box.maxWidth < (page ? 900 : 560) ||
-          MediaQuery.textScalerOf(context).scale(14) > 20) {
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [heading, const SizedBox(height: 12), action!],
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Semantics(
+                header: true,
+                child: Text(
+                  title,
+                  style:
+                      (page
+                              ? Theme.of(context).textTheme.headlineMedium
+                              : Theme.of(context).textTheme.titleMedium)
+                          ?.copyWith(
+                            color: GsColors.textPrimary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                ),
+              ),
+              if (subtitle != null) ...[
+                const SizedBox(height: 4),
+                Text(
+                  subtitle!,
+                  style: Theme.of(context).textTheme.bodySmall
+                      ?.copyWith(color: GsColors.textSecondary),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+    if (center == null) return UiPageHeader(title: heading, actions: [?action]);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final scale = MediaQuery.textScalerOf(context).scale(14) / 14;
+        if (constraints.maxWidth < 700 * scale) {
+          return UiPageHeader(title: heading, actions: [center!, ?action]);
+        }
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Expanded(child: heading),
+            Expanded(child: Center(child: center!)),
+            if (action != null) ...[const SizedBox(width: 12), action!],
+          ],
         );
-      }
-      return Row(
-        children: [
-          Expanded(child: heading),
-          const SizedBox(width: 24),
-          action!,
-        ],
-      );
-    },
-  );
+      },
+    );
+  }
 }
 
 class GsCard extends StatelessWidget {
@@ -93,16 +99,18 @@ class GsCard extends StatelessWidget {
     required this.child,
     this.title,
     this.subtitle,
+    this.headerCenter,
     this.icon,
     this.action,
     this.padding = const EdgeInsets.all(20),
-    this.elevation = 0,
+    this.elevation = 1,
     this.borderColor,
     this.backgroundColor,
   });
   final Widget child;
   final String? title;
   final String? subtitle;
+  final Widget? headerCenter;
   final IconData? icon;
   final Widget? action;
   final EdgeInsetsGeometry padding;
@@ -113,11 +121,11 @@ class GsCard extends StatelessWidget {
   Widget build(BuildContext context) => Material(
     color: backgroundColor ?? GsColors.surface,
     elevation: elevation,
-    shadowColor: Colors.black26,
+    shadowColor: const Color(0xFF24213A).withValues(alpha: .05),
     clipBehavior: Clip.antiAlias,
     shape: RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(GsSizes.cardRadius),
-      side: BorderSide(color: borderColor ?? const Color(0x12FFFFFF)),
+      side: BorderSide(color: borderColor ?? GsColors.border),
     ),
     child: Column(
       mainAxisSize: MainAxisSize.min,
@@ -129,6 +137,7 @@ class GsCard extends StatelessWidget {
             child: GsSectionHeading(
               title: title ?? '',
               subtitle: subtitle,
+              center: headerCenter,
               icon: icon,
               action: action,
             ),
@@ -150,28 +159,34 @@ ButtonStyle gsButtonStyle(
   bool compact = false,
 }) {
   final foreground = switch (variant) {
-    GsButtonVariant.primary => const Color(0xFF041822),
+    GsButtonVariant.primary => GsColors.onAccent,
     GsButtonVariant.danger => GsColors.crimson,
     _ => GsColors.textPrimary,
   };
   final background = switch (variant) {
-    GsButtonVariant.primary => GsColors.cyan,
+    GsButtonVariant.primary => GsColors.accent,
     GsButtonVariant.secondary => GsColors.surfaceElevated,
     GsButtonVariant.danger => GsColors.crimsonGlow,
     GsButtonVariant.ghost => Colors.transparent,
   };
-  return ButtonStyle(
+  final geometry = UiControlMetrics.action(context);
+  final horizontalPadding = compact
+      ? 12.0
+      : UiThemeData.of(context).actionHorizontalPadding;
+  return geometry.copyWith(
     minimumSize: WidgetStatePropertyAll(
       Size(40, GsSizes.control(context, height)),
     ),
     padding: WidgetStatePropertyAll(
-      EdgeInsets.symmetric(horizontal: compact ? 12 : 16, vertical: 8),
+      geometry.padding!
+          .resolve({})!
+          .resolve(Directionality.of(context))
+          .copyWith(left: horizontalPadding, right: horizontalPadding),
     ),
     visualDensity: VisualDensity.standard,
     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
     textStyle: WidgetStatePropertyAll(
-      Theme.of(context).textTheme.labelLarge
-          ?.copyWith(fontWeight: FontWeight.w600),
+      UiControlMetrics.textStyle(context).copyWith(fontWeight: FontWeight.w600),
     ),
     shape: WidgetStatePropertyAll(
       RoundedRectangleBorder(
@@ -192,13 +207,13 @@ ButtonStyle gsButtonStyle(
     ),
     overlayColor: WidgetStateProperty.resolveWith(
       (s) => s.contains(WidgetState.focused)
-          ? GsColors.cyan.withValues(alpha: .24)
+          ? GsColors.accent.withValues(alpha: .24)
           : foreground.withValues(alpha: .09),
     ),
     side: WidgetStateProperty.resolveWith(
       (s) => BorderSide(
         color: s.contains(WidgetState.focused)
-            ? GsColors.cyanLight
+            ? GsColors.focus
             : variant == GsButtonVariant.secondary
             ? GsColors.borderInteractive
             : Colors.transparent,
@@ -240,29 +255,34 @@ class GsButton extends StatelessWidget {
       ),
       child: Stack(
         alignment: Alignment.center,
+        clipBehavior: Clip.none,
         children: [
-          Opacity(
-            opacity: loading && icon == null ? 0 : 1,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (icon != null) ...[
-                  SizedBox.square(
-                    dimension: GsSizes.icon,
-                    child: loading
-                        ? const CircularProgressIndicator(strokeWidth: 2)
-                        : Icon(icon, size: GsSizes.icon),
-                  ),
-                  const SizedBox(width: 8),
-                ],
-                Flexible(child: Text(label, textAlign: TextAlign.center)),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (icon != null) ...[
+                SizedBox.square(
+                  dimension: GsSizes.icon,
+                  child: loading
+                      ? const CircularProgressIndicator(strokeWidth: 2)
+                      : Icon(icon, size: GsSizes.icon),
+                ),
+                const SizedBox(width: 8),
               ],
-            ),
+              Flexible(child: Text(label, textAlign: TextAlign.center)),
+            ],
           ),
           if (loading && icon == null)
-            const SizedBox.square(
-              dimension: 18,
-              child: CircularProgressIndicator(strokeWidth: 2),
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: -5,
+              child: SizedBox(
+                height: 2,
+                child: MediaQuery.disableAnimationsOf(context)
+                    ? const ColoredBox(color: GsColors.accent)
+                    : const LinearProgressIndicator(semanticsLabel: 'En curso'),
+              ),
             ),
         ],
       ),
@@ -321,6 +341,10 @@ class GsInput extends StatelessWidget {
   const GsInput({
     super.key,
     this.controller,
+    this.focusNode,
+    this.labelText,
+    this.helperText,
+    this.errorText,
     this.hintText,
     this.prefixText,
     this.prefixIcon,
@@ -336,6 +360,10 @@ class GsInput extends StatelessWidget {
     this.style,
   });
   final TextEditingController? controller;
+  final FocusNode? focusNode;
+  final String? labelText;
+  final String? helperText;
+  final String? errorText;
   final String? hintText;
   final String? prefixText;
   final IconData? prefixIcon;
@@ -352,36 +380,60 @@ class GsInput extends StatelessWidget {
   @override
   Widget build(BuildContext context) => SizedBox(
     width: width,
-    height: GsSizes.control(context, height),
-    child: TextField(
-      controller: controller,
-      enabled: enabled,
-      autofocus: autofocus,
-      textInputAction: textInputAction,
-      onChanged: onChanged,
-      onSubmitted: onSubmitted,
-      textAlignVertical: TextAlignVertical.center,
-      style: style ?? Theme.of(context).textTheme.bodyMedium,
-      decoration: InputDecoration(
-        isDense: true,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
-        hintText: hintText,
-        prefixText: prefixText,
-        prefixIconConstraints: BoxConstraints(
-          minWidth: 40,
-          minHeight: GsSizes.control(context, height),
+    child: _GsFieldProfile(
+      height: height,
+      builder: (context) => UiControls.input(
+        controller: controller,
+        focusNode: focusNode,
+        enabled: enabled,
+        autofocus: autofocus,
+        textInputAction: textInputAction,
+        onChanged: onChanged,
+        onSubmitted: onSubmitted,
+        textAlignVertical: TextAlignVertical.center,
+        style: style,
+        decoration: InputDecoration(
+          labelText: labelText,
+          helperText: helperText,
+          errorText: errorText,
+          hintText: hintText,
+          prefixText: prefixText,
+          prefixIcon: prefixIcon == null
+              ? null
+              : Icon(prefixIcon, size: GsSizes.icon),
+          suffixIcon: suffixIcon,
         ),
-        suffixIconConstraints: BoxConstraints(
-          minWidth: 40,
-          minHeight: GsSizes.control(context, height),
-        ),
-        prefixIcon: prefixIcon == null
-            ? null
-            : Icon(prefixIcon, size: GsSizes.icon),
-        suffixIcon: suffixIcon,
       ),
     ),
   );
+}
+
+// Explicit large controls use the same library profile, not a fixed outer box.
+// Helpers, errors and scaled text remain free to grow below the painted border.
+class _GsFieldProfile extends StatelessWidget {
+  const _GsFieldProfile({required this.height, required this.builder});
+  final double? height;
+  final WidgetBuilder builder;
+
+  @override
+  Widget build(BuildContext context) {
+    if (height == null) return builder(context);
+    final theme = Theme.of(context);
+    final profile = UiThemeData.of(context);
+    final base = MediaQuery.sizeOf(context).width < profile.compactBreakpoint
+        ? profile.compactControlHeight
+        : profile.controlHeight;
+    final target = height! > base ? height! : base;
+    return Theme(
+      data: theme.copyWith(
+        extensions: [
+          ...theme.extensions.values.where((value) => value is! UiThemeData),
+          profile.copyWith(controlHeight: target, compactControlHeight: target),
+        ],
+      ),
+      child: Builder(builder: builder),
+    );
+  }
 }
 
 class GsToggleSwitch extends StatelessWidget {
@@ -454,6 +506,9 @@ class GsSelect<T> extends StatelessWidget {
     required this.items,
     required this.onChanged,
     this.label,
+    this.helperText,
+    this.errorText,
+    this.validator,
     this.width,
     this.height,
     this.compact = false,
@@ -462,6 +517,9 @@ class GsSelect<T> extends StatelessWidget {
   final Map<T, String> items;
   final ValueChanged<T>? onChanged;
   final String? label;
+  final String? helperText;
+  final String? errorText;
+  final FormFieldValidator<T>? validator;
   final double? width;
   final double? height;
   final bool compact;
@@ -482,27 +540,25 @@ class GsSelect<T> extends StatelessWidget {
         ],
         Semantics(
           label: label,
-          child: SizedBox(
-            height: GsSizes.control(context, height),
-            child: DropdownButtonFormField<T>(
+          child: _GsFieldProfile(
+            height: height,
+            builder: (context) => DropdownButtonFormField<T>(
               key: ValueKey(value),
               initialValue: items.containsKey(value) ? value : null,
               isExpanded: true,
               isDense: true,
-              decoration: InputDecoration(
-                constraints: BoxConstraints(
-                  minHeight: GsSizes.control(context, height),
-                ),
-                contentPadding: EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 10,
-                ),
+              itemHeight: null,
+              validator: validator,
+              decoration: UiControlMetrics.decoration(
+                context,
+                InputDecoration(helperText: helperText, errorText: errorText),
+                select: true,
               ),
               icon: const Icon(Icons.expand_more_rounded, size: 18),
               dropdownColor: GsColors.surfaceElevated,
               borderRadius: BorderRadius.circular(GsSizes.radius),
               menuMaxHeight: 360,
-              style: Theme.of(context).textTheme.bodyMedium,
+              style: UiControlMetrics.textStyle(context),
               items: [
                 for (final entry in items.entries)
                   DropdownMenuItem<T>(
@@ -550,7 +606,7 @@ class GsBadge extends StatelessWidget {
       GsBadgeVariant.success => GsColors.emerald,
       GsBadgeVariant.danger => GsColors.crimson,
       GsBadgeVariant.warning => GsColors.amber,
-      GsBadgeVariant.info => GsColors.cyan,
+      GsBadgeVariant.info => GsColors.accent,
       GsBadgeVariant.neutral => GsColors.textSecondary,
     };
     return Container(

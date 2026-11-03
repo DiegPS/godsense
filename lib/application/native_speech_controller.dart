@@ -3,6 +3,7 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:record/record.dart';
 
 import '../domain/native_speech_settings.dart';
 import '../infrastructure/speech/global_push_to_talk_hotkey.dart';
@@ -15,6 +16,9 @@ import '../infrastructure/speech/tts_service.dart';
 class NativeSpeechState {
   const NativeSpeechState({
     this.loading = true,
+    this.inputDevices = const [],
+    this.loadingInputDevices = false,
+    this.inputDevicesError,
     this.settings = const NativeSpeechSettings(),
     this.speech = const LiveCaptionsState(),
     this.tts = const TtsLoadState(),
@@ -30,6 +34,9 @@ class NativeSpeechState {
   });
 
   final bool loading;
+  final List<InputDevice> inputDevices;
+  final bool loadingInputDevices;
+  final String? inputDevicesError;
   final NativeSpeechSettings settings;
   final LiveCaptionsState speech;
   final TtsLoadState tts;
@@ -45,6 +52,10 @@ class NativeSpeechState {
 
   NativeSpeechState copyWith({
     bool? loading,
+    List<InputDevice>? inputDevices,
+    bool? loadingInputDevices,
+    String? inputDevicesError,
+    bool clearInputDevicesError = false,
     NativeSpeechSettings? settings,
     LiveCaptionsState? speech,
     TtsLoadState? tts,
@@ -60,6 +71,11 @@ class NativeSpeechState {
     MicrophoneTestState? microphoneTest,
   }) => NativeSpeechState(
     loading: loading ?? this.loading,
+    inputDevices: inputDevices ?? this.inputDevices,
+    loadingInputDevices: loadingInputDevices ?? this.loadingInputDevices,
+    inputDevicesError: clearInputDevicesError
+        ? null
+        : inputDevicesError ?? this.inputDevicesError,
     settings: settings ?? this.settings,
     speech: speech ?? this.speech,
     tts: tts ?? this.tts,
@@ -183,6 +199,7 @@ class NativeSpeechController extends StateNotifier<NativeSpeechState> {
         clearError: true,
       );
       _configureHotkey(settings);
+      unawaited(refreshInputDevices());
       final installed = await Future.wait([
         _speech.isModelInstalled(),
         _tts.isModelInstalled(settings.ttsModelId),
@@ -265,6 +282,7 @@ class NativeSpeechController extends StateNotifier<NativeSpeechState> {
       transcript: '',
       clearError: true,
     );
+    _speech.selectInputDevice(state.settings.inputDeviceId);
     final operation = _speech.updateConfig(
       enabled: true,
       sourceLanguage: state.settings.sttLanguage,
@@ -364,6 +382,7 @@ class NativeSpeechController extends StateNotifier<NativeSpeechState> {
     }
     _testingMicrophone = true;
     try {
+      _microphoneTest.selectInputDevice(state.settings.inputDeviceId);
       await _microphoneTest.run(
         prepare: () async {
           if (_tts.isBusy || state.ttsBusy) {
@@ -373,6 +392,33 @@ class NativeSpeechController extends StateNotifier<NativeSpeechState> {
       );
     } finally {
       _testingMicrophone = false;
+    }
+  }
+
+  Future<void> refreshInputDevices() async {
+    if (_disposed ||
+        state.loadingInputDevices ||
+        _testingMicrophone ||
+        _holding) {
+      return;
+    }
+    state = state.copyWith(
+      loadingInputDevices: true,
+      clearInputDevicesError: true,
+    );
+    try {
+      final devices = await _microphoneTest.listInputDevices();
+      if (!_disposed) {
+        state = state.copyWith(inputDevices: List.unmodifiable(devices));
+      }
+    } catch (_) {
+      if (!_disposed) {
+        state = state.copyWith(
+          inputDevicesError: 'No se pudieron consultar las entradas de audio. Actualiza la lista; si persiste, reinicia GodSense.',
+        );
+      }
+    } finally {
+      if (!_disposed) state = state.copyWith(loadingInputDevices: false);
     }
   }
 

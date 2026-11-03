@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:godsense/presentation/shared/gs_tokens.dart';
 
 import '../../../application/coach_controller.dart';
 import '../shared/asset_portrait.dart';
@@ -30,8 +31,8 @@ class ItemBundlesView extends StatelessWidget {
           style: OutlinedButton.styleFrom(
             minimumSize: const Size(40, 40),
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            side: const BorderSide(color: Color(0x3338BDF8)),
-            backgroundColor: const Color(0x1438BDF8),
+            side: const BorderSide(color: GsColors.borderActive),
+            backgroundColor: GsColors.accentTint,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(6),
             ),
@@ -44,14 +45,14 @@ class ItemBundlesView extends StatelessWidget {
               : const Icon(
                   Icons.download_outlined,
                   size: 14,
-                  color: Color(0xFF38BDF8),
+                  color: GsColors.accent,
                 ),
           label: const Text(
             'Importar',
             style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w600,
-              color: Color(0xFF38BDF8),
+              color: GsColors.accent,
             ),
           ),
         ),
@@ -84,9 +85,9 @@ class _ItemGroupSection extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: const Color(0xFF0C1017),
+        color: GsColors.surfaceElevated,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0x14FFFFFF)),
+        border: Border.all(color: GsColors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -97,7 +98,7 @@ class _ItemGroupSection extends StatelessWidget {
                 width: 3,
                 height: 12,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF38BDF8),
+                  color: GsColors.accent,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -106,7 +107,7 @@ class _ItemGroupSection extends StatelessWidget {
                 child: Text(
                   group.title.toUpperCase(),
                   style: const TextStyle(
-                    color: Color(0xFF94A3B8),
+                    color: GsColors.textMuted,
                     fontSize: 10,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 0.6,
@@ -129,9 +130,9 @@ class _ItemGroupSection extends StatelessWidget {
                   child: Container(
                     padding: const EdgeInsets.all(4),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF1E293B),
+                      color: GsColors.surfaceHover,
                       borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: const Color(0x1FFFFFFF)),
+                      border: Border.all(color: GsColors.border),
                     ),
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
@@ -153,13 +154,13 @@ class _ItemGroupSection extends StatelessWidget {
                             const Icon(
                               Icons.monetization_on_outlined,
                               size: 10,
-                              color: Color(0xFFFBBF24),
+                              color: GsColors.amber,
                             ),
                             const SizedBox(width: 2),
                             Text(
                               '${value.metadata?.totalPrice ?? '—'}',
                               style: const TextStyle(
-                                color: Color(0xFFFBBF24),
+                                color: GsColors.amber,
                                 fontSize: 10,
                                 fontWeight: FontWeight.w700,
                               ),

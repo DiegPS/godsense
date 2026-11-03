@@ -6,8 +6,10 @@ import 'dart:isolate';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../domain/identity/league_identity.dart';
+import '../domain/assets/scout_icon_catalog.dart';
 import '../domain/league/account_context.dart';
 import '../domain/league/local_scout.dart';
+import '../domain/league/scout_selection_store.dart';
 import 'scout_profile_analyzer.dart';
 
 export '../domain/league/scout_models.dart';
@@ -45,6 +47,7 @@ class LocalScoutState {
     this.loadingMatchIds = const {},
     this.matchDetailErrors = const {},
     this.lastError,
+    this.selectionError,
     // Compatibility projections kept while callers migrate to typed models.
     Map<String, dynamic>? profile,
     List<Map<String, dynamic>>? matches,
@@ -65,6 +68,7 @@ class LocalScoutState {
   final Set<int> loadingMatchIds;
   final Map<int, String> matchDetailErrors;
   final String? lastError;
+  final String? selectionError;
 
   final Map<String, dynamic>? _compatibilityProfile;
   final List<Map<String, dynamic>>? _compatibilityMatches;
@@ -194,6 +198,8 @@ class LocalScoutState {
     String? lastError,
     bool clearError = false,
     bool clearLoadingLabel = false,
+    String? selectionError,
+    bool clearSelectionError = false,
     Map<String, dynamic>? profile,
     List<Map<String, dynamic>>? matches,
     Map<String, dynamic>? selectedMatch,
@@ -212,6 +218,9 @@ class LocalScoutState {
         ? null
         : typedSelectedMatch ?? this.typedSelectedMatch,
     lastError: clearError ? null : lastError ?? this.lastError,
+    selectionError: clearSelectionError
+        ? null
+        : selectionError ?? this.selectionError,
     profile: profile,
     matches: matches,
     selectedMatch: clearSelection ? const {} : selectedMatch,
@@ -226,6 +235,8 @@ class LocalScoutController extends StateNotifier<LocalScoutState> {
     SynchronizeScoutAccount? synchronizeAccount,
     LoadChampionNames? loadChampionNames,
     LoadScoutMatchDetails? loadMatchDetails,
+    ScoutSelectionStore? selectionStore,
+    Future<List<LeagueAccountProfile>> Function()? loadKnownAccounts,
     ScoutProfileAnalyzer analyzer = const ScoutProfileAnalyzer(),
     LocalScoutState initialState = const LocalScoutState(),
   }) : _loadMatches = loadMatches,
@@ -235,6 +246,8 @@ class LocalScoutController extends StateNotifier<LocalScoutState> {
        _loadChampionNames = loadChampionNames,
        _loadMatchDetails = loadMatchDetails,
        _analyzer = analyzer,
+       _selectionStore = selectionStore,
+       _loadKnownAccounts = loadKnownAccounts,
        super(initialState);
 
   final LoadLocalMatches _loadMatches;
@@ -248,10 +261,80 @@ class LocalScoutController extends StateNotifier<LocalScoutState> {
   LeagueAccountProfile? _subjectAccount;
   LeagueAccountProfile? _connectedAccount;
   bool _showingConnectedAccount = true;
+  bool get followsConnectedAccount => _showingConnectedAccount;
+  final ScoutSelectionStore? _selectionStore;
+  final Future<List<LeagueAccountProfile>> Function()? _loadKnownAccounts;
+  Future<void>? _restoringSelection;
+  Future<void> _selectionWrites = Future.value();
+  int _selectionRevision = 0;
+
+  Future<void> restoreSelection() =>
+      _restoringSelection ??= _restoreSelection();
+
+  Future<void> _restoreSelection() async {
+    if (_selectionStore == null || _loadKnownAccounts == null) return;
+    try {
+      final key = await _selectionStore.load();
+      if (!mounted || key == null) return;
+      final accounts = await _loadKnownAccounts();
+      if (!mounted) return;
+      for (final account in accounts) {
+        if (account.puuid.value == key.puuid &&
+            account.platformId.value == key.platform) {
+          _showingConnectedAccount = false;
+          _subjectAccount = account;
+          await _hydrate(account, synchronizeIfAvailable: false);
+          return;
+        }
+      }
+      // The user may have deliberately deleted the local data since selection.
+      await _selectionStore.save(null);
+    } catch (_) {
+      if (mounted) {
+        state = state.copyWith(
+          selectionError: 'No se pudo restaurar la selección de Scout. Puedes elegirla de nuevo.',
+        );
+      }
+    }
+  }
+
+  Future<void> _saveSelection(LeagueAccountProfile? account) {
+    final key = account == null
+        ? null
+        : (puuid: account.puuid.value, platform: account.platformId.value);
+    return _selectionWrites = _selectionWrites.then((_) async {
+      try {
+        await _selectionStore?.save(key);
+        if (mounted) state = state.copyWith(clearSelectionError: true);
+      } catch (_) {
+        if (mounted) {
+          state = state.copyWith(
+            selectionError: 'El perfil se abrió, pero no se pudo recordar para el próximo inicio.',
+          );
+        }
+      }
+    });
+  }
+
+  Future<void> selectSavedAccount(LeagueAccountProfile account) async {
+    final selectionRevision = ++_selectionRevision;
+    await restoreSelection();
+    if (!mounted || selectionRevision != _selectionRevision) return;
+    _showingConnectedAccount = false;
+    _subjectAccount = account;
+    // Browsing an existing profile is local; refreshing is an explicit action.
+    final hydration = _hydrate(account, synchronizeIfAvailable: false);
+    final saving = _saveSelection(account);
+    await hydration;
+    await saving;
+  }
+
   int _revision = 0;
   int _detailRevision = 0;
 
   Future<void> loadAccount(LeagueAccountProfile? account) async {
+    await restoreSelection();
+    if (!mounted) return;
     final previousConnected = _connectedAccount;
     _connectedAccount = account;
     if (account == null) {
@@ -259,7 +342,7 @@ class LocalScoutController extends StateNotifier<LocalScoutState> {
         _revision++;
         _detailRevision++;
         _subjectAccount = null;
-        state = const LocalScoutState();
+        state = LocalScoutState(selectionError: state.selectionError);
       }
       return;
     }
@@ -280,6 +363,9 @@ class LocalScoutController extends StateNotifier<LocalScoutState> {
     required String gameName,
     required String tagLine,
   }) async {
+    final selectionRevision = ++_selectionRevision;
+    await restoreSelection();
+    if (!mounted || selectionRevision != _selectionRevision) return;
     final resolver = _resolveAccount;
     if (resolver == null) {
       state = state.copyWith(lastError: 'Resolución de cuentas no disponible.');
@@ -308,8 +394,12 @@ class LocalScoutController extends StateNotifier<LocalScoutState> {
         subjectAccount: account,
         activeUserAccount: state.activeUserAccount,
         loadingLabel: 'Invocador encontrado. Sincronizando historial…',
+        selectionError: state.selectionError,
       );
-      await _hydrate(account, synchronizeIfAvailable: true);
+      final hydration = _hydrate(account, synchronizeIfAvailable: true);
+      final saving = _saveSelection(account);
+      await hydration;
+      await saving;
     } catch (error) {
       if (revision != _revision) return;
       state = state.copyWith(
@@ -321,16 +411,25 @@ class LocalScoutController extends StateNotifier<LocalScoutState> {
   }
 
   Future<void> useConnectedAccount() async {
+    final selectionRevision = ++_selectionRevision;
+    await restoreSelection();
+    if (!mounted || selectionRevision != _selectionRevision) return;
+    _showingConnectedAccount = true;
     final connected = _connectedAccount;
     if (connected == null) {
-      state = state.copyWith(
-        lastError: 'No hay cuenta conectada al cliente de League.',
-      );
+      _revision++;
+      _detailRevision++;
+      _subjectAccount = null;
+      state = const LocalScoutState();
+      await _saveSelection(null);
       return;
     }
     _showingConnectedAccount = true;
     _subjectAccount = connected;
-    await _hydrate(connected, synchronizeIfAvailable: true);
+    final hydration = _hydrate(connected, synchronizeIfAvailable: true);
+    final saving = _saveSelection(null);
+    await hydration;
+    await saving;
   }
 
   Future<void> refresh() async {
@@ -352,6 +451,7 @@ class LocalScoutController extends StateNotifier<LocalScoutState> {
       state = LocalScoutState(
         subjectAccount: account,
         activeUserAccount: state.activeUserAccount,
+        selectionError: state.selectionError,
       );
     }
     final hasVisibleCache =
@@ -373,7 +473,9 @@ class LocalScoutController extends StateNotifier<LocalScoutState> {
 
       var ranked = await _loadRanked(account.puuid);
       if (revision != _revision) return;
-      var records = await _loadMatches(account.puuid, limit: 30);
+      var records = (await _loadMatches(account.puuid, limit: 30))
+          .where((record) => record.match.platformId == account.platformId)
+          .toList();
       if (revision != _revision) return;
 
       final projection = await _projectMatches(records, account.puuid);
@@ -397,7 +499,9 @@ class LocalScoutController extends StateNotifier<LocalScoutState> {
         if (revision != _revision) return;
         ranked = await _loadRanked(account.puuid);
         if (revision != _revision) return;
-        records = await _loadMatches(account.puuid, limit: 30);
+        records = (await _loadMatches(account.puuid, limit: 30))
+            .where((record) => record.match.platformId == account.platformId)
+            .toList();
         if (revision != _revision) return;
 
         final freshProjection = await _projectMatches(records, account.puuid);
@@ -827,8 +931,8 @@ ScoutMatchSummary _buildMatchSummary(
     visionScore: visionScore,
     killParticipation: killParticipation,
     items: items,
-    spell1IconUrl: spell1Id != null ? _spellIcon(spell1Id, patchVersion) : null,
-    spell2IconUrl: spell2Id != null ? _spellIcon(spell2Id, patchVersion) : null,
+    spell1IconUrl: spell1Id != null ? scoutSpellIcon(spell1Id) : null,
+    spell2IconUrl: spell2Id != null ? scoutSpellIcon(spell2Id) : null,
     performanceScore: performanceScore,
     hasFullDetails: detailsJson != null && participantsList.isNotEmpty,
     teams: teams,
@@ -927,10 +1031,6 @@ String? _timelineEventLabel(String type, Map<String, dynamic> event) =>
 String _championIcon(int championId) =>
     'https://raw.communitydragon.org/latest/plugins/'
     'rcp-be-lol-game-data/global/default/v1/champion-icons/$championId.png';
-
-String _spellIcon(int spellId, String patch) =>
-    'https://raw.communitydragon.org/latest/plugins/'
-    'rcp-be-lol-game-data/global/default/data/spells/icons2d/$spellId.png';
 
 Object? _decode(String? value) {
   if (value == null) return null;

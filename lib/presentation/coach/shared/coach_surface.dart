@@ -7,7 +7,7 @@ abstract final class CoachColors {
   static const surface = GsColors.surface;
   static const elevated = GsColors.surfaceElevated;
   static const border = GsColors.border;
-  static const cyan = GsColors.cyan;
+  static const accent = GsColors.accent;
   static const emerald = GsColors.emerald;
   static const crimson = GsColors.crimson;
   static const amber = GsColors.amber;
@@ -22,6 +22,7 @@ class CoachSurface extends StatelessWidget {
     required this.child,
     this.title,
     this.subtitle,
+    this.headerCenter,
     this.icon,
     this.action,
   });
@@ -29,6 +30,7 @@ class CoachSurface extends StatelessWidget {
   final Widget child;
   final String? title;
   final String? subtitle;
+  final Widget? headerCenter;
   final IconData? icon;
   final Widget? action;
 
@@ -37,6 +39,7 @@ class CoachSurface extends StatelessWidget {
     return GsCard(
       title: title,
       subtitle: subtitle,
+      headerCenter: headerCenter,
       icon: icon,
       action: action,
       child: child,

@@ -1,4 +1,7 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:godsense/app/godsense_app.dart';
@@ -56,10 +59,16 @@ void main() {
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
       try {
+        final paintKey = GlobalKey();
         await tester.pumpWidget(
           UncontrolledProviderScope(
             container: container,
-            child: const MaterialApp(home: GodSenseOverlay()),
+            child: MaterialApp(
+              home: RepaintBoundary(
+                key: paintKey,
+                child: const GodSenseOverlay(),
+              ),
+            ),
           ),
         );
         await tester.pump();
@@ -80,6 +89,34 @@ void main() {
         expect(find.text('Lee Sin'), findsOneWidget);
         expect(find.byType(MiniGoldBadgeHUD), findsOneWidget);
         expect(find.byType(VoiceCapsuleHUD), findsNothing);
+
+        // The editable viewport must not cut through a card's own rounded
+        // border. Sample the top-left arc where a larger 12px outer clip used
+        // to remove the green Directives border (the card radius is 8px).
+        await tester.pump();
+        final origin = tester.getTopLeft(find.byType(PriorityDirectivesHUD));
+        final boundary =
+            paintKey.currentContext!.findRenderObject()!
+                as RenderRepaintBoundary;
+        final image = (await tester.runAsync(
+          () => boundary.toImage(pixelRatio: 1),
+        ))!;
+        try {
+          final pixels = (await tester.runAsync(
+            () => image.toByteData(format: ui.ImageByteFormat.rawRgba),
+          ))!;
+          final offset =
+              (((origin.dy + 1).floor() * image.width) +
+                  (origin.dx + 5).floor()) *
+              4;
+          expect(
+            pixels.getUint8(offset + 1),
+            greaterThan(pixels.getUint8(offset) + 10),
+            reason: 'The Directives border must remain painted along its rounded corner.',
+          );
+        } finally {
+          image.dispose();
+        }
 
         final now = DateTime.now();
         CompanionAlert alert(

@@ -48,10 +48,10 @@ void main() {
       );
 
       await tester.pumpAndSettle();
-      expect(find.text('Proveedor del coach'), findsOneWidget);
+      expect(find.text('1. Preparar el motor de IA'), findsOneWidget);
       expect(find.text('OpenCode'), findsOneWidget);
       expect(find.text('Kilo Code'), findsOneWidget);
-      expect(find.text('Modelo y respuestas'), findsOneWidget);
+      expect(find.text('2. Elegir modelo y respuesta'), findsOneWidget);
       expect(find.text('Contexto y privacidad'), findsOneWidget);
       expect(find.text('Sin instalar'), findsNWidgets(2));
       expect(find.text('Descargar e instalar'), findsNWidgets(2));

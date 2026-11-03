@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:godsense/application/account_context_coordinator.dart';
 import 'package:godsense/application/native_league_foundation.dart';
+import 'package:godsense/domain/identity/league_identity.dart';
 import 'package:godsense/domain/league/lcu_capabilities.dart';
 import 'package:godsense/domain/league/game_session.dart';
 import 'package:godsense/infrastructure/league/lcu_probe_transport.dart';
@@ -77,6 +78,31 @@ void main() {
     expect(disconnected.account.status, AccountContextStatus.disconnected);
     expect(disconnected.account.context?.account.puuid.value, 'player-puuid');
   });
+
+  test(
+    'another region cannot sync through the current League session',
+    () async {
+      await foundation.observeLcu(connected: true, gameflowPhase: 'Lobby');
+      final current = foundation.state.account.context!.account;
+      final other = current.copyWith(platformId: PlatformId('NA1'));
+      final pathsBefore = List<String>.of(client.paths);
+      await expectLater(
+        foundation.synchronizeScoutAccount(other),
+        throwsA(
+          isA<StateError>().having(
+            (error) => error.message,
+            'message',
+            contains('NA1'),
+          ),
+        ),
+      );
+      expect(client.paths, pathsBefore);
+      expect(
+        foundation.state.account.context!.account.platformId,
+        current.platformId,
+      );
+    },
+  );
 
   test('reconciles account on its safety cadence, not on every tick', () async {
     await foundation.observeLcu(connected: true, gameflowPhase: 'Lobby');

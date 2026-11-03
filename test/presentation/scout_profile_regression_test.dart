@@ -9,7 +9,7 @@ import 'package:godsense/domain/identity/league_identity.dart';
 import 'package:godsense/domain/league/account_context.dart';
 
 void main() {
-  for (final width in [1280.0, 800.0]) {
+  for (final width in [1280.0, 900.0, 800.0]) {
     testWidgets(
       'populated Scout profile retains allies, opponents and metrics at width $width',
       (tester) async {
@@ -117,6 +117,18 @@ void main() {
           ),
         );
         await tester.pumpAndSettle();
+        final searchRect = tester.getRect(
+          find.byKey(const ValueKey('scout-search-console')),
+        );
+        final profileRect = tester.getRect(
+          find.byKey(const ValueKey('scout-profile-summary')),
+        );
+        if (width >= 900) {
+          expect(searchRect.left, greaterThan(profileRect.right));
+          expect(profileRect.center.dy, closeTo(searchRect.center.dy, 1));
+        } else {
+          expect(profileRect.top, greaterThan(searchRect.bottom));
+        }
         expect(find.text('Hide on bush#KR1'), findsOneWidget);
         expect(find.text('Synthetic Ally'), findsOneWidget);
         expect(find.text('Synthetic Opponent'), findsOneWidget);
